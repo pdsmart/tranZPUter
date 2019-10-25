@@ -31,6 +31,8 @@ As the design replaces a Z80 in-situ it is not limited to the MZ80A but can be u
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9681.jpg)
 
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9640.jpg)
+
 
 
 
