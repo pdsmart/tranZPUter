@@ -19,15 +19,15 @@ This design is still in its infancy, many features have been tested and the sche
 
 ##### 
 
-![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9630.jpg)
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9630.jpg)
 
-![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9631.jpg)
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9631.jpg)
 
-![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9636.jpg)
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9636.jpg)
 
-![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9637.jpg)
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9637.jpg)
 
-![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9681.jpg)
+![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9681.jpg)
 
 
 
