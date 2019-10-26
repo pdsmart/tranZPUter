@@ -137,90 +137,90 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[0]
 # SDRAM
 #============================================================
 # Data bus
-set_location_assignment PIN_B10 -to DQ[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[0]
-set_location_assignment PIN_A10 -to DQ[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[1]
-set_location_assignment PIN_B11 -to DQ[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[2]
-set_location_assignment PIN_A11 -to DQ[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[3]
-set_location_assignment PIN_A12 -to DQ[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[4]
-set_location_assignment PIN_D9 -to DQ[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[5]
-set_location_assignment PIN_B12 -to DQ[6]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[6]
-set_location_assignment PIN_C9 -to DQ[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[7]
-set_location_assignment PIN_D11 -to DQ[8]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[8]
-set_location_assignment PIN_E11 -to DQ[9]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[9]
-set_location_assignment PIN_A15 -to DQ[10]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[10]
-set_location_assignment PIN_E9 -to DQ[11]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[11]
-set_location_assignment PIN_D14 -to DQ[12]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[12]
-set_location_assignment PIN_F9 -to DQ[13]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[13]
-set_location_assignment PIN_C14 -to DQ[14]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[14]
-set_location_assignment PIN_A14 -to DQ[15]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQ[15]
+set_location_assignment PIN_B10 -to SDRAM_DQ[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[0]
+set_location_assignment PIN_A10 -to SDRAM_DQ[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[1]
+set_location_assignment PIN_B11 -to SDRAM_DQ[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[2]
+set_location_assignment PIN_A11 -to SDRAM_DQ[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[3]
+set_location_assignment PIN_A12 -to SDRAM_DQ[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[4]
+set_location_assignment PIN_D9 -to SDRAM_DQ[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[5]
+set_location_assignment PIN_B12 -to SDRAM_DQ[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[6]
+set_location_assignment PIN_C9 -to SDRAM_DQ[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[7]
+set_location_assignment PIN_D11 -to SDRAM_DQ[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[8]
+set_location_assignment PIN_E11 -to SDRAM_DQ[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[9]
+set_location_assignment PIN_A15 -to SDRAM_DQ[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[10]
+set_location_assignment PIN_E9 -to SDRAM_DQ[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[11]
+set_location_assignment PIN_D14 -to SDRAM_DQ[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[12]
+set_location_assignment PIN_F9 -to SDRAM_DQ[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[13]
+set_location_assignment PIN_C14 -to SDRAM_DQ[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[14]
+set_location_assignment PIN_A14 -to SDRAM_DQ[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQ[15]
 # Address Bus
-set_location_assignment PIN_A3 -to A[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[0]
-set_location_assignment PIN_B5 -to A[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[1]
-set_location_assignment PIN_B4 -to A[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[2]
-set_location_assignment PIN_B3 -to A[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[3]
-set_location_assignment PIN_C3 -to A[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[4]
-set_location_assignment PIN_D3 -to A[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[5]
-set_location_assignment PIN_E6 -to A[6]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[6]
-set_location_assignment PIN_E7 -to A[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[7]
-set_location_assignment PIN_D6 -to A[8]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[8]
-set_location_assignment PIN_D8 -to A[9]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[9]
-set_location_assignment PIN_A5 -to A[10]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[10]
-set_location_assignment PIN_E8 -to A[11]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[11]
-set_location_assignment PIN_A2 -to A[12]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[12]
-set_location_assignment PIN_C6 -to A[13]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to A[13]
+set_location_assignment PIN_A3 -to SDRAM_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[0]
+set_location_assignment PIN_B5 -to SDRAM_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[1]
+set_location_assignment PIN_B4 -to SDRAM_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[2]
+set_location_assignment PIN_B3 -to SDRAM_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[3]
+set_location_assignment PIN_C3 -to SDRAM_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[4]
+set_location_assignment PIN_D3 -to SDRAM_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[5]
+set_location_assignment PIN_E6 -to SDRAM_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[6]
+set_location_assignment PIN_E7 -to SDRAM_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[7]
+set_location_assignment PIN_D6 -to SDRAM_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[8]
+set_location_assignment PIN_D8 -to SDRAM_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[9]
+set_location_assignment PIN_A5 -to SDRAM_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[10]
+set_location_assignment PIN_E8 -to SDRAM_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[11]
+set_location_assignment PIN_A2 -to SDRAM_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[12]
+set_location_assignment PIN_C6 -to SDRAM_ADDR[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_ADDR[13]
 # Byte addressing
-set_location_assignment PIN_A4 -to BA[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BA[0]
-set_location_assignment PIN_B6 -to BA[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BA[1]
-set_location_assignment PIN_B13 -to DQM[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQM[0]
-set_location_assignment PIN_D12 -to DQM[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DQM[1]
+set_location_assignment PIN_A4 -to SDRAM_BA[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_BA[0]
+set_location_assignment PIN_B6 -to SDRAM_BA[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_BA[1]
+set_location_assignment PIN_B13 -to SDRAM_DQM[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQM[0]
+set_location_assignment PIN_D12 -to SDRAM_DQM[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_DQM[1]
 # Chip control.
-set_location_assignment PIN_C8 -to CAS
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CAS
-set_location_assignment PIN_B7 -to RAS
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to RAS
-set_location_assignment PIN_A7 -to WE
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to WE
-set_location_assignment PIN_A6 -to CS
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CS
+set_location_assignment PIN_C8 -to SDRAM_CAS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_CAS
+set_location_assignment PIN_B7 -to SDRAM_RAS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_RAS
+set_location_assignment PIN_A7 -to SDRAM_WE
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_WE
+set_location_assignment PIN_A6 -to SDRAM_CS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_CS
 # Clock and enabling.
-set_location_assignment PIN_F8 -to CKE
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CKE
-set_location_assignment PIN_B14 -to SDRAMCLK
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAMCLK
+set_location_assignment PIN_F8 -to SDRAM_CKE
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_CKE
+set_location_assignment PIN_B14 -to SDRAM_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_CLK
 
 #============================================================
 # FT2232H
@@ -446,25 +446,14 @@ set_global_assignment -name QIP_FILE Clock_12to100.qip
 set_global_assignment -name SDC_FILE tranZPUter_constraints.sdc
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_core_flex.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_pkg.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_flex_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_core_small.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_small_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_core_medium.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_core_evo.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_medium_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/cpu/zpu_uart_debug.vhd
-#set_global_assignment -name VHDL_FILE ../trace/trace.vhd
-#set_global_assignment -name VHDL_FILE ../trace/txt_util.vhd
 set_global_assignment -name VHDL_FILE ../zpu_soc_pkg.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/zpu_soc.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/RAM/dpram.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/uart_brgen.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/uart_mv_filter.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/uart_rx.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/uart_tx.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/uart.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/uart/simple_uart.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/fifo/fifo.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/intr/interrupt_controller.vhd
 #set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/spi/spi.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/SDMMC/SDCard.vhd
@@ -480,27 +469,8 @@ set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/TCPU/tcpu.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/WishBone/I2C/i2c_master_top.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/WishBone/I2C/i2c_master_byte_ctrl.vhd
 set_global_assignment -name VHDL_FILE ../../zpu/devices/WishBone/I2C/i2c_master_bit_ctrl.vhd
-set_global_assignment -name VHDL_FILE ../../em/common/config_pkg.vhd
-set_global_assignment -name QIP_FILE ../../zpu/devices/WishBone/SDRAM/sdram.qip
-#set_global_assignment -name VERILOG_FILE ../../zpu/cpu/qdiv.v
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/Peripherals/simple_uart.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/SysRAM/SysRAM.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/RAM/DualPortRAM.vhd
-#set_global_assignment -name VERILOG_FILE ../../zpu/devices/sysbus/RAM/TwoWayCache.v
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/RAM/sdram_cached.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/Toplevel_Config.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/DMACache_config.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/Video/video_vga_master.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/Video/video_vga_dither.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/Video/vga_controller.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/DMA/DMACache.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/DMA/DMACache_pkg.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/DMA/FIFO_Counter.vhd
-#set_global_assignment -name VHDL_FILE ../../zpu/devices/sysbus/DMA/DMACacheRAM.vhd
+set_global_assignment -name VHDL_FILE ../../zpu/devices/WishBone/SDRAM/sdram.vhd
 
 set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
-
-
-
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
