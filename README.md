@@ -26,22 +26,30 @@ To provide different CPU's it is just a matter of mapping in VHDL the softcore C
 
 Below are pictures of the current design and files uploaded onto github are relatively stable, WIP files wont be uploaded.
 
+#### To Do
+a) Write the ZPU C/C++ code to take control of the MZ80A, save/update/restore the Video Memory (for Menu system), convert the Main/sharpmz.? Menu/control code, and additional glue to use the SD card.<br/>
+b) Convert the T80 CPU to act as a Z80 upgrade for the MZ80A.
+
+### Images of the tranZPUter daughter board
 ##### 
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9630.jpg)
+Underside of the daughter board showing a 40pin standoff connector. The original Z80 CPU is removed, located onto the daughter board which is then connected by the 40pin standoff to the main board.
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9631.jpg)
+Topside of the daughter board without the Z80 or CYC1000 devices.
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9637.jpg)
+Topside of the daughter board with the Z80 and CYC1000 in place.
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9681.jpg)
+The original motherboard, the tranZPUter daughter board is located top right and the 40/80 column and RFS daughter boards can also be seen in place.
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9636.jpg)
+A test to verify that the board sits correctly within the MZ80A computer.
 
 ![alt text](https://github.com/pdsmart/tranZPUter/blob/master/docs/IMG_9640.jpg)
-
-
-
+A power on test and verification.
 
 
 ## Credits
