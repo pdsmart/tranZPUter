@@ -2,6 +2,7 @@
 
 This document is a work in progress.
 
+Please consult my [GitHub](https://pdsmart.github.io) website for more upto date information.
 
 
 ## Overview
