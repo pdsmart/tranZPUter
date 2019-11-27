@@ -47,7 +47,8 @@ package zpu_soc_pkg is
     -- Frequencies for the various boards.
     --
     constant SYSCLK_E115_FREQ         :     integer    := 100000000;                                        -- E115 FPGA Board
-    constant SYSCLK_QMV_FREQ          :     integer    := 100000000;                                        -- QM CycloneV FPGA Board
+    constant SYSCLK_QMV_FREQ          :     integer    := 100000000;                                        -- QMTECH Cyclone V FPGA Board
+    constant SYSCLK_DE0_FREQ          :     integer    := 100000000;                                        -- DE0-Nano FPGA Board
     constant SYSCLK_DE10_FREQ         :     integer    := 100000000;                                        -- DE10-Nano FPGA Board
     constant SYSCLK_CYC1000_FREQ      :     integer    := 100000000;                                        -- Trenz CYC1000 FPGA Board
 
@@ -68,34 +69,28 @@ package zpu_soc_pkg is
 
     -- Settings for various IO devices.
     --
-    constant MAX_RX_FIFO_BITS         :     integer    := 8;                                                -- Size of UART RX Fifo.
-    constant MAX_TX_FIFO_BITS         :     integer    := 8;                                                -- Size of UART TX Fifo.
+    constant MAX_RX_FIFO_BITS         :     integer    := 4;                                                -- Size of UART RX Fifo.
+    constant MAX_TX_FIFO_BITS         :     integer    := 4;                                                -- Size of UART TX Fifo.
     constant MAX_UART_DIVISOR_BITS    :     integer    := 16;                                               -- Maximum number of bits for the UART clock rate generator divisor.
     constant INTR_MAX                 :     integer    := 16;                                               -- Maximum number of interrupt inputs.
     constant SYSTEM_FREQUENCY         :     integer    := 100000000;                                        -- Default system clock frequency if not overriden by top level.
---    constant SYSCLK_FREQUENCY         :     integer    := 1000;                                             -- System clock in MHz x 10
---    constant SYSCLK_HZ                :     integer    := SYSCLK_FREQUENCY*100000;                          -- System clock in Hertz
---    constant UART_RESET_COUNT         :     integer    := ((SYSCLK_FREQUENCY*100000)/300)*8;                -- Count of system clock ticks for a UART break to be recognised as a system reset.
 
     -- SoC specific options.
     --
     constant SOC_IMPL_WB              :     boolean    := EVO_USE_WB_BUS;                                   -- Implement the Wishbone bus and all enabled devices.
-    constant SOC_IMPL_WB_I2C          :     boolean    := true;                                             -- Implement I2C over wishbone interface.
     constant SOC_IMPL_WB_SDRAM        :     boolean    := true;                                             -- Implement SDRAM over wishbone interface.
     constant SOC_IMPL_TIMER1          :     boolean    := true;                                             -- Implement Timer 1, an array of prescaled downcounter with enable.
     constant SOC_TIMER1_COUNTERS      :     integer    := 0;                                                -- Number of downcounters in Timer 1. Value is a 2^ array of counters, so 0 = 1 counter.
-    constant SOC_IMPL_PS2             :     boolean    := true;                                             -- Implement PS2 keyboard and mouse hardware.
-    constant SOC_IMPL_SPI             :     boolean    := true;                                             -- Implement Serial Peripheral Inteface(s).
     constant SOC_IMPL_SD              :     boolean    := true;                                             -- Implement SD Card interface.
     constant SOC_SD_DEVICES           :     integer    := 1;                                                -- Number of SD card channels implemented.
     constant SOC_IMPL_INTRCTL         :     boolean    := true;                                             -- Implement the prioritised interrupt controller.
-    constant SOC_IMPL_IOCTL           :     boolean    := false;                                            -- Implement the IOCTL controller (specific to the MiSTer project).
+    constant SOC_IMPL_TCPU            :     boolean    := true;                                             -- Implement the TCPU controller for controlling the Z80 Bus. 
     constant SOC_IMPL_SOCCFG          :     boolean    := true;                                             -- Implement the SoC Configuration information registers.
     constant SOC_IMPL_BRAM            :     boolean    := true;                                             -- Implement BRAM for the BIOS and initial Stack.
     constant SOC_IMPL_RAM             :     boolean    := false;                                            -- Implement RAM using BRAM, typically for Application programs seperate to BIOS.
     constant SOC_IMPL_DRAM            :     boolean    := false;                                            -- Implement Dynamic RAM and controller.
-    constant SOC_IMPL_INSN_BRAM       :     boolean    := true;                                             -- Implement dedicated instruction BRAM for the EVO CPU. Any addr access beyond the BRAM size goes to normal memory.
-    constant SOC_MAX_ADDR_BRAM_BIT    :     integer    := 16;                                               -- Max address bit of the System BRAM ROM/Stack in bytes, ie. 15 = 32KB or 8K 32bit words. NB. For non evo CPUS you must adjust the maxMemBit parameter in zpu_pkg.vhd to be the same.
+    constant SOC_IMPL_INSN_BRAM       :     boolean    := false;                                            -- Implement dedicated instruction BRAM for the EVO CPU. Any addr access beyond the BRAM size goes to normal memory.
+    constant SOC_MAX_ADDR_BRAM_BIT    :     integer    := 15;                                               -- Max address bit of the System BRAM ROM/Stack in bytes, ie. 15 = 32KB or 8K 32bit words. NB. For non evo CPUS you must adjust the maxMemBit parameter in zpu_pkg.vhd to be the same.
     constant SOC_ADDR_BRAM_START      :     integer    := 0;                                                -- Start address of BRAM.
     constant SOC_ADDR_BRAM_END        :     integer    := SOC_ADDR_BRAM_START+(2**SOC_MAX_ADDR_BRAM_BIT);   -- End address of BRAM = START + 2^SOC_MAX_ADDR_INSN_BRAM_BIT.
     constant SOC_MAX_ADDR_RAM_BIT     :     integer    := 23;                                               -- Max address bit of the System RAM.
@@ -125,7 +120,7 @@ package zpu_soc_pkg is
 --    subtype WB_IO_DECODE_RANGE        is natural range maxAddrBit-1            downto maxIOBit;             -- Upper bits in memory defining the IO block within the address space for the EVO cpu IO. All other models use ioBit.
  
     -- Device options
-    type CardType_t is (SD_CARD_E, SDHC_CARD_E);                                                     -- Define the different types of SD cards.
+    type CardType_t is (SD_CARD_E, SDHC_CARD_E);                                                            -- Define the different types of SD cards.
 
 
     ------------------------------------------------------------ 
@@ -196,10 +191,10 @@ package zpu_soc_pkg is
 
     component SDCard is
         generic (
-          FREQ_G                      : real            := 100.0;       -- Master clock frequency (MHz).
-          INIT_SPI_FREQ_G             : real            := 0.4;         -- Slow SPI clock freq. during initialization (MHz).
-          SPI_FREQ_G                  : real            := 25.0;        -- Operational SPI freq. to the SD card (MHz).
-          BLOCK_SIZE_G                : natural         := 512;         -- Number of bytes in an SD card block or sector.
+          FREQ_G                      : real              := 100.0;       -- Master clock frequency (MHz).
+          INIT_SPI_FREQ_G             : real              := 0.4;         -- Slow SPI clock freq. during initialization (MHz).
+          SPI_FREQ_G                  : real              := 25.0;        -- Operational SPI freq. to the SD card (MHz).
+          BLOCK_SIZE_G                : natural           := 512;         -- Number of bytes in an SD card block or sector.
           CARD_TYPE_G                 : CardType_t      := SD_CARD_E    -- Type of SD card connected to this controller.
           );
         port (

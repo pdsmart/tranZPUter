@@ -50,7 +50,7 @@ entity tranZPUter is
         -- TCPU signals.
         CYC_D           : inout std_logic_vector(15 downto 0);              -- Data bus
         CYC_CTL_SET_n   : out   std_logic;                                  -- Set the transceiver control signals.
-        CYC_CTL_RST_n   : out   std_logic;                                  -- Reset the transceiver control signals.
+        CYC_CTL_CLR_n   : out   std_logic;                                  -- Reset the transceiver control signals.
         CYC_CLK_n       : in    std_logic;                                  -- Z80 Main Clock
         CYC_NMI_n       : in    std_logic;                                  -- Z80 NMI converted to 3.3v
         CYC_INT_n       : in    std_logic;                                  -- Z80 INT converted to 3.,3v
@@ -127,7 +127,6 @@ port map
         
     -- SDRAM signals
     SDRAM_CLK         => SDRAM_CLK,                        -- sdram is accessed at 128MHz
-    SDRAM_RST         => reset,                            -- reset the sdram controller.
     SDRAM_CKE         => SDRAM_CKE,                        -- clock enable.
     SDRAM_DQ          => SDRAM_DQ,                         -- 16 bit bidirectional data bus
     SDRAM_ADDR        => SDRAM_ADDR,                       -- 13 bit multiplexed address bus
@@ -142,7 +141,7 @@ port map
     -- TCPU Bus
     TCPU_DATA         => CYC_D,                            -- Data bus
     TCPU_CTL_SET_n    => CYC_CTL_SET_n,                    -- Set the transceiver control signals.
-    TCPU_CTL_RST_n    => CYC_CTL_RST_n,                    -- Reset the transceiver control signals.
+    TCPU_CTL_CLR_n    => CYC_CTL_CLR_n,                    -- Reset the transceiver control signals.
     TCPU_CLK_n        => CYC_CLK_n,                        -- Z80 Main Clock
     TCPU_NMI_n        => CYC_NMI_n,                        -- Z80 NMI converted to 3.3v
     TCPU_INT_n        => CYC_INT_n,                        -- Z80 INT converted to 3.,3v
