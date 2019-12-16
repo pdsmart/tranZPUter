@@ -39,6 +39,25 @@ use ieee.numeric_std.all;
 
 package zpu_pkg is
 
+    -- Necessary functions for type conversion.
+    --
+    function bool_to_integer(level : boolean) return integer;
+
+    -- Evo specific options.
+    --
+    constant EVO_USE_INSN_BUS         :     boolean          := true;                                -- Use a seperate instruction bus to connect to the BRAM memory. All other operations go over the normal bus.
+    constant EVO_USE_HW_BYTE_WRITE    :     boolean          := true;                                -- Implement hardware writing of bytes, reads are always 32bit and aligned.
+    constant EVO_USE_HW_WORD_WRITE    :     boolean          := true;                                -- Implement hardware writing of 16bit words,  reads are always 32bit and aligned.
+    constant EVO_USE_WB_BUS           :     boolean          := true;                                -- Implement the wishbone interface in addition to the standard direct interface. NB: Change WB_ACTIVE to 1 above if enabling.
+
+    -- Debug options.
+    --
+    constant DEBUG_CPU                :     boolean          := false;                               -- Enable CPU debugging output.
+    constant DEBUG_LEVEL              :     integer          := 0;                                   -- Level of debugging output. 0 = Basic, such as Breakpoint, 1 =+ Executing Instructions, 2 =+ L1 Cache contents, 3 =+ L2 Cache contents, 4 =+ Memory contents, 5=+ 4Everything else.
+    constant DEBUG_MAX_TX_FIFO_BITS   :     integer          := 10;                                  -- Size of UART TX Fifo for debug output.
+    constant DEBUG_MAX_FIFO_BITS      :     integer          := 2;                                   -- Size of debug output data records fifo.
+    constant DEBUG_TX_BAUD_RATE       :     integer          := 115200; --230400;                    -- Baud rate for the debug transmitter.
+
     -- Constants common to all ZPU models source code.
     constant Generate_Trace           :     boolean          := false;                               -- generate trace output or not.
     constant wordPower                :     integer          := 5;                                   -- The number of bits in a word, defined as 2^wordPower).
@@ -47,13 +66,11 @@ package zpu_pkg is
     constant wordSize                 :     integer          := 2**wordPower;
     constant wordBytes                :     integer          := wordSize/8;
     constant minAddrBit               :     integer          := byteBits;
-    constant WB_ACTIVE                :     integer          := 1;                                   -- Set to 1 if the wishbone interface is active to divide the address space in two, lower = direct access, upper = wishbone.
+    constant WB_ACTIVE                :     integer          := bool_to_integer(EVO_USE_WB_BUS);     -- Set to 1 if the wishbone interface is active to divide the address space in two, lower = direct access, upper = wishbone.
     constant maxAddrBit               :     integer          := 24 + WB_ACTIVE;                      -- Maximum address limit in bits.
     constant maxAddrSize              :     integer          := (2**maxAddrBit);                     -- Maximum address space size in bytes.
     constant maxIOBit                 :     integer          := maxAddrBit - WB_ACTIVE - 4;          -- Upper bit (to define range) of IO space in top section of address space.
---  constant maxMemBit                :     integer          := 16;                                  -- Non-EVO: Maximum memory bit, should be equal to maxAddrBit-1, Memory and IO each have 1/2 address space.
     constant ioBit                    :     integer          := maxAddrBit - 1;                      -- Non-EVO: MSB is used to differentiate IO and memory.
-
 
     constant ADDR_32BIT_SIZE          :     integer          := maxAddrBit - minAddrBit;             -- Bits in the address bus relevant for 32bit access.
     constant WB_SELECT_BIT            :     integer          := maxAddrBit - 1;                      -- Bit which divides the wishbone interface from normal memory space.
@@ -63,27 +80,11 @@ package zpu_pkg is
     subtype ADDR_16BIT_RANGE          is natural range maxAddrBit-1    downto 1;                     -- Full address range - 2 bytes (16bit) aligned 
     subtype ADDR_32BIT_RANGE          is natural range maxAddrBit-1    downto minAddrBit;            -- Full address range - 4 bytes (32bit) aligned
     subtype ADDR_64BIT_RANGE          is natural range maxAddrBit-1    downto minAddrBit+1;          -- Full address range - 8 bytes (64bit) aligned
---    subtype ADDR_MEM_32BIT_RANGE      is natural range maxAddrBit-1    downto minAddrBit;            -- Non-EVO: Memory range.
+--  subtype ADDR_MEM_32BIT_RANGE      is natural range maxAddrBit-1    downto minAddrBit;            -- Non-EVO: Memory range.
     subtype ADDR_IOBIT_RANGE          is natural range ioBit           downto minAddrBit;            -- Non-EVO: IO range.
     subtype WORD_32BIT_RANGE          is natural range wordSize-1      downto 0;                     -- Number of bits in a word (normally 32 for this CPU).
     subtype WORD_4BYTE_RANGE          is natural range wordBytes-1     downto 0;                     -- Bits needed to represent wordSize in bytes (normally 4 for 32bits).
     subtype BYTE_RANGE                is natural range 7               downto 0;                     -- Number of bits in a byte.
-
-    -- Evo specific options.
-    --
-    constant EVO_USE_INSN_BUS         :     boolean          := true;                                -- Use a seperate instruction bus to connect to the BRAM memory. All other operations go over the normal bus.
-    constant EVO_USE_HW_BYTE_WRITE    :     boolean          := true;                                -- Implement hardware writing of bytes, reads are always 32bit and aligned.
-    constant EVO_USE_HW_WORD_WRITE    :     boolean          := true;                                -- Implement hardware writing of 16bit words,  reads are always 32bit and aligned.
-    constant EVO_USE_WB_BUS           :     boolean          := true;                                -- Implement the wishbone interface in addition to the standard direct interface. NB: Change WB_ACTIVE to 1 above if enabling.
-    constant EVO_IMPL_RAM             :     boolean          := true;                                -- Implement application RAM, seperate to the BRAM using BRAM. The main BRAM would then be just for initial boot up.
-
-    -- Debug options.
-    --
-    constant DEBUG_CPU                :     boolean          := true;                                -- Enable CPU debugging output.
-    constant DEBUG_LEVEL              :     integer          := 0;                                   -- Level of debugging output. 0 = Basic, such as Breakpoint, 1 =+ Executing Instructions, 2 =+ L1 Cache contents, 3 =+ L2 Cache contents, 4 =+ Memory contents, 5=+ 4Everything else.
-    constant DEBUG_MAX_TX_FIFO_BITS   :     integer          := 12;                                  -- Size of UART TX Fifo for debug output.
-    constant DEBUG_MAX_FIFO_BITS      :     integer          := 3;                                   -- Size of debug output data records fifo.
-    constant DEBUG_TX_BAUD_RATE       :     integer          := 115200; --230400;                    -- Baud rate for the debug transmitter.
 
     ------------------------------------------------------------ 
     -- components
@@ -98,7 +99,7 @@ package zpu_pkg is
             IMPL_CALL                 : boolean := true;        -- Include call
             IMPL_SHIFT                : boolean := true;        -- Include lshiftright, ashiftright and ashiftleft
             IMPL_XOR                  : boolean := true;        -- include xor instruction
-            CACHE                     : boolean := false;
+            CACHE                     : boolean := true;
             CLK_FREQ                  : integer := 100000000;   -- Frequency of the input clock.
             STACK_ADDR                : integer := 0            -- Initial stack address on CPU start.
         );
@@ -226,9 +227,9 @@ package zpu_pkg is
             IMPL_LOADB                : boolean := true;        -- Load single byte from memory.
             IMPL_LOADH                : boolean := true;        -- Load half word (16bit) from memory.
             IMPL_LSHIFTRIGHT          : boolean := true;        -- Logical shift right.
-            IMPL_MOD                  : boolean := false;       -- 32bit modulo (remainder after division).
+            IMPL_MOD                  : boolean := true;        -- 32bit modulo (remainder after division).
             IMPL_MULT                 : boolean := true;        -- 32bit signed multiplication.
-            IMPL_NEG                  : boolean := false;       -- Negate value in TOS.
+            IMPL_NEG                  : boolean := true;        -- Negate value in TOS.
             IMPL_NEQ                  : boolean := true;        -- Not equal test.
             IMPL_POPPCREL             : boolean := true;        -- Pop a value into the Program Counter from a location relative to the Stack Pointer.
             IMPL_PUSHSPADD            : boolean := true;        -- Add a value to the Stack pointer and push it onto the stack.
@@ -361,7 +362,7 @@ package zpu_pkg is
     constant OpCode_Ulessthan           : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(38, 6));
     constant OpCode_Ulessthanorequal    : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(39, 6));
     --
-    constant OpCode_Swap                : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(40, 6));
+    constant OpCode_NA5                 : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(40, 6));
     constant OpCode_Mult                : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(41, 6));
     --
     constant OpCode_Lshiftright         : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(42, 6));
@@ -391,11 +392,13 @@ package zpu_pkg is
     constant OpCode_FiMult32            : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(60, 6));
     --
     constant OpCode_Pushspadd           : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(61, 6));
-    constant OpCode_Mult16x16           : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(62, 6));
+    constant OpCode_NA6                 : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(62, 6));
     constant OpCode_Callpcrel           : std_logic_vector(5 downto 0) := std_logic_vector(to_unsigned(63, 6));
     --
     -- Extension instructions. 
-    constant Opcode_Ex_Fill             : std_logic_vector(7 downto 2) := "000001";
+    constant Opcode_Ex_ESR              : std_logic_vector(7 downto 0) := "00000000";
+    constant Opcode_Ex_LDIR             : std_logic_vector(7 downto 3) := "00001";
+    constant Opcode_Ex_Fill             : std_logic_vector(7 downto 3) := "00010";
     --
     constant OpCode_Size                : integer                      := 8;
     --
@@ -450,3 +453,18 @@ package zpu_pkg is
     constant ZPU_DBG_T_INIT : zpu_dbg_t := ("00", '0', '0', '0', '0', (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'), (others => '0'));
     constant ZPU_DBG_T_DONTCARE : zpu_dbg_t := ((others => DontCareValue), DontCareValue, DontCareValue, DontCareValue, DontCareValue, (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, DontCareValue, (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue), (others => DontCareValue));
 end zpu_pkg;
+
+package body zpu_pkg is
+
+    -- Helper to convert Boolean to integer.
+    --
+    function bool_to_integer(level : boolean) return integer is
+    begin
+        if level then
+            return(1);
+        else
+            return(0);
+        end if;
+    end function;
+
+end package body zpu_pkg;

@@ -40,7 +40,7 @@ use ieee.numeric_std.all;
 use work.zpu_pkg.all;
 use work.zpu_soc_pkg.all;
 
-entity SinglePortBRAM is
+entity evo_L2cache is
     generic
     (
         addrbits             : integer := 16
@@ -53,61 +53,74 @@ entity SinglePortBRAM is
         memAWriteByte        : in  std_logic;
         memAWriteHalfWord    : in  std_logic;
         memAWrite            : in  std_logic_vector(WORD_32BIT_RANGE);
-        memARead             : out std_logic_vector(WORD_32BIT_RANGE)
+        memARead             : out std_logic_vector(WORD_32BIT_RANGE);
+
+        memBAddr             : in  std_logic_vector(addrbits-1 downto 2);
+        memBWrite            : in  std_logic_vector(WORD_32BIT_RANGE);
+        memBWriteEnable      : in  std_logic;
+        memBRead             : out std_logic_vector(WORD_32BIT_RANGE)
     );
-end SinglePortBRAM;
+end evo_L2cache;
 
-architecture arch of SinglePortBRAM is
+architecture arch of evo_L2cache is
 
+    -- Declare 4 byte wide arrays for byte level addressing.
     type ramArray is array(natural range 0 to (2**(addrbits-2))-1) of std_logic_vector(7 downto 0);
 
     shared variable RAM0 : ramArray :=
     (
         others => X"00"
     );
+
     shared variable RAM1 : ramArray :=
     (
         others => X"00"
     );
+
     shared variable RAM2 : ramArray :=
     (
         others => X"00"
     );
+
     shared variable RAM3 : ramArray :=
     (
         others => X"00"
     );
 
-    signal RAM0_DATA                       : std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
-    signal RAM1_DATA                       : std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
-    signal RAM2_DATA                       : std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
-    signal RAM3_DATA                       : std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
-    signal RAM0_WREN                       : std_logic;                      -- Write Enable for this particular byte in word.
-    signal RAM1_WREN                       : std_logic;                      -- Write Enable for this particular byte in word.
-    signal RAM2_WREN                       : std_logic;                      -- Write Enable for this particular byte in word.
-    signal RAM3_WREN                       : std_logic;                      -- Write Enable for this particular byte in word.
+    signal RAM0_DATA         :     std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
+    signal RAM1_DATA         :     std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
+    signal RAM2_DATA         :     std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
+    signal RAM3_DATA         :     std_logic_vector(7 downto 0);   -- Buffer for byte in word to be written.
+    signal RAM0_WREN         :     std_logic;                      -- Write Enable for this particular byte in word.
+    signal RAM1_WREN         :     std_logic;                      -- Write Enable for this particular byte in word.
+    signal RAM2_WREN         :     std_logic;                      -- Write Enable for this particular byte in word.
+    signal RAM3_WREN         :     std_logic;                      -- Write Enable for this particular byte in word.
 
 begin
 
+    -- Correctly assing the Little Endian value to the correct array, byte writes the data is in '7 downto 0', h-word writes
+    -- the data is in '15 downto 0'.
+    --
     RAM0_DATA <= memAWrite(7 downto 0);
-    RAM3_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "00") or (memAWriteHalfWord = '1' and memAAddr(1) = '0'))
-                 else '0';
     RAM1_DATA <= memAWrite(15 downto 8)  when (memAWriteByte = '0' and memAWriteHalfWord = '0') or memAWriteHalfWord = '1'
                  else
                  memAWrite(7 downto 0);
-    RAM2_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "01") or (memAWriteHalfWord = '1' and memAAddr(1) = '0'))
-                 else '0';
     RAM2_DATA <= memAWrite(23 downto 16) when (memAWriteByte = '0' and memAWriteHalfWord = '0')
                  else
                  memAWrite(7 downto 0);
-    RAM1_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "10") or (memAWriteHalfWord = '1' and memAAddr(1) = '1'))
-                 else '0';
     RAM3_DATA <= memAWrite(31 downto 24) when (memAWriteByte = '0' and memAWriteHalfWord = '0')
                  else
                  memAWrite(15 downto 8)  when memAWriteHalfWord = '1'
                  else
                  memAWrite(7 downto 0);
+
     RAM0_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "11") or (memAWriteHalfWord = '1' and memAAddr(1) = '1'))
+                 else '0';
+    RAM1_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "10") or (memAWriteHalfWord = '1' and memAAddr(1) = '1'))
+                 else '0';
+    RAM2_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "01") or (memAWriteHalfWord = '1' and memAAddr(1) = '0'))
+                 else '0';
+    RAM3_WREN <= '1' when memAWriteEnable = '1' and ((memAWriteByte = '0' and memAWriteHalfWord = '0') or (memAWriteByte = '1' and memAAddr(1 downto 0) = "00") or (memAWriteHalfWord = '1' and memAAddr(1) = '0'))
                  else '0';
 
     -- RAM Byte 0 - Port A - bits 7 to 0
@@ -157,4 +170,57 @@ begin
             end if;
         end if;
     end process;
+
+    -- BRAM Byte 0 - Port B - bits 7 downto 0
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if memBWriteEnable = '1' then
+                RAM0(to_integer(unsigned(memBAddr(addrbits-1 downto 2)))) := memBWrite(7 downto 0);
+                memBRead(7 downto 0) <= memBWrite(7 downto 0);
+            else
+                memBRead(7 downto 0) <= RAM0(to_integer(unsigned(memBAddr(addrbits-1 downto 2))));
+            end if;
+        end if;
+    end process;
+
+    -- BRAM Byte 1 - Port B - bits 15 downto 8
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if memBWriteEnable = '1' then
+                RAM1(to_integer(unsigned(memBAddr(addrbits-1 downto 2)))) := memBWrite(15 downto 8);
+                memBRead(15 downto 8) <= memBWrite(15 downto 8);
+            else
+                memBRead(15 downto 8) <= RAM1(to_integer(unsigned(memBAddr(addrbits-1 downto 2))));
+            end if;
+        end if;
+    end process;
+
+    -- BRAM Byte 2 - Port B - bits 23 downto 16
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if memBWriteEnable = '1' then
+                RAM2(to_integer(unsigned(memBAddr(addrbits-1 downto 2)))) := memBWrite(23 downto 16);
+                memBRead(23 downto 16) <= memBWrite(23 downto 16);
+            else
+                memBRead(23 downto 16) <= RAM2(to_integer(unsigned(memBAddr(addrbits-1 downto 2))));
+            end if;
+        end if;
+    end process;
+
+    -- BRAM Byte 3 - Port B - bits 31 downto 24
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if memBWriteEnable = '1' then
+                RAM3(to_integer(unsigned(memBAddr(addrbits-1 downto 2)))) := memBWrite(31 downto 24);
+                memBRead(31 downto 24) <= memBWrite(31 downto 24);
+            else
+                memBRead(31 downto 24) <= RAM3(to_integer(unsigned(memBAddr(addrbits-1 downto 2))));
+            end if;
+        end if;
+    end process;
+
 end arch;

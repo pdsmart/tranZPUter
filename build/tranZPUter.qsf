@@ -61,7 +61,7 @@ set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_NETLIST_TYPE POST_FIT -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_global_assignment -name ENABLE_OCT_DONE OFF
@@ -111,8 +111,8 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDCARD_
 #============================================================
 set_location_assignment PIN_M2 -to CLOCK_12M
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CLOCK_12M
-set_location_assignment PIN_E15 -to CLK_X
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CLK_X
+#set_location_assignment PIN_E15 -to CLK_X
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CLK_X
 
 #============================================================
 # LED
@@ -227,43 +227,43 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_CLK
 # FT2232H
 #============================================================
 # ADBUS
-set_location_assignment PIN_H3 -to ADBUS_0
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_0
-set_location_assignment PIN_H4 -to ADBUS_1
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_1
-set_location_assignment PIN_J4 -to ADBUS_2
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_2
-set_location_assignment PIN_J5 -to ADBUS_3
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_3
-set_location_assignment PIN_M8 -to ADBUS_4
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_4
-set_location_assignment PIN_N8 -to ADBUS_7
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_7
+#set_location_assignment PIN_H3 -to ADBUS_0
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_0
+#set_location_assignment PIN_H4 -to ADBUS_1
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_1
+#set_location_assignment PIN_J4 -to ADBUS_2
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_2
+#set_location_assignment PIN_J5 -to ADBUS_3
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_3
+#set_location_assignment PIN_M8 -to ADBUS_4
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_4
+#set_location_assignment PIN_N8 -to ADBUS_7
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADBUS_7
 # BDBUS
-set_location_assignment PIN_R7 -to BDBUS[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[0]
-set_location_assignment PIN_T7 -to BDBUS[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[1]
-set_location_assignment PIN_R6 -to BDBUS[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[2]
-set_location_assignment PIN_T6 -to BDBUS[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[3]
-set_location_assignment PIN_R5 -to BDBUS[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[4]
-set_location_assignment PIN_T5 -to BDBUS[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[5]
+#set_location_assignment PIN_R7 -to BDBUS[0]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[0]
+#set_location_assignment PIN_T7 -to BDBUS[1]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[1]
+#set_location_assignment PIN_R6 -to BDBUS[2]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[2]
+#set_location_assignment PIN_T6 -to BDBUS[3]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[3]
+#set_location_assignment PIN_R5 -to BDBUS[4]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[4]
+#set_location_assignment PIN_T5 -to BDBUS[5]
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BDBUS[5]
 
 #============================================================
 # Serial Configuration Memory
 #============================================================
-set_location_assignment PIN_H2 -to AS_DATA0
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_DATA0
-set_location_assignment PIN_C1 -to AS_ASDO
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_ASDO
-set_location_assignment PIN_D2 -to AS_NCS
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_NCS
-set_location_assignment PIN_H1 -to AS_DCLK
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_DCLK
+#set_location_assignment PIN_H2 -to AS_DATA0
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_DATA0
+#set_location_assignment PIN_C1 -to AS_ASDO
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_ASDO
+#set_location_assignment PIN_D2 -to AS_NCS
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_NCS
+#set_location_assignment PIN_H1 -to AS_DCLK
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AS_DCLK
 
 #============================================================
 # PMOD IO Header PIO0 - PIO7
@@ -320,10 +320,10 @@ set_location_assignment PIN_K16 -to CYC_BUSACK_I_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSACK_I_n
 set_location_assignment PIN_J14 -to CYC_BUSACK_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSACK_n
-set_location_assignment PIN_K1 -to D11_R
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to D11_R
-set_location_assignment PIN_L1 -to D12_R
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to D12_R
+#set_location_assignment PIN_K1 -to D11_R
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to D11_R
+#set_location_assignment PIN_L1 -to D12_R
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to D12_R
 # JP 5 GPIO23 (AIN), GPIO24 (AIN7)
 set_location_assignment PIN_T12 -to CYC_BUSRQ_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSRQ_n
@@ -425,18 +425,18 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_CTL_CLR_n
 #============================================================
 # 3-Axis Accelerometer
 #============================================================
-set_location_assignment PIN_D1 -to SEN_CS
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_CS
-set_location_assignment PIN_B1 -to SEN_INT1
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_INT1
-set_location_assignment PIN_C2 -to SEN_INT2
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_INT2
-set_location_assignment PIN_G2 -to SEN_SDI
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SDI
-set_location_assignment PIN_G1 -to SEN_SDO
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SDO
-set_location_assignment PIN_F3 -to SEN_SPC
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SPC
+#set_location_assignment PIN_D1 -to SEN_CS
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_CS
+#set_location_assignment PIN_B1 -to SEN_INT1
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_INT1
+#set_location_assignment PIN_C2 -to SEN_INT2
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_INT2
+#set_location_assignment PIN_G2 -to SEN_SDI
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SDI
+#set_location_assignment PIN_G1 -to SEN_SDO
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SDO
+#set_location_assignment PIN_F3 -to SEN_SPC
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SEN_SPC
 
 #============================================================
 # Modules and Files
@@ -450,31 +450,162 @@ set_global_assignment -name VHDL_FILE ../cpu/zpu_pkg.vhd
 set_global_assignment -name VHDL_FILE ../cpu/zpu_core_small.vhd
 set_global_assignment -name VHDL_FILE ../cpu/zpu_core_medium.vhd
 set_global_assignment -name VHDL_FILE ../cpu/zpu_core_evo.vhd
+set_global_assignment -name VHDL_FILE ../cpu/zpu_core_evo_L2.vhd
 set_global_assignment -name VHDL_FILE ../cpu/zpu_uart_debug.vhd
 set_global_assignment -name VHDL_FILE ../zpu_soc_pkg.vhd
 set_global_assignment -name VHDL_FILE ../zpu_soc.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/RAM/dpram.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/uart/uart.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/intr/interrupt_controller.vhd
-set_global_assignment -name VHDL_FILE ../devices/sysbus/spi/spi.vhd
+#set_global_assignment -name VHDL_FILE ../devices/sysbus/spi/spi.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/SDMMC/SDCard.vhd
-set_global_assignment -name VHDL_FILE ../devices/sysbus/ps2/io_ps2_com.vhd
+#set_global_assignment -name VHDL_FILE ../devices/sysbus/ps2/io_ps2_com.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/timer/timer_controller.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/BRAM/BootROM.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/BRAM/DualPortBootBRAM.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/BRAM/SinglePortBootBRAM.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/BRAM/SinglePortBRAM.vhd
-set_global_assignment -name VHDL_FILE ../devices/sysbus/ioctl/ioctl.vhd
+#set_global_assignment -name VHDL_FILE ../devices/sysbus/ioctl/ioctl.vhd
 set_global_assignment -name VHDL_FILE ../devices/sysbus/TCPU/tcpu.vhd
-set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_top.vhd
-set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_byte_ctrl.vhd
-set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_bit_ctrl.vhd
-#set_global_assignment -name QIP_FILE ../devices/WishBone/SDRAM/sdram.qip
-set_global_assignment -name VHDL_FILE ../devices/WishBone/SDRAM/sdram.vhd
+set_global_assignment -name QIP_FILE ../devices/sysbus/SDRAM/sdram.qip
+#set_global_assignment -name VHDL_FILE ../devices/sysbus/SDRAM/sdram.vhd
+#set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_top.vhd
+#set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_byte_ctrl.vhd
+#set_global_assignment -name VHDL_FILE ../devices/WishBone/I2C/i2c_master_bit_ctrl.vhd
+#set_global_assignment -name QIP_FILE ../devices/WishBone/SDRAM/wbsdram.qip
+set_global_assignment -name VHDL_FILE ../devices/WishBone/SDRAM/wbsdram.vhd
 set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
 
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF
+
+#set_location_assignment PLL_1 -to "Clock_12to100:mypll"
 
 
 
+set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (VHDL)"
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
+set_global_assignment -name ENABLE_SIGNALTAP ON
+set_global_assignment -name USE_SIGNALTAP_FILE /srv/dvlp/Projects/dev/github/tranZPUter/build/tranZPUter.stp
 
+
+set_global_assignment -name SIGNALTAP_FILE /srv/dvlp/Projects/dev/github/tranZPUter/build/tranZPUter.stp
+
+set_global_assignment -name SLD_NODE_CREATOR_ID 110 -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_ENTITY_NAME sld_signaltap -section_id auto_signaltap_0
+set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_clk -to "zpu_soc:myVirtualToplevel|SYSCLK" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_RAM_BLOCK_TYPE=AUTO" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_NODE_INFO=805334528" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_POWER_UP_TRIGGER=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SEGMENT_SIZE=512" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ATTRIBUTE_MEM_MODE=OFF" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STATE_FLOW_USE_GENERATED=1" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STATE_BITS=2" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STATE_FLOW_MGR_ENTITY=sld_reserved_tranZPUter_auto_signaltap_0_flow_mgr_c90c" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_BUFFER_FULL_STOP=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_CURRENT_RESOURCE_WIDTH=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INCREMENTAL_ROUTING=1" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[0] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[1] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[3] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[4] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[5] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[9] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[12] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[15] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[17] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[28] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL=1" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_SAMPLE_DEPTH=512" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_IN_ENABLED=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_PIPELINE=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_RAM_PIPELINE=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_COUNTER_PIPELINE=0" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL_PIPELINE=1" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STORAGE_QUALIFIER_INVERSION_MASK_LENGTH=0" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[21] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[27] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[29] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[0] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[0]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[1] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[10]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[2] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[11]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[3] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[12]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[4] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[13]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[5] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[14]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[6] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[15]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[7] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[16]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[8] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[17]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[9] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[18]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[10] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[19]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[11] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[1]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[12] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[20]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[13] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[21]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[14] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[22]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[15] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[23]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[16] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[2]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[17] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[3]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[18] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[4]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[19] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[5]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[20] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[6]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[21] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[7]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[22] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[8]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[23] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[9]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[24] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_BYTE" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[25] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_ENABLE" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[26] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_HWORD" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[0] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[0]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[1] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[10]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[2] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[11]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[3] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[12]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[4] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[13]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[5] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[14]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[6] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[15]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[7] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[16]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[8] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[17]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[9] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[18]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[10] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[19]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[11] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[1]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[12] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[20]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[13] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[21]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[14] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[22]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[15] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[23]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[16] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[2]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[17] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[3]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[18] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[4]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[19] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[5]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[20] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[6]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[21] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[7]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[22] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[8]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[23] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_ADDR[9]" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[24] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_BYTE" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[25] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_ENABLE" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_data_in[26] -to "zpu_soc:myVirtualToplevel|zpu_core_evo:\\ZPUEVO:ZPU0|MEM_WRITE_HWORD" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_DATA_BITS=27" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_BITS=27" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_STORAGE_QUALIFIER_BITS=27" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[2] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[6] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[7] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[8] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[10] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[11] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[13] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[14] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[26] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK=0000000000000" -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK_LENGTH=13" -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[16] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[18] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[19] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[20] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[22] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[23] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[24] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[25] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[30] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[31] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ADVANCED_TRIGGER_ENTITY=sld_reserved_tranZPUter_auto_signaltap_0_1_3dcb," -section_id auto_signaltap_0
+set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ENABLE_ADVANCED_TRIGGER=1" -section_id auto_signaltap_0
+set_global_assignment -name SLD_FILE db/tranZPUter_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
