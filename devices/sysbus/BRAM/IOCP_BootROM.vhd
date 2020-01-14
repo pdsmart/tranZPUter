@@ -46,10 +46,10 @@ port (
         clk                  : in  std_logic;
         areset               : in  std_logic := '0';
         memAWriteEnable      : in  std_logic;
-        memAAddr             : in  std_logic_vector(ADDR_BIT_BRAM_32BIT_RANGE);
+        memAAddr             : in  std_logic_vector(ADDR_32BIT_BRAM_RANGE);
         memAWrite            : in  std_logic_vector(WORD_32BIT_RANGE);
         memBWriteEnable      : in  std_logic;
-        memBAddr             : in  std_logic_vector(ADDR_BIT_BRAM_32BIT_RANGE);
+        memBAddr             : in  std_logic_vector(ADDR_32BIT_BRAM_RANGE);
         memBWrite            : in  std_logic_vector(WORD_32BIT_RANGE);
         memARead             : out std_logic_vector(WORD_32BIT_RANGE);
         memBRead             : out std_logic_vector(WORD_32BIT_RANGE)
@@ -1078,10 +1078,10 @@ begin
         end if;
     
         if (memAWriteEnable = '1') then
-            ram(to_integer(unsigned(memAAddr(ADDR_BIT_BRAM_32BIT_RANGE)))) := memAWrite;
+            ram(to_integer(unsigned(memAAddr(ADDR_32BIT_BRAM_RANGE)))) := memAWrite;
             memARead <= memAWrite;
         else
-            memARead <= ram(to_integer(unsigned(memAAddr(ADDR_BIT_BRAM_32BIT_RANGE))));
+            memARead <= ram(to_integer(unsigned(memAAddr(ADDR_32BIT_BRAM_RANGE))));
         end if;
     end if;
 end process;
@@ -1090,10 +1090,10 @@ process (clk)
 begin
     if (clk'event and clk = '1') then
         if (memBWriteEnable = '1') then
-            ram(to_integer(unsigned(memBAddr(ADDR_BIT_BRAM_32BIT_RANGE)))) := memBWrite;
+            ram(to_integer(unsigned(memBAddr(ADDR_32BIT_BRAM_RANGE)))) := memBWrite;
             memBRead <= memBWrite;
         else
-            memBRead <= ram(to_integer(unsigned(memBAddr(ADDR_BIT_BRAM_32BIT_RANGE))));
+            memBRead <= ram(to_integer(unsigned(memBAddr(ADDR_32BIT_BRAM_RANGE))));
         end if;
     end if;
 end process;

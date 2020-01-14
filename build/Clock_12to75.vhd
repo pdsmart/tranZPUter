@@ -66,7 +66,6 @@ ARCHITECTURE SYN OF clock_12to100 IS
 
     COMPONENT altpll
     GENERIC (
-        bandwidth_type        : STRING;
         clk0_divide_by        : NATURAL;
         clk0_duty_cycle        : NATURAL;
         clk0_multiply_by        : NATURAL;
@@ -124,8 +123,7 @@ ARCHITECTURE SYN OF clock_12to100 IS
         port_extclk1        : STRING;
         port_extclk2        : STRING;
         port_extclk3        : STRING;
-        valid_lock_multiplier        : NATURAL;
-        width_clock         : NATURAL
+        valid_lock_multiplier        : NATURAL
     );
     PORT (
             areset    : IN STD_LOGIC ;
@@ -148,19 +146,18 @@ BEGIN
 
     altpll_component : altpll
     GENERIC MAP (
-        bandwidth_type => "AUTO",
-        clk0_divide_by => 3,
+        clk0_divide_by => 8,
         clk0_duty_cycle => 50,
-        clk0_multiply_by => 25,
-        clk0_phase_shift => "0",
-        clk1_divide_by => 4,
+        clk0_multiply_by => 20,
+        clk0_phase_shift => "0 ps",
+        clk1_divide_by => 3,
         clk1_duty_cycle => 50,
         clk1_multiply_by => 25,
-        clk1_phase_shift => "0",
+        clk1_phase_shift => "0 ps",
         compensate_clock => "CLK0",
         gate_lock_signal => "NO",
         inclk0_input_frequency => 83333,
-        intended_device_family => "Cyclone IV E",
+        intended_device_family => "Cyclone II",
         invalid_lock_multiplier => 5,
         lpm_hint => "CBX_MODULE_PREFIX=Clock_12to100",
         lpm_type => "altpll",
@@ -206,8 +203,7 @@ BEGIN
         port_extclk1 => "PORT_UNUSED",
         port_extclk2 => "PORT_UNUSED",
         port_extclk3 => "PORT_UNUSED",
-        valid_lock_multiplier => 1,
-        width_clock => 5
+        valid_lock_multiplier => 1
     )
     PORT MAP (
         areset => areset,
