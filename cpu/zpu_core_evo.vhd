@@ -391,6 +391,7 @@ architecture behave of zpu_core_evo is
         Debug_DumpL1_1,
         Debug_DumpL1_2,
         Debug_DumpL2,
+        Debug_DumpL2_0,
         Debug_DumpL2_1,
         Debug_DumpL2_2,
         Debug_DumpMem,
@@ -533,7 +534,7 @@ architecture behave of zpu_core_evo is
     signal debugRec                        : zpu_dbg_t;
     signal debugLoad                       : std_logic;                      -- Load a debug record into the debug serialiser fsm, 1 = load, 0 = inactive.
     signal debugReady                      : std_logic;                      -- Flag to indicate serializer fsm is busy (0) or available (1).
-    
+
     ---------------------------------------------
     -- Functions specific to the CPU core.
     ---------------------------------------------
@@ -3223,6 +3224,10 @@ begin
 
                         when Debug_DumpL2 =>
                             debugPC                                       <= (others => '0');
+                            debugState                                    <= Debug_DumpL2_0;
+
+                        -- Wait state at start of dump so initial address gets registered in cache memory and data output.
+                        when Debug_DumpL2_0 =>
                             debugState                                    <= Debug_DumpL2_1;
 
                         -- Output the contents of L2 in the format <addr> <instruction ... x 20>
