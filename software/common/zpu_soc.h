@@ -101,6 +101,14 @@ typedef volatile unsigned int* register_t;
 // CPU Bus I/O Peripheral definition.
 // ----------------------------------
 
+// TCPU Processor Controller.
+//
+#define TCPU_BASE                      IO_ADDR_PERIPHERALS + 0x700
+#define ADDR_REGISTER                  0x00
+#define DATA_REGISTER                  0x04
+#define TCPU_ADDR                      (MEMIO32 (TCPU_BASE + ADDR_REGISTER))
+#define TCPU_DATA                      (MEMIO32 (TCPU_BASE + DATA_REGISTER))
+
 // IO Processor Controller.
 #define IOCTL_BASE                     IO_ADDR_PERIPHERALS + 0x800
 #define CMDADDR_REGISTER               0x00

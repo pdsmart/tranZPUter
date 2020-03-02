@@ -1031,6 +1031,12 @@ int cmdProcessor(void)
                 xputs("\n");
                 break;
           #endif
+
+          #if defined(BUILTIN_HW_TCPU) && BUILTIN_HW_TCPU == 1
+             // Tranzputer test program.
+            case CMD_HW_TCPU:
+                break;
+          #endif
         
             // Disable UART fifo
             case CMD_HW_FIFO_DISABLE:

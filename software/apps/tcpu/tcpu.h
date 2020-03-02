@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// Name:            help.h
+// Name:            tcpu.h
 // Created:         July 2018
 // Author(s):       Philip Smart
 // Description:     Standalone App for the ZPU test application.
@@ -24,8 +24,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifndef HELP_H
-#define HELP_H
+#ifndef TCPU_H
+#define TCPU_H
 
 // Constants.
 
@@ -59,9 +59,8 @@
 // Hardware components to be embedded in the program.
 #define BUILTIN_HW_SHOW_REGISTER    0
 #define BUILTIN_HW_TEST_TIMERS      0
-#define BUILTIN_HW_TCPU             0
+#define BUILTIN_HW_TCPU             1
 // Filesystem components to be embedded in the program.
-#define BUILTIN_FS_DUMP             0
 #define BUILTIN_FS_STATUS           0
 #define BUILTIN_FS_DIRLIST          0
 #define BUILTIN_FS_OPEN             0
@@ -94,7 +93,7 @@
 #define BUILTIN_TST_DHRYSTONE       0
 #define BUILTIN_TST_COREMARK        0
 // Miscellaneous components to be embedded in this program.
-#define BUILTIN_MISC_HELP           1
+#define BUILTIN_MISC_HELP           0
 #define BUILTIN_MISC_SETTIME        0
 
 // Prototypes.
@@ -107,4 +106,4 @@ SOC_CONFIG                   *cfgSoC;
 // Global scope variables in the app memory space.
 volatile UINT                Timer;                                    /* Performance timer (100Hz increment) */
 
-#endif // HELP_H
+#endif // TCPU_H

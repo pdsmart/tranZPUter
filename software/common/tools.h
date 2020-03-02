@@ -88,6 +88,7 @@ extern "C" {
 #define CMD_HW_TEST_TIMERS         83
 #define CMD_HW_FIFO_DISABLE        84
 #define CMD_HW_FIFO_ENABLE         85
+#define CMD_HW_TCPU                86
 #define CMD_TEST_DHRYSTONE        100              // TEST Commands Range 100 .. 119
 #define CMD_TEST_COREMARK         101
 #define CMD_EXECUTE               120              // EXECUTE Commands Range 120 .. 129
@@ -336,6 +337,9 @@ static t_cmdstruct cmdTable[] = {
     #if (defined(BUILTIN_HW_TEST_TIMERS) && BUILTIN_HW_TEST_TIMERS == 1) || (defined(BUILTIN_MISC_HELP) == 1 && BUILTIN_MISC_HELP == 1)
     { "ht",         BUILTIN_HW_TEST_TIMERS,   CMD_HW_TEST_TIMERS,   CMD_GROUP_HW },
     #endif
+    #if (defined(BUILTIN_HW_TCPU) && BUILTIN_HW_TCPU == 1) || (defined(BUILTIN_MISC_HELP) == 1 && BUILTIN_MISC_HELP == 1)
+    { "tcpu",       BUILTIN_HW_TCPU,          CMD_HW_TCPU,          CMD_GROUP_HW },
+    #endif
     { "hfd",        BUILTIN_DEFAULT,          CMD_HW_FIFO_DISABLE,  CMD_GROUP_HW },
     { "hfe",        BUILTIN_DEFAULT,          CMD_HW_FIFO_ENABLE,   CMD_GROUP_HW },
     // Test suite commands.
@@ -440,6 +444,7 @@ static t_helpstruct helpTable[] = {
     { CMD_HW_TEST_TIMERS,   "",                                   "Test uS Timer" },
     { CMD_HW_FIFO_DISABLE,  "",                                   "Disable UART FIFO" },
     { CMD_HW_FIFO_ENABLE,   "",                                   "Enable UART FIFO" },
+    { CMD_HW_TCPU,          "",                                   "TranZPUter test progra" },
     // Test suite commands.
     { CMD_TEST_DHRYSTONE,   "",                                   "Dhrystone Test v2.1" },
     { CMD_TEST_COREMARK,    "",                                   "CoreMark Test v1.0" },

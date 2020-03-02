@@ -48,9 +48,8 @@ entity tranZPUter is
         SDRAM_CAS       : out   std_logic;                                  -- columns address select
 
         -- TCPU signals.
-        CYC_D           : inout std_logic_vector(15 downto 0);              -- Data bus
+        CYC_D           : out std_logic_vector(15 downto 0);              -- Data bus
         CYC_CTL_SET_n   : out   std_logic;                                  -- Set the transceiver control signals.
-        CYC_CTL_CLR_n   : out   std_logic;                                  -- Reset the transceiver control signals.
         CYC_CLK_n       : in    std_logic;                                  -- Z80 Main Clock
         CYC_NMI_n       : in    std_logic;                                  -- Z80 NMI converted to 3.3v
         CYC_INT_n       : in    std_logic;                                  -- Z80 INT converted to 3.,3v
@@ -141,7 +140,6 @@ port map
     -- TCPU Bus
     TCPU_DATA         => CYC_D,                            -- Data bus
     TCPU_CTL_SET_n    => CYC_CTL_SET_n,                    -- Set the transceiver control signals.
-    TCPU_CTL_CLR_n    => CYC_CTL_CLR_n,                    -- Reset the transceiver control signals.
     TCPU_CLK_n        => CYC_CLK_n,                        -- Z80 Main Clock
     TCPU_NMI_n        => CYC_NMI_n,                        -- Z80 NMI converted to 3.3v
     TCPU_INT_n        => CYC_INT_n,                        -- Z80 INT converted to 3.,3v

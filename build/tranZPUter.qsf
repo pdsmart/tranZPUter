@@ -370,22 +370,31 @@ set_instance_assignment -name SLEW_RATE 2 -to SDRAM_CLK
 # JP 9 GPIO14 - GPIO22 (D6-D14)
 set_location_assignment PIN_N2 -to CYC_D[15]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[15]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[15]
 set_location_assignment PIN_N1 -to CYC_D[14]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[14]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[14]
 set_location_assignment PIN_P2 -to CYC_D[13]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[13]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[13]
 set_location_assignment PIN_J1 -to CYC_D[12]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[12]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[12]
 set_location_assignment PIN_J2 -to CYC_D[11]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[11]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[11]
 set_location_assignment PIN_K2 -to CYC_D[10]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[10]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[10]
 set_location_assignment PIN_L2 -to CYC_D[9]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[9]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[9]
 set_location_assignment PIN_P1 -to CYC_D[8]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[8]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[8]
 set_location_assignment PIN_R1 -to CYC_CTL_SET_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_CTL_SET_n
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_CTL_SET_n
 # JP 5 GPIO8 - GPIO13 (D0 - D5)
 set_location_assignment PIN_N16 -to CYC_CLK_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_CLK_n
@@ -399,6 +408,7 @@ set_location_assignment PIN_K16 -to CYC_BUSACK_I_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSACK_I_n
 set_location_assignment PIN_J14 -to CYC_BUSACK_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSACK_n
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_BUSACK_n
 #set_location_assignment PIN_K1 -to D11_R
 #set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to D11_R
 #set_location_assignment PIN_L1 -to D12_R
@@ -411,23 +421,32 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_BUSRQ_I_n
 # JP 4 GPIO0 (AREF), GPIO1-7 (AIN0-6)
 set_location_assignment PIN_P11 -to CYC_D[0]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[0]
 set_location_assignment PIN_R12 -to CYC_D[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[1]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[1]
 set_location_assignment PIN_T13 -to CYC_D[2]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[2]
 set_location_assignment PIN_R13 -to CYC_D[3]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[3]
 set_location_assignment PIN_T14 -to CYC_D[4]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[4]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[4]
 set_location_assignment PIN_P14 -to CYC_D[5]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[5]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[5]
 set_location_assignment PIN_R14 -to CYC_D[6]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[6]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[6]
 set_location_assignment PIN_T15 -to CYC_D[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_D[7]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_D[7]
 # user button rewired to JTAG jumper
-set_location_assignment PIN_N6 -to CYC_CTL_CLR_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_CTL_CLR_n
+#set_location_assignment PIN_N6 -to CYC_CTL_CLR_n
+#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CYC_CTL_CLR_n
+#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CYC_CTL_CLR_n
 
 #============================================================
 # GPIO14 - GPIO22 Header
@@ -575,6 +594,7 @@ set_global_assignment -name SIGNALTAP_FILE /srv/dvlp/Projects/dev/github/tranZPU
 set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
 set_global_assignment -name ENABLE_DRC_SETTINGS ON
 set_global_assignment -name SAVE_DISK_SPACE OFF
+
 
 
 

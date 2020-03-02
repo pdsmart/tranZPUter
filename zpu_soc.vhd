@@ -107,9 +107,8 @@ entity zpu_soc is
         SDRAM_READY               : out   std_logic;                                  -- sd ready.
 
         -- TCPU signals.
-        TCPU_DATA                 : inout std_logic_vector(15 downto 0);              -- Data bus
+        TCPU_DATA                 : out std_logic_vector(15 downto 0);              -- Data bus
         TCPU_CTL_SET_n            : out   std_logic;                                  -- Set the transceiver control signals.
-        TCPU_CTL_CLR_n            : out   std_logic;                                  -- Reset the transceiver control signals.
         TCPU_CLK_n                : in    std_logic;                                  -- Z80 Main Clock
         TCPU_NMI_n                : in    std_logic;                                  -- Z80 NMI converted to 3.3v
         TCPU_INT_n                : in    std_logic;                                  -- Z80 INT converted to 3.,3v
@@ -1841,7 +1840,6 @@ begin
                 -- TCPU Bus
                 TCPU_DATA        => TCPU_DATA,        -- Data bus
                 TCPU_CTL_SET_n   => TCPU_CTL_SET_n,   -- Set the transceiver control signals.
-                TCPU_CTL_CLR_n   => TCPU_CTL_CLR_n,   -- Reset the transceiver control signals.
                 TCPU_CLK_n       => TCPU_CLK_n,       -- Z80 Main Clock
                 TCPU_NMI_n       => TCPU_NMI_n,       -- Z80 NMI converted to 3.3v
                 TCPU_INT_n       => TCPU_INT_n,       -- Z80 INT converted to 3.,3v

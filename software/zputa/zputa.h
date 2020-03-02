@@ -56,6 +56,7 @@
 // Hardware components to be embedded in the program.
 #define BUILTIN_HW_SHOW_REGISTER    0
 #define BUILTIN_HW_TEST_TIMERS      0
+#define BUILTIN_HW_TCPU             0
 // Filesystem components to be embedded in the program.
 #define BUILTIN_FS_STATUS           0
 #define BUILTIN_FS_DIRLIST          0
