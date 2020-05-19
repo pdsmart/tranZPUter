@@ -94,7 +94,120 @@ As per previous schematics and PCB boards, this project has been designed with K
 The existing ZPU software, ZPUTA and zOS have been ported to the K64F platform in anticipation of forwarding this design with rapid application development. Please see the [zSoft](/zsoft/) section for details
 on current OS status.
 
-Software details specific to this board will appear here as development progresses.
+Tools for the Teensy are stored in the \<z-tools> directory to aid in development and keeping consistent tested versions within the repository.
+
+    
+### Paths
+
+For ease of reading, the following shortnames refer to the corresponding path in this chapter. Two repositories are used, the primary one for the [tranZPUter](https://github.com/pdsmart/tranZPUter) and [zSoft](https://github.com/pdsmart/zSoft) for the software developments.
+
+*zSoft Repository (software)*
+
+
+|  Short Name      |                                                                            |
+|------------------|----------------------------------------------------------------------------|
+| \[\<ABS PATH>\]  | The path where this repository was extracted on your system.               |
+| \<z-apps\>       | \[\<ABS PATH>\]/zsoft/apps                                                 |
+| \<z-build\>      | \[\<ABS PATH>\]/zsoft/build                                                |
+| \<z-common\>     | \[\<ABS PATH>\]/zsoft/common                                               |
+| \<z-libraries\>  | \[\<ABS PATH>\]/zsoft/libraries                                            |
+| \<z-teensy3\>    | \[\<ABS PATH>\]/zsoft/teensy3                                              |
+| \<z-include\>    | \[\<ABS PATH>\]/zsoft/include                                              |
+| \<z-startup\>    | \[\<ABS PATH>\]/zsoft/startup                                              |
+| \<z-iocp\>       | \[\<ABS PATH>\]/zsoft/iocp                                                 |
+| \<z-zOS\>        | \[\<ABS PATH>\]/zsoft/zOS                                                  |
+| \<z-zputa\>      | \[\<ABS PATH>\]/zsoft/zputa                                                |
+| \<z-rtl\>        | \[\<ABS PATH>\]/zsoft/rtl                                                  |
+| \<z-docs\>       | \[\<ABS PATH>\]/zsoft/docs                                                 |
+| \<z-tools\>      | \[\<ABS PATH>\]/zsoft/tools                                                |
+
+*tranZPUter Repository*
+
+|  Short Name      |                                                                            |
+|------------------|----------------------------------------------------------------------------|
+| \<cpu\>          | \[\<ABS PATH>\]/tranZPUter/cpu                                             |
+| \<build\>        | \[\<ABS PATH>\]/tranZPUter/build                                           |
+| \<devices\>      | \[\<ABS PATH>\]/tranZPUter/devices                                         |
+| \<docs\>         | \[\<ABS PATH>\]/tranZPUter/docs                                            |
+| \<pcb\>          | \[\<ABS PATH>\]/tranZPUter/pcb                                             |
+| \<roms\>         | \[\<ABS PATH>\]/tranZPUter/software/roms                                   |
+| \<schematics\>   | \[\<ABS PATH>\]/tranZPUter/schematics                                      |
+| \<software\>     | \[\<ABS PATH>\]/tranZPUter/software                                        |
+| \<tools\>        | \[\<ABS PATH>\]/tranZPUter/software/tools                                  |
+
+
+
+### Tools
+
+All development has been made under Linux, specifically Debian/Ubuntu. Besides the standard Linux buildchain, the following software is needed.
+
+|                                                           |                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+[ZPU GCC ToolChain](https://github.com/zylin/zpugcc)        | The GCC toolchain for ZPU development. Install into */opt* or similar common area.                                  |
+[Arduino](https://www.arduino.cc/en/main/software)          |  The Arduino development environment, not really needed unless adding features to the K64F version of zOS from the extensive Arduino library. Not really needed, more for reference. |
+[Teensyduino](https://www.pjrc.com/teensy/td_download.html) | The Teensy3 Arduino extensions to work with the Teensy3.5 board at the Arduino level. Not really needed, more for reference. |
+
+For the Teensy3.5/K64F the ARM compatible toolchain is stored in the repo within the build tree.
+
+#### Memory Decoder Tool
+
+The tranZPUterSW uses a 512KB Flash RAM as the active decoder. This was chosen intentionally to allow multiple different memory maps so as the development progressed the tranZPUter SW
+could run software from the MZ80K/C/B/700/800 machines as they all are very similar just with different memory maps (graphics can differ but the [MZ80A Colour Board](/sharpmz-upgrades-80col/)
+does a pretty good job at providing compatible video and it will be upgraded shortly with MZ80B/800 capable pixel graphics.
+
+In order to generate the decoder bit map I have written a tool in C which creates the map based on internal coding. The internal coding uses Z80 sigals so it is relatively straight
+forward to say 'Memory map 5, Z80 WR and Addr:0xE800:EFFF has tranZPUter RAM mapped into it'. This tool will be extended as development progresses.
+
+To use it and create a bit map, clone the [repository](https://github.com/pdsmart/tranZPUter.git) and follow the steps below:
+
+```
+1. Change to <software>/src/tools/ directory and issue command:
+   make
+   make install
+2. Run the command:
+   <tools>/flashmmcfg -o <roms>/tranZPUterDecoderMappingFile.bin
+3. Flash the file:<roms>/tranZPUterDecoderMappingFile.bin  to
+   a suitable 512KB Flash RAM.
+```
+
+```
+The tool currently has the following options:o
+
+FLASHMMCFG v1.0
+
+Options:-
+  -h | --help              This help test.
+  -i | --io-addr <addr>    Base address for the IO Control Registers.
+  -o | --output <file>     Output the final binary image to the given file. This file is programmed into the Flash RAM.
+  -v | --verbose           Output more messages.
+
+Examples:
+  flashmmcfg --output Decode1.bin --io-addr 0x20       Create the mapping binary using 0x20 as the base address for the IO Control Registers.
+```
+
+Adding decoding options is a matter of editting the file \<software\>/src/tools/flashmmcfg.c and adding suitable clauses in the setMap() method. I will add more detail how to do it
+in this document later.
+
+More software details specific to this board will appear here as development progresses.
+
+### Flash Teensy3.5
+
+All the necessary files and executables to program the Teensy can be found in the \<z-tools> directory within the [zSoft](/zsoft/) repository, 
+
+To program the Teensy after an OS build, follow the steps below:
+
+```
+1. Connect the teensy 3.5 board to your PC with the USB cable.
+2. Launch the Teensy programming application: 
+   \<z-soft>/teensy 
+3. In the Teensy application, select File->Open HEX file and navigate to the \<z-zOS> or \z<zputa> directory (depending on which OS your uploading) and select the file 'main.hex'.
+4. Press the RESET button on the Teensy 3.5
+5. In the Teensy application, select Operation->Program - this programs the onboard Flash RAM.
+6. Ensure you have a terminal emulator open configured to the virtual serial device (if unsure, issue the 'dmesg' command from within Linux to see the latest USB attachment and its name). Normally the device is /dev/ttyACM0. There is no need to set the Baud rate or Bits/Parity, this is a virtual serial port and operates at USB speed.
+7. In the Teensy application, select Operation->Reboot - this will now reboot the K64F and it will startup running zOS or ZPUTA.
+8. Interact with the OS via the terminal emulator. 
+```
+For further information, see the Teensy [basic usage guid](https://www.pjrc.com/teensy/td_usage.html).
 
 ### To Do
 1. Write the ZPU C/C++ code to take control of the MZ80A, save/update/restore the Video Memory (for Menu system), convert the MisTer Main/sharpmz application.? Menu/control code, and additional glue to use the SD card.<br/>
