@@ -1,0 +1,182 @@
+(*  VERSION 0007  *)
+{$M plotstring }
+{$M *}
+module plot2;
+
+(*..................................................................*)
+(*                           PLOTLIB                                *)
+(*  Plotlib is a collection of plot routines to aid in graphics     *)
+(*  programs. The routines were originally published in BYTE as     *)
+(*  'Drawing with UCSD Pascal and the Hiplot Plotter' by Dr. James   *)
+(*  Stork, Oct 1981. The routines have been modified to run with    *)
+(*  a MicroAngelo graphics terminal by Ray Hopkins, 8 Chestnut Hill *)
+(*  Ct., Cinnaminson N.J. (609) 829-4686.                           *)
+(*..................................................................*)
+
+const pi = 3.14159;
+      
+var
+    xpos,ypos :external real;
+    
+(*$ISTDLIB.DEF *)
+
+external procedure plotline(penpos:integer;txpos,typos:real);
+
+procedure plotstring(px,py,height,theta:real;line:string);
+
+var step1,xstep,ystep,x2step,y2step,x3step,y3step: real;
+    step,xstep1,ystep1,x2step1,y2step1,x3step1,y3step1:real;
+    j,n:integer;
+    
+procedure plotchar(ch:char);
+
+var rxpos,rypos:real;
+    plot:string[32];
+    pchar:char;
+    i:integer;
+    
+procedure arrow;
+
+begin {arrow}
+  step1:=0.04;
+  xstep1:=step1*cos(theta);
+  ystep1:=step1*sin(theta);
+  x2step1:=sqrt(2)*step1*cos(theta+pi/4);
+  y2step1:=sqrt(2)*step1*sin(theta+pi/4);
+  x3step1:=sqrt(2)*step1*cos(theta-pi/4);
+  y3step1:=sqrt(2)*step1*sin(theta-pi/4);
+  plotline(2,xpos-y2step1,ypos+x2step1);
+  plotline(2,xpos+ystep1,ypos-xstep1);
+  plotline(2,xpos+ystep1,ypos-xstep1);
+  plotline(2,xpos-y3step1,ypos+x3step1);
+end;
+
+procedure getcode;
+
+begin
+  case ch of
+    'A','a':plot:='d8888889oolkkkkkkaaaawwwwooooi';
+    'B','b':plot:='d8888888ooolkjuuuooolkkjuuui';
+    'C','c':plot:='dddddwjuu7888889ooli';
+    'D','d':plot:='d8888888ooolkkkkkjuuui';
+    'E','e':plot:='ddddduuuu8888oouu888ooooi';
+    'F','f':plot:='d8888oouu888ooooi';
+    'G','g':plot:='dddddwwwwww7uujkkkkkloo988uui';
+    'H','h':plot:='d8888888ddddkkkkkkkwwwwuuuui';
+    'I','i':plot:='doooouu8888888uuooooi';
+    'J','j':plot:='dwloo9888888i';
+    'K','k':plot:='d8888888dddjjjlllli';
+    'L','l':plot:='ddddduuuu8888888i';
+    'M','m':plot:='d8888888llkk8899kkkkkkki';
+    'N','n':plot:='d8888888llllwwwwkkkkkkki';
+    'O','o':plot:='dd7888889oolkkkkkjuui';
+    'P','p':plot:='d8888888ooolkkjuuui';
+    'Q','q':plot:='dd7888889oolkkkkkjuudwwlli';
+    'R','r':plot:='d8888888ooolkkjuuuooolkki';
+    'S','s':plot:='dwloo9887uu789ooli';
+    'T','t':plot:='ddd8888888aaooooi';
+    'U','u':plot:='dwwwwwwwkkkkkkloo9888888i';
+    'V','v':plot:='dwwwwwwwkkkkkll9988888i';
+    'W','w':plot:='dwwwwwwwkkkkkkk9988kkll8888888i';
+    'X','x':plot:='dwwwwwwwooookjjjjkkooooi';
+    'Y','y':plot:='dwwwwwwwkll998kjjkkkki';
+    'Z','z':plot:='dwwwwwwwooookjjjjkkooooi';
+    '1':plot:='dwwwww99kkkkkkkuuooooi';
+    '2':plot:='dwwwwww9oolkkjjjjooooi';
+    '3':plot:='dwwwwww9ooojjjoolkkjuu7i';
+    '4':plot:='dwwwwwwwkkkkooooawwwwkkkkkkki';
+    '5':plot:='dddddwwwwwwwuuuukkkooolkkjuu7i';
+    '6':plot:='dddddwwwwww7uujkkkkkloo9887uuji';
+    '7':plot:='dwwwwww8ooookjjkkkki';
+    '8':plot:='ddwwww789oolkjuujkkloo9887i';
+    '9':plot:='dwloo9888887uujkkloo9i';
+    '0':plot:='dd7888889oolkkkkkjuui';
+  end;
+end;
+
+procedure getcode1;
+
+begin
+  case ch of
+    '.':plot:='ddd8okui';
+    '>':plot:='d999777i';
+    '<':plot:='dddd777999i';
+    '$':plot:='dwwooo97uu79ooowaakkkkkki';
+    '^':plot:='ooooooo^i';
+    '*':plot:='dww9999aakkkkdd7777xxooooi';
+    '/':plot:='d8899998i';
+    '"':plot:='dw9999aaaku8oxxxxd8ok8okuui';
+    '?':plot:='ddd8w8997uujki';
+    '#':plot:='ddddwwwww8okui';
+    '&':plot:='dddwwwwkkuu88ooooxaooakki';
+    ',':plot:='ddd8okuoji';
+    '(':plot:='dddd7788899i';
+    ')':plot:='dd9988877i';
+    '%':plot:='dw9999aaauko8xxxxddo8uki';
+    '+':plot:='dddww8888aaxxooooi';
+    '-':plot:='dwwwwoooooi';
+    ':':plot:='ddwwo8ukwwo8uki';
+    '[':plot:='1i';
+    ']':plot:='2i';
+    '=':plot:='ddwwoooowwuuuui';
+  end;
+end;
+
+begin{plotchar}
+  rxpos:=xpos;
+  rypos:=ypos;
+  plot:='i';
+  getcode;
+  getcode1;
+  i:=1;
+  pchar:='0';
+  while pchar<>'i' do
+    begin
+      pchar:=plot[i];
+      case pchar of
+        'd':plotline(1,xpos+xstep,ypos+ystep);
+        'w':plotline(1,xpos-ystep,ypos+xstep);
+        'a':plotline(1,xpos-xstep,ypos-ystep);
+        '7':plotline(2,xpos-x3step,ypos-y3step);
+        '8':plotline(2,xpos-ystep,ypos+xstep);
+        '9':plotline(2,xpos+x2step,ypos+y2step);
+        'o':plotline(2,xpos+xstep,ypos+ystep);
+        'l':plotline(2,xpos+x3step,ypos+y3step);
+        'k':plotline(2,xpos+ystep,ypos-xstep);
+        'j':plotline(2,xpos-x2step,ypos-y2step);
+        'u':plotline(2,xpos-xstep,ypos-ystep);
+        'x':plotline(1,xpos+ystep,ypos-xstep);
+        '^':arrow;
+        '1':begin
+              rxpos:=rxpos-(height/2)*sin(theta)-6*xstep;
+              rypos:=rypos+(height/2)*cos(theta)-6*ystep;
+            end;
+        '2':begin
+              rxpos:=rxpos+(height/2)*sin(theta)-6*xstep;
+              rypos:=rypos-(height/2)*cos(theta)-6*ystep
+            end;
+         end;
+      i:=i+1;
+    end;
+  plotline(1,rxpos+6*xstep,rypos+6*ystep);
+end; {plotchar}
+
+begin {plotstring}
+  theta:=(theta/180)*pi;
+  step:=height/7;
+  xstep:=step*cos(theta);
+  ystep:=step*sin(theta);
+  x2step:=sqrt(2)*step*cos(theta+pi/4);
+  y2step:=sqrt(2)*step*sin(theta+pi/4);
+  x3step:=sqrt(2)*step*cos(theta-pi/4);
+  y3step:=sqrt(2)*step*sin(theta-pi/4);
+  n:=length(line);
+  plotline(1,px,py);
+  for j:=1 to n do
+    begin
+      plotchar(line[j]);
+    end
+end; {plotstring}
+
+modend.
+.

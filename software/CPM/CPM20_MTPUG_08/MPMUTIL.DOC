@@ -1,0 +1,533 @@
+.FOMPMUTIL                    page # of 9                  17 Jan 83
+             MP/M UTILITY INTERFACE TO PASCAL MT+86
+
+
+MPMUTIÌ ió á packagå oæ interfacå routineó tï MP/M-8¶ froí Pascaì 
+MT+8¶  whicè allo÷ systeí timing¬  subtasë (subprocess©  control¬ 
+and MP/M queue operations.  Its use is described in this memo.
+
+
+1.   Initialization
+
+     external procedure init_mpm_util(size: integer);
+
+Iî  thå  maiî  program¬   therå  musô  bå  exactlù  onå  calì  tï 
+init_mpm_utiì beforå anù calló tï anù oæ thå otheò procedureó anä 
+functionó iî MPMUTIL®   Thå parameteò SIZÅ ió thå numbeò oæ byteó 
+tï  reservå foò stacë spacå iî thå maiî task®   Eacè subtasë  (iæ 
+any©  wilì  havå  itó owî amounô oæ stacë spacå tï  bå  reserved¬ 
+independenô oæ thå maiî tasë stack®   Init_mpm_utiì performó  alì 
+initialization needed by all of the other utilities.
+
+
+2.   Timing
+
+     external function x_time: longint;
+     external procedure delay(ticks: integer);
+
+MP/Í  provideó severaì systeí calló tï geô thå timå oæ daù tï thå 
+nearesô  second®   Theså  twï procedureó providå  timinç  tï  thå 
+nearest clock tick (1/60 second).
+
+X_TIMÅ  returnó  thå currenô timå iî clocë tickó sincå  MP/Í  waó 
+lasô booteä in®  Iô takeó faò lesó thaî ± mó tï calì XTIME¬ sincå 
+nï MP/Í calì ió involved®   Bù makinç á standarä MP/Í time-of-daù 
+call¬  thå  longinô returneä bù X_TIMÅ caî bå relateä tï timå  oæ 
+daù iæ needed®  Itó maiî uså ió iî computinç elapseä timå betweeî 
+twï events®   Iæ thió elapseä timå ió lesó thaî 9.± minutes¬  thå 
+timå  iî  tickó wilì fiô iî á 16-biô integeò withouô settinç  thå 
+sigî  bit®   (Thå  Pascaì  MT« "short¢ functioî must bå  useä  tï 
+convert the longint difference of two calls to X_TIME.)
+
+DELAÙ  ió  calleä witè aî integeò representinç desireä  delaù  iî 
+clocë ticks®   Iæ TICKÓ ió lesó thaî oò equaì tï zero¬ therå wilì 
+bå nï delay®   Iæ 3276· ¼ TICKÓ ¼ 65536¬ thió lookó negative¬ anä 
+agaiî therå wilì bå nï delay®   3276· tickó ió abouô 9.± minutes®  
+Iæ ± <½ TICKÓ <½ 32767¬  aî MP/Í calì wilì bå madå requestinç thå 
+delay®   MP/Í wilì noô returî untiì aô leasô thaô manù tickó havå 
+occurred®   Iô  maù bå longer¬  dependinç oî prioritieó wheî  thå 
+requesteä timå haó elapsed®  Tï geô delayó longeò thaî ¹ minutes¬ 
+makå consecutivå calló tï DELAY.
+
+
+.cp23Š3.   Subtask control
+
+     type
+       name_type = packed array[1..8] of char;
+       pd_type =
+         record
+           case boolean of
+             true:
+              (z1: packed array [1..5] of byte;
+               prior: byte;
+               flag: word;
+               name: name_type;
+               uda: word;
+               user, disk: byte;
+               z2: packed array [1..12] of byte;
+               cns: byte;
+               z3: packed array [1..3] of byte;
+               list: byte;
+               z4: packed array[1.15] of byte;
+               cns2: byte;
+               z5: byte;
+               name2: name_type);
+             false:
+              (ray: array [0..61] of byte)
+         end; {pd_type}
+       uda_type = array[0..255] of byte;
+
+     external procedure fix_stack(taskp: ^integer; {kludge}
+                                  var uda: uda_type;
+                                  size: integer);
+     external function create_process(var pd: pd_type): boolean;
+     external function set_priority(prioritry: byte): boolean;
+     external procedure dispatch;
+     external procedure terminate;
+     external procedure abort(var pd: pd_type);
+
+Each subtask requires:
+     a Process Descriptor table (62 bytes)
+     a User Data Area table (256 bytes) for use by MP/M only
+     an execution priority
+     a name of 8 characters
+     some stack space
+     a starting address
+
+Thå  Procesó  Descriptoò anä Useò Datá Areá musô botè bå  iî  thå 
+globaì datá area¬ noô locaì procedurå data®  Thå examplå programó 
+(seå especiallù TEST© sho÷ procedurå STARTUĞ aó á waù tï starô uğ 
+á  task®   Thå  PÄ  showî herå ió largeò thaî showî  iî  thå  MPÍ 
+Programmer'ó  Guide»  iô haó 1´ extrá byteó foò uså bù thå  ABORÔ 
+procedure.
+
+.CP2
+Thå UDÁ foò eacè tasë must“ residå oî á paragrapè (16-byte©  boun
+dary®   Thå  waù tï achievå thió ió tï declarå alì UDA'ó togetheò 
+aô  thå  beginninç oæ thå globaì datá areá oæ  thå  maiî  prograí 
+module¬ aó iî thå examples.Š
+.CP2
+FIX_STACË   musô  bå  calleä  beforå  thå  tasë  ió  starteä   bù 
+CREATE_PROCESS®  FIX_STACË reserveó stacë spacå foò thå task®  Iô 
+ió calleä witè thå addresó oæ thå tasë entrù poinô (whicè wilì bå 
+á  procedure)¬  thå  Useò Datá Areá foò thå tasë (eacè tasë  musô 
+havå itó own)¬  anä thå amounô oæ stacë spacå tï reservå foò  thå 
+task.
+
+CREATE_PROCESÓ musô bå calleä immediatelù afteò FIX_STACK®  Iô ió 
+passeä  thå Procesó Descriptoò tablå foò thå tasë (eacè tasë  haó 
+itó own)®   Thå PÄ ió firsô seô tï alì zeroes¬  anä theî initial
+izeä aó follows:
+
+     PRIOR is set to the desired initial task priority.
+     FLAG will normally be zero, but see MP/M call 144.
+     NAME  ió  seô tï thå 8-characteò tasë name®   Alì ¸ bitó  oæ 
+          each byte are significant.
+     UDA  ió  seô  tï thå offseô oæ thå UDÁ divideä  bù  1¶  (seå 
+          example).
+     USER, DISK¬  CNS¬  LISÔ  arå seô tï thå desireä defaulô useò 
+          number¬  disë  drive¬  consolå number¬  anä LSÔ  devicå 
+          number¬ iæ anù arå needed.  (Normally 0.)
+     NAME2 is set to the same name as NAME.  Used only by ABORT.
+     CNS2 is set to the same value as CNS.  Used only by ABORT.
+
+FALSÅ  ió returneä iæ thå procesó coulä noô bå createä aó  speci
+fied¬  whicè coulä bå duå tï toï manù processeó alreadù  created¬ 
+oò  á duplicatå procesó name¬  foò example®   TRUÅ ió returneä iæ 
+thå  procesó  waó successfullù  created®   Creatinç  thå  procesó 
+causeó iô tï begiî executioî accordinç tï itó priority.
+
+SET_PRIORITÙ  maù bå calleä aô anù timå bù anù tasë tï alteò  itó 
+owî priority®   Iô ió calleä witè thå desireä ne÷ prioritù level®  
+Seå thå discussioî oæ schedulinç anä prioritù below®   Iô returnó 
+FALSE if the priority could not be set, and TRUE otherwise.
+
+DISPATCÈ  ió  similaò tï DELAY(1)¬  iî thaô thå tasë  callinç  iô 
+giveó  uğ thå CPÕ untiì itó nexô turî tï  execute¬  whereupoî  iô 
+continueó  executioî  aô thå instructioî followinç  thå  DISPATCÈ 
+call®   DELAY(1©  guaranteeó  thaô aô leasô onå clocë  ticë  wilì 
+occuò  beforå  thå  tasë  continues»   dependinç  oî  priorities¬ 
+DISPATCÈ maù returî controì immediately.
+
+TERMINATÅ  causeó  thå callinç tasë tï bå removeä froí  alì  MP/Í 
+lists¬  anä executioî oæ thaô tasë wilì stop®   Thaô is¬ therå ió 
+nï returî froí thå TERMINATÅ call®  Nï tasë caî TERMINATÅ anotheò 
+(buô seå ABORT)¬  anä alì taskó musô bå terminateä  somehow®   Iî 
+particular¬  iæ á maiî tasë startó uğ severaì subtasks¬  anä theî 
+terminateó  onlù itself¬  thå subtaskó wilì continuå tï exisô  iî 
+memorù  anä executå untiì explicitù terminated®   Re-bootinç MP/Í 
+wilì oæ courså terminatå everything.
+
+.CP2
+ABORÔ  ió similaò tï TERMINATE¬  excepô thaô á specifieä tasë  ió 
+terminated¬  whicè wilì usuallù noô bå thå callinç task®   Thå PÄ 
+oæ  thå tasë tï bå terminateä ió passeä tï ABORT®   Thå NAME² anä ŠCNS² fieldó musô bå seô tï matcè thå NAMÅ anä CNÓ fields¬  oò thå 
+procesó wilì noô bå aborteä -- althougè somå otheò procesó  mighô 
+be¡  ABORÔ allowó á maiî task¬ foò example¬ tï terminatå itó sub-
+tasks when processing is complete.
+
+
+.CP6
+4.   Scheduling and Priority
+
+Therå  arå  25¶ possiblå prioritù leveló iî  MP/M®   Thå  highesô 
+("best"©  prioritù ió 0¬  anä thå lowesô ("worst"© ió  255®   Thå 
+followinç  ió á guidelinå foò establishinç prioritieó whicè  wilì 
+not conflict with MP/M usage:
+
+.CP3
+     002 - 031  Interrupt handlers
+        200     Task initialization
+     201 - 254  User tasks
+
+Everù tasë ió eitheò running¬  readù tï run¬  oò waitinç foò somå 
+event®   Onlù  onå tasë caî ruî aô anù onå time¬  sincå therå  ió 
+onlù onå CPU®   Taskó whicè arå ablå tï run¬ anä arå waitinç onlù 
+foò thå CPÕ arå "ready"®   "Waiting¢ taskó mighô bå waitinç foò á 
+systeí flag¬  foò á timå delaù tï elapse¬ oò foò á resourcå (con
+sole¬ printer¬ disk© tï becomå available.
+
+Thå  MP/Í scheduleò ió calleä aô everù clocë tick¬  anä aô  everù 
+interrupt®   Thå  highest-prioritù "ready¢ tasë ió theî  resumed®  
+Iæ morå thaî onå tasë haó thå samå priority¬ theù arå executeä oî 
+á round-robiî basis.
+
+Exampleº   Taskó A¬  B¬  Ã arå aô prioritù 210¬  anä tasë Ø ió aô 
+prioritù 250» alì arå "ready"¬ anä tasë Á ió currentlù executing®  
+Aô  thå nexô tick¬  tasë Á wilì bå placeä aô thå enä oæ thå readù 
+lisô foò prioritù 210¬  anä tasë Â wilì bå resumed®   Aô thå nexô 
+tick¬  tasë  Ã wilì bå resumed®   Theî tasë Á again¬  anä sï  on®  
+Tasë Ø wilì bå lockeä ouô untiì A¬  B¬  anä Ã arå alì waitinç foò 
+somethinç tï happen¬ sucè aó á delaù tï expire¬ oò á characteò tï 
+bå typeä aô thå console®   Notå thaô A¬  B¬  anä Ã caî interleavå 
+theiò  executioî  iæ  anù takeó morå thaî 1· mó  tï  executå  onå 
+cycle®   Iæ  interleavinç ió undesireable¬  thå runninç tasë  caî 
+raiså  itó  prioritù upoî entry¬  anä decreaså iô tï itó  nominaì 
+leveì aô thå enä oæ itó cycle®   Thió wilì guaranteå thaô Á  wilì 
+completå beforå Â oò Ã geô executeä (unlesó Á goeó intï á waitinç 
+statå foò somå reason).
+
+
+5.  Stack Space
+
+Pascaì  MT+8¶  programó uså thå stacë foò passinç  parameteró  tï 
+procedureó anä functionó (includinç run-timå procedureó invisiblå 
+tï thå programmer)¬ foò temporarù storagå durinç compleø calcula
+tions¬  anä  foò  storagå oæ locaì  variableó  (includinç  formaì 
+parameters© oæ procedureó anä functions.
+
+.CP2
+Iô  ió difficulô tï estimatå ho÷ mucè stacë spacå á prograí  wilì 
+need¬  aó  iô dependó oî thå (dynamic© deptè oæ procedurå nestinç Šaô ruî timå aó welì aó oî thå (static© factoró listeä above®  Thå 
+linkeò  bù  defaulô assignó 8Ë byteó ($20° paragraphs©  oæ  stacë 
+spacå tï á program¬ unlesó thå /Ú switcè ió used®  Unfortunately¬ 
+therå  ió  nï  reliablå  waù tï  telì  wheî  stacë  overflo÷  haó 
+occurred®   Thå  prograí  maù exhibiô bizarrå behaviour¬  oò  thå 
+systeí maù crasè entirely» thå computeò haó nï memorù protection. 
+
+Iî anù event¬  afteò aî amounô oæ stacë spacå haó beeî decideä oî 
+foò  thå  maiî prograí anä eacè task¬  aó showî iî thå  calló  tï 
+init_mpm_utiì anä create_process¬  adä uğ alì theså valueó tï geô 
+thå minimuí amounô oæ stacë spacå needed®   Converô thå totaì  tï 
+hexadecimal¬  droğ thå finaì digiô (i.e.¬  dividå bù 16)¬ anä adä 
+± (foò round-up)®   Uså thió (oò á largeò value© aó thå numbeò oî 
+the linker /Z switch.
+
+Examplå 1º  Prograí PROGÔ reserveó 150° byteó oæ stacë foò itselæ 
+anä  eacè oæ twï subtasks¬  foò á totaì oæ 4500®   Thió ió  $119´ 
+(hex)®   dividinç  bù  1¶ anä addinç ± giveó $120®   Thå  defaulô 
+linkeò  valuå oæ $20° ió biç enough¬  sï nï linkeò /Ú  switcè  ió 
+needed.
+
+.CP4
+Examplå 2º  Á hypotheticaì prograí reserveó 1Ë byteó foò thå maiî 
+program¬  anä 3Ë byteó foò eacè oæ ¸ subtasks®  Thió ió 25Ë deci
+mal¬  oò $6400®   Thió ió biggeò thaî thå linkeò default¬  sï thå 
+linkeò commanä linå woulä looë something likå this:
+
+linkmô main,task1,task2,task3,...,task8,fpreals,paslib/s/z:640
+
+
+.CP14
+6.  MP/M Message Queues
+
+     type
+       name_type = packed array[1..8] of char;
+       qd_type = 
+         record
+           z1: longint;
+           flags: word;
+           name: name_type;
+           msglen: integer;
+           nmsgs: integer;
+           z3, z2: longint;
+           z4: word
+         end;
+.CP8
+       qpb_type = 
+         record
+           z: word;
+           qid: word;
+           nmsgs: integer;
+           buffer: word;
+           nameº name_type
+         end;
+
+.CP3
+     external function queue_make(var qd: qd_type): boolean;
+     external function queue_oper(op: byte;
+                                  var qpb: qpb_type): boolean;Š
+.CP2
+MP/Í  allowó anù reasonablå numbeò oæ messagå queueó oæ anù reas
+onablå  sizå  tï bå dynamicallù createä anä  used®   Thå  maximuí 
+numbeò  oæ queueó activå aô onå time¬  anä thå  maximuí  combineä 
+sizå  oæ  alì  queueó activå aô onå timå ió seô  aô  MP/Í  systeí 
+generatioî time®   (Thió ió becauså thå queueó exisô iî MP/Í datá 
+space, not in program data space.)
+
+Á messagå queuå ió createä bù specifyinç itó name¬  thå sizå oæ á 
+message¬ anä thå capacitù oæ thå queuå iî messages®  Anù tasë caî 
+writå  messageó  tï oò reaä messageó froí thå queuå  oncå  iô  ió 
+createä  anä opened®   (Á queuå needó á separatå "open¢ operatioî 
+performeä afteò iô ió created.©  Messageó arå handleä strictlù oî 
+á first-in¬ first-ouô (FIFO© basis®  Wheî writinç tï á queue¬ thå 
+tasë caî elecô tï waiô foò aî emptù messagå sloô tï becomå avail
+able¬  oò havå thå writå requesô returî witè aî erroò indication®  
+Similarly¬ wheî readinç á queue¬ thå tasë caî elecô tï waiô foò á 
+messagå tï bå writteî intï thå queuå iæ iô ió empty¬  oò havå thå 
+reaä  requesô returî iî aî erroò condition®   Thå  queuå  handleò 
+knowó onlù abouô messagå size»  thå interpretatioî oæ messageó ió 
+lefô strictlù uğ tï taskó whicè reaä anä writå thå messages.
+
+See example TESTQ for sample queue usage.
+
+.CP2
+QUEUE_MAKÅ  musô bå calleä oncå foò eacè queuå tï creatå it®   Iô 
+ió calleä witè á Queuå Descriptoò table®   Thå QÄ ió  initializeä 
+bù settinç thå "z¢ fieldó tï zero¬ FLAGÓ tï zerï (excepô seå MP/Í 
+manuaì  foò discussioî oæ Mutuaì Exclusioî Queues)¬  NAMÅ tï  thå 
+namå  oæ  thå queuå (alì ¸ bitó oæ alì ¸ byteó arå  significant)¬ 
+MSGLEÎ tï thå sizå oæ á messagå iî byteó (alì messageó iî á giveî 
+queuå  arå  thå samå size)¬  anä NMSGÓ tï thå queuå  capacitù  iî 
+messages®  TRUÅ ió returneä iæ alì ió succesful¬ anä FALSÅ iæ thå 
+queuå namå ió duplicated¬  oò iæ therå ió noô enougè spacå iî thå 
+systeí datá areá tï creatå thå queue®   Thå queuå musô bå  openeä 
+viá  á calì tï QUEUE_OPEÒ beforå anù otheò operatioî caî bå  per
+formeä oî it.
+
+QUEUE_OPEÒ  ió  á  general-purposå routinå tï perforí  alì  queuå 
+functionó otheò thaî makinç á queue®  Iô ió calleä witè thå queuå 
+operatioî numbeò anä á Queuå Parameteò Block®   Thå queuå  opera
+tioî numberó arå aó follows:
+
+     135  open queue
+     136  delete queue
+     137  read queue
+     138  conditional read queue
+     139  write queue
+     140  conditional write queue
+
+.CP3
+TRUÅ ió returneä iæ thå requesteä operatioî ió successful®  FALSÅ 
+ió  returneä iæ unsuccessful¬  oò iæ aî operatioî numbeò  outsidå 
+the above range is used.  The operations are discussed below.
+
+.CP2
+OPEÎ  QUEUÅ  ió  requireä oncå afteò thå queuå  ió  created¬  anä 
+beforå anù otheò operatioî ió performed®   Á QPÂ musô bå initialŠizeä bù settinç Ú tï zerï anä NAMÅ tï thå namå oæ thå queue®  Alì 
+¸  bitó oæ alì ¸ byteó oæ NAMÅ musô matcè thå NAMÅ fielä  iî  thå 
+Queuå Descriptoò useä tï creatå thå queue®  Thå QIÄ fielä wilì bå 
+filleä  iî witè á queuå identifieò needeä foò furtheò operations®  
+Thå  QPÂ musô bå preserveä foò uså iî furtheò  queuå  operations¬ 
+and so should probably be a global rather than local data item.
+
+DELETÅ QUEUÅ shoulä bå donå prioò tï terminatioî oæ thå lasô tasë 
+tï  uså thå queue®   Iæ alì taskó terminatå anä thå queuå ió  noô 
+deleted¬  succeedinç attemptó tï creatå thå queuå wilì fail¬  anä 
+MP/Í maù havå tï bå re-booteä tï cleaò ouô thå queue®   Á copù oæ 
+thå QPÂ useä tï opeî thå queuå shoulä bå passeä tï QUEUE_OPER.
+
+REAÄ  QUEUÅ  musô  bå passeä á copù oæ thå QPÂ useä tï  opeî  thå 
+queue®   NMSGÓ  iî  thå  QPÂ copù musô bå seô tï  thå  numbeò  oæ 
+messageó  tï bå reaä froí thå queue®   BUFFEÒ musô bå seô tï  thå 
+addresó  oæ á datá iteí biç enougè tï holä NMSGÓ messageó (iæ  iô 
+ió toï small¬  adjacenô datá wilì bå over-written)®  Iî addition¬ 
+thå  QPÂ copù anä thå buffeò musô botè bå iî thå samå datá  area®  
+Thaô  is¬  botè musô bå globaì oò botè musô bå locaì datá oæ  thå 
+samå procedure®   Seå READ_MSÇ iî examplå TESTQ¬  wherå botè  arå 
+locaì  tï thå samå procedure®   TRUÅ ió returneä afteò NMSGÓ havå 
+beeî  reaä  froí thå queue®   Iæ noô enougè messageó arå  iî  thå 
+queuå aô thå timå oæ thå call¬  thå callinç tasë wilì bå puô iî á 
+"waiting¢  statå untiì enougè additionaì messageó arå writteî  tï 
+thå queue®   FALSÅ ió returneä iæ thå queuå ió noô opeî oò iæ  iô 
+haó beeî deleted.
+
+CONDITIONAÌ  REAÄ  QUEUÅ ió thå samå aó REAÄ  QUEUÅ  excepô  thaô 
+FALSÅ ió returneä iæ therå arå noô enougè messageó alreadù iî thå 
+queue»  thaô is¬ iô doeó noô waiô foò thå messages.
+
+WRITÅ  QUEUÅ  musô bå passeä á copù oæ thå QPÂ useä tï  opeî  thå 
+queue®   NMSGÓ  iî  thå  QPÂ copù musô bå seô tï  thå  numbeò  oæ 
+messageó  tï  writå  tï thå queue®   BUFFEÒ musô bå  seô  tï  thå 
+addresó  oæ á datá iteí containinç NMSGÓ messages®   Iî addition¬ 
+thå  QPÂ copù anä thå buffeò musô botè bå iî thå samå datá  area®  
+Thaô  is¬  botè musô bå globaì oò botè musô bå locaì datá oæ  thå 
+samå procedure®   Seå WRITE_MSÇ iî examplå TESTQ¬  wherå botè arå 
+locaì tï thå samå procedure®   TRUÅ ió returneä afteò NMSGÓ  havå 
+beeî  writteî  tï thå queue®   Iæ therå ió noô enougè  spacå  foò 
+NMSGÓ messageó iî thå queuå aô thå timå oæ thå call¬  thå callinç 
+tasë  wilì bå puô iî á "waiting¢ statå untiì enougè messageó  arå 
+reaä froí thå queuå tï makå room®  FALSÅ ió returneä iæ thå queuå 
+ió noô opeî oò iæ iô haó beeî deleted.
+
+CONDITIONAÌ  WRITÅ QUEUÅ ió thå samå aó WRITÅ QUEUÅ  excepô  thaô 
+FALSÅ  ió  returneä iæ therå ió noô enougè rooí iî thå queuå  foò 
+NMSGÓ  messages»  thaô is¬  iô doeó noô waiô foò spacå tï  becomå 
+available.
+
+
+.CP6Š7.   Raw Console Input
+
+     external procedure r_con_raw(var str: string);
+
+Aô thió writing¬  readln“ froí thå KBDº devicå doeó noô worë prop
+erly¬  anä  inpuô lineó froí thå CONº  devicå arå limiteä  tï  8° 
+characters¬  sï  thió extrá functioî ió includeä iî thå  package®  
+Iô  caî  bå  useä witè carå iî conjuctioî witè I/Ï  tï  thå  CONº 
+(default©  device®   Buô seå thå cautioî iî thå MT+8¶ manuaì sec
+tioî 3.4.1¶ (discussioî oæ ASSIGN).
+
+R_CON_RA×  bypasseó thå MP/Í interpretatioî oæ consolå characteró 
+tï  providå  ra÷  consolå inpuô viá MP/Í  functioî  3®   Iô  alsï 
+bypasseó  alì  oæ thå Pascaì MT+8¶ filå I/O®   STÒ  ió  initiallù 
+cleareä  (lengtè bytå seô tï 0)®   Characteró arå reaä  froí  thå 
+consolå  anä  appendeä  tï STÒ -- includinç  controì  characters®  
+Wheî á CÒ ($0D© ió detected¬ iô ió noô writteî tï thå string¬ buô 
+R_CON_RAW returns at that point to the calling program.
+
+Thió  procedurå waó includeä tï providå á simplå waù oæ  usinç  á 
+consolå  iî Blocë Transmissioî mode¬  wherebù thå useò typeó  thå 
+'senä  page§ key¬  anä datá ió senô tï thå computeò witè  controì 
+characteró  delimitinç  fieldó anä lines¬  anä á finaì CÒ aô  thå 
+end.
+
+Cautionsº   
+
+a.   Iæ  thå terminaì sendó morå thaî onå CR¬  thå datá followinç 
+     thå  firsô CÒ maù bå lost¬  dependinç oî thå buffeò sizå  oæ 
+     thå  XIOÓ  consolå inpuô routine¬  systeí  timing¬  anä  thå 
+     consolå bauä rate.
+
+b.   Thå  maximuí strinç sizå undeò Pascaì MT« ió 25µ  bytes®   Á 
+     fulì consolå screeî ió typicallù 192° bytes®   Yoõ musô beaò 
+     thió iî mind®   Mosô consoleó witè blocë transmissioî  allo÷ 
+     thå sendinç oæ onlù thå unprotecteä fields¬  whicè musô theî 
+     bå  seô  uğ  tï totaì lesó thaî 25µ byteó  (includinç  fielä 
+     separators).
+
+c.   Yoõ won'ô wanô tï uså thió procedurå foò manuaì input¬ sincå 
+     thå  backspacå  anä  otheò controló  characteró  arå  merelù 
+     transmitteä withouô interpretation®  Furthermore¬ characteró 
+     typeä wilì noô bå echoeä tï thå screen.
+
+d.   Characteró  maù bå losô wheî thå consolå ió operateä aô higè 
+     bauä   rates®    Characteró  will“  bå  losô  wheî  useä   iî 
+     conjunctioî  witè thå 808· matè library®   Thió  ió  becauså 
+     interruptó  musô  bå  disableä whilå thå 808·  ió  computinç 
+     undeò  thå  currenô versioî oæ MP/M®   Thió  probablù  makeó 
+     R_CON_RAW unusable. 
+     
+
+.CP9Š8.   Time of Day
+
+     type
+       tod_rec = record
+                   day: integer;
+                   hour: byte;
+                   min: byte;
+                   sec: byte
+                 end;
+
+     external procedure get_tod(var tod: tod_rec);
+
+.CP3
+Thió procedurå implementó MP/Í calì 155¬  excepô thaô iô convertó 
+thå hour/min/seã fieldó tï binarù insteaä oæ BCD®   Thå fieldó iî 
+recorä TOÄ arå filleä iî aó follows:
+
+     day = number of days since 1 Jan 1978
+     hour = hour of the day, 0 to 23 (24-hour clock)
+     min = minute of the hour, 0 to 59
+     sec = second of the minute, 0 to 59
+
+Iæ yoõ neeä thå valueó iî BCÄ insteaä oæ straighô binary¬ yoõ caî 
+reconverô thå numberó iî thå callinç program¬ oò uså @BDOS86.
+cmdtyp]  ;Get GPL and DTL fields
+        sto     ax,ciopb+7      ;Set GPL and DTL fields
+        sto     #mrtry,rtry     ;Initialize retry count
+fnl1    ld      al,ciopb+2      ;Get cylinder number
+        call    doseek          ;Seek to proper track
+        jnz     fnl3            ;If seek error
+        ld      ax,bufseg       ;Get host buffer segment
+        ld      cl,#4           ;Shift count
+        rol     ax,cl           ;Shift segment for absolute address
+        mov     bx,ax           ;Save lower 16 bits of paragraph
+        and     al,#0fh         ;Grab upper nibble of paragraph
+        and     bx,#0fff0h      ;Grab upper 12 bits of offset
+        add     bx,bufadr       ;Form 16 bit offset
+        adc     al,#0           ;Propagate carry up to upper nibble 
+        outb    dma             ;Msb of 24 bit address
+        mov     al,bh           ;Get middle byte of 24 bit address
+        outb    dma             ;Middle Byte of 24 bit address
+        mov     al,bl           ;Get lsb of 24 bit address
+        outb    dma             ;Lsb of 24 bit address
+        ld      bx,#ciopb       ;Address of command to execute
+        ld      cx,#ciopl       ;Set command buffer length
+        ld      dx,#7           ;Length of status info
+        call    exec            ;Perform operation
+        sub     ax,#8040h       ;Check for errors
+        sto     ah,erflag       ;Set error flag
+        jz      fnl4            ;If no errors
+fnl3    decb    rtry            ;Get retry counter
+        jnz     fnl1            ;If not permanent error
+        or      al,#1           ;Set error condition
+        sto     al,erflag       ;Set error flag
+fnl4    ret
+        endif
+        page
+;****************************************************************
+;*                                                              *
+;*      HDFNL -- Hard disk final command processing.            *
+;*                                                              *
+;****************************************************************
+
+        if      hard
+hdfnl   call    hdsel           ;Select the hard disk unit
+        sto     al,erflag       ;Save error condition
+        jnz     hdfnl2          ;If select error
+        stob    #mrtry,rtry     ;Set retry count
+        stob    #mrtry,recal    ;Set not recal on error
+hdfnl1  call    hdseek          ;Seek to correct track
+        call    hdxfer          ;Perform hard disk transfer
+        sto     al,erflag       ;Save error condition
+        jz      hdfnl2          ;If no errors
+        decb    rtry            ;Update error count
+        jnz     hdfnl1          ;If attempts left
+        ld      bl,actdsk       ;Get current drive
+        ld      bh,#0           ;Form 16 bit drive #
+        stob    #-1,[bx+hdcyl]  ;Force track zero seek
+        decb    recal           ;Check recalibrated attempt
+        jnz     hdfnl1          ;If no recal attempt yet
+        or      al,#1           ;Set error condition
+        sto     al,erflag       ;Save error condition
+hdfnl2  ret
+recal   db      0
+        endif
+
+rtry    db      0               ;Storage for retry count
+
+;****************************************************************
+;*                                                              *
+;*      Command buffer disk type dependent values.              *
+;*                                                              *
+;**

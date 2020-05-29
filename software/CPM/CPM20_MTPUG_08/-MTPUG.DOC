@@ -1,0 +1,65 @@
+***   MTPUG.008   February 24, 1983   ***
+
+         Multi-tasking under MP/M-86 using Pascal MT+86
+
+               Written and submitted by
+               Steve Clamage,
+               Ocean Technology, Inc.
+               8755 Aero Drive Suite 310
+               San Diego, CA 92123
+
+Here  is a package of information on how I have implemented real-
+time multi-tasking under MP/M-86 using Pascal MT+86.  I am not in 
+a position to provide detailed tutorials free to anyone who asks, 
+nor  to  field general questions from users.   But I am  glad  to 
+share this with the MT Plus User's Group.   The package  consists 
+of the following:
+
+MPMUTIL.DOC    Documentation
+MPMUTIL.I86    Source code for use with the ASMT86  assembler
+MPMUTIL.R86    Assembled  version of the above
+MPMTTIME.SRC   Pascal  source  code illustrating  the  added
+               timing function
+MPMTEST.SRC    Pascal  source  code illustrating the use  of
+               multi-tasking with the MPMUTIL package
+MPMTESTQ.SRC   Pascal  source code illustrating the  use  of
+               MP/M message queues to synchronize tasks
+
+PASMAT.DOC     A Wordstar format user's manual for Pasmat.
+      .CMD     CP/M-86 Version
+      .COM     CP/M-80 Version.  Either version works on
+               MT+80 or MT+86 source code.
+PMTEST.TST     A scrambled Pascal program which tests MT+ features.
+PMXREF.TST     A Pascal program which kills the MT+ XREF program.
+
+***************************************************************
+
+     A set of graphic modules using MT+
+               Written and submitted by:
+               J.A. Koehler
+               2 Sullivan St.
+               Saskatoon, SK, S7H-3G8
+
+DMP.SRC        The graphical module
+SERIO.SRC      The I/O module which communicates with the
+               plotter.
+CHROFF.DAT     Data needed to plot the character set
+CHRVE.DAT      So far, upper case only.
+TESTGR.SRC     A test program to exercise the plotter.
+WRDATA.SRC     The program used to generate the .DAT files above.
+
+****************************************************************
+
+ELEVATOR.PAS   An elevator simulation program written by someone
+        .DOC   in school taking a computer course.  Program shows
+        .DAT   how to get around a MT+ Bug involving calls to the
+               floating point routines with explicit reference to
+               the predeclared input files INPUT and OUTPUT.  
+               There are three elevators in a 15 story building,
+               and this program simulates the pushing of the buttons
+               in the cars or on the floors.  Submitted by
+               Larry D. Adkins
+               56 Camille Lane
+               E. Patchogue, NY 11772
+
+

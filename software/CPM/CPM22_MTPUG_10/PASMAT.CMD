@@ -1,0 +1,4 @@
+B:PASMAT=B:PASMAT
+B:PMINIT,B:PMCOMENT,B:PMPARSE,B:PMFILEIO
+B:CPMNAME,B:RNB,B:PASLIB/S/E/W
+

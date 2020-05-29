@@ -1,0 +1,40 @@
+TITLE DMAset
+;
+; 9/22/82      Sue Arnold
+;
+; This is an assembly program that will set the current "DMA" to the 
+; "fsector" field in the FIB, so that the system may lockout a record.  
+; It expects "buftype" to be of the type: PACKED ARRAY [0..127] OF CHAR;
+;
+; CALLING PROCEDURE=
+;
+;       setDMA (VAR sector_buffer: buftype);  (pointer to the file FCB)
+;
+; This routine uses XDOS function number 1Ah for to set the DMA.
+;
+
+	.Z80
+;
+BDOSJP	EQU 5		; Use this to call XDOS
+;
+;
+	PUBLIC setDMA
+	CSEG
+;
+;
+setDMA:
+	POP HL		; HL = Pascal Return Address 
+        EX (SP), HL     ; HL = The addr of the CP/M sector buffer
+                        ; (top of stack now has the Pascal rtn addr)
+        EX DE, HL       ; DE = The addr of the CP/M sector buffer
+                        ; HL = Garbage
+        LD C, 1AH       ; C = Set DMA BDOS function number
+        PUSH DE         ; Save the addr of the CP/M sector buffer
+        PUSH HL         ; Save the error code addr
+        CALL BDOSJP     ; Set the current DMA
+        POP HL          ; Restore garbage
+        POP DE          ; Restore the addr of the CP/M sector buffer
+        RET             ; Else, Return to calling routine
+
+	END setDMA
+

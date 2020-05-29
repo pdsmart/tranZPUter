@@ -1,0 +1,10 @@
+
+  The command 'SHIFT  <file1>  <file2>'  reads the pascal source in
+  file2  and shifts everything not between quotes  ''  or curly
+  brackets  {}  to upper-case.  This means that  file1  afterwards
+  contains the program with everything but strings and comments
+  (curly bracket comments only)  in upper case.
+
+  SHIFT was written by T. W. Lougheed in TINY PASCAL (r).
+
+

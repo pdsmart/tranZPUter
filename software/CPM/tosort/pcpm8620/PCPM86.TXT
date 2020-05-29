@@ -1,0 +1,71 @@
+                          INSTALLATION GUIDE
+
+5.25 DISK DRIVES
+
+Use "COPYQM" to place the "PCPM86A.DSK" & "PCPM86B.DSK" images onto two 5.25
+disks & boot on the "PCPM86A.DSK".There should be no problems.
+
+3.5 DISK DRIVES
+
+Because this disk image was taken from a 5.25 disk, certain "cheats" must be 
+set up first.
+
+1. In the BIOS/SETUP utility set your 3.5 Floppy to a 1.2  5.25 Disk
+2. Install "COPYQM" so that this program recognises the "false" 5.25 Drive
+3. Use "COPYQM" to place the "PCPM8620.DSK" image onto a 3.5 720kB disk.
+
+Leave the BIOS/SETUP as above & the PCP/M boot disk should work.
+
+HD INSTALLATION
+
+1. First, an "area must be cleared" for the PCP/M partition, "PARTITION MAGIC"
+or a Shareware product such as "FIPS" could be used, alternatively, start from 
+new & use the MS-DOS "FDISK" to create the new primary DOS partition, leaving
+the required space for PCP/M.
+
+2.Install your Operating System as normal eg MS-DOS
+
+3.Boot the PCP/M system & use the "HDMAINT" program & follow the menu driven
+prompts
+
+4.When this is done log to A: & use the "PIP" command  
+
+5.At the PIP prompt (*) use :
+   B:=A:*.*[RVW]
+
+6.All system files & commands from the floppy will now be taken to the Hard  
+Disk
+
+7.Repeat for "PCPM86B.DSK"
+
+8.NB. On one floppy disk system, your hard disk is "B" drive not "C" as for
+ MS-DOS. There will be 3 virtual drives available "N, O, P" for multitasking!!
+
+GENERAL
+
+To transfer PCP/M files in DOS format use "22DISK" & select the "IBM" disk 
+format on disks formatted using "DISK" under PCP/M  (22DISK INSTALLED WITH 1.2
+A: DRIVE)
+
+Remember, use the PCP/M-86 "DISK" command to make SYSTEM DISKS & not "22DISK"
+"COPYQM" or "ANADISK" should make copies of your original boot disk.
+
+The "BASIC" program works quite well, available at this site
+
+BOOT MANAGERS
+Either a boot manager can be installed (remember to leave 1 or 2 Mbyte when 
+partitioning) or the "ACTIVE PARTITION" can be called with the respective
+Operating System's HD utility.
+
+HARD DISK SIZE
+This was tested on a AMD P133 PCI M/BOARD with a removable 540Mb disk
+with all HD PARAMETERS set to "AUTO" & on a 486dx66 VESA M/BOARD.
+The PCP/M "HDMAINT" program also "saw" a 2 Gigabyte HD
+The partition sizes are performed under PCP/M using "CYLINDERS" & NOT 
+"Mb's", similar to early versions of MSDOS
+
+When installation is complete, experiment & see if your floppy can be reset
+back to its normal parameters for for use under PCPM-86 (3.5 disk drive)
+
+
+S.J.Davies   16 FEB 1998

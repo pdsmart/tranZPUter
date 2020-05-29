@@ -1,0 +1,113 @@
+Comments on Juergen Loewner's procedures "MT+ Pascal Library Extensions"
+
+The following procedures are implemented for the Heath H19 terminal.
+As clock IC the MSM 5832 from OKI was taken. The Microsoft M80/L80
+assembler/linker was used.
+%U
+	  procedure CPOS (line,column);
+		Positioning of the cursor.
+
+	  procedure HOME;
+		The cursor will be positioned to the upper left corner.
+
+	  procedure CLS;
+		Clear screen and set cursor to the "home" position.
+
+	  procedure CEOP;
+		Clear screen from cursor up to the end of the screen;
+		the character under the cursor will be deleted.
+
+	  procedure CTOP;
+		Clear screen from "home" to cursor position; the
+		character under the cursor will be also deleted.
+
+	  procedure CEOL;
+		Clear screen from "home" up to the cursor; the character
+		under the cursor will be also deleted.
+
+	  procedure IL;
+		Insert one line at "cursor line"; the following lines
+		are scrolled down. The last line (24) will be deleted.
+
+	  procedure DL;
+		Delete "cursor line"; the following lines are scrolled
+		up.
+
+	  procedure DC;
+		Delete the character at the cursor position; the following
+		characters of this line are shifted one character to the
+		left.
+
+	  procedure SAVEC;
+		The procedure saves the cursor position (line and column).
+		Later on it will be possible to return to this column by
+		calling "RESTC".
+
+	  procedure RESTC;
+		Position the cursor to the line/column which was saved
+		by the last call of SAVEC.
+
+	  procedure ERASEL;
+		Clears cursor line (without scrolling the rest of the
+		screen).
+
+	  procedure KBOFF;
+		The keyboard is switched off (no input will be possible
+		by it); see also KBON.
+.PA
+	  procedure KBON;
+		The keyboard is switched on (necessary if KBOFF was
+		was called).
+
+	  procedure EBL;
+		Clear line from the beginning of the line to the cursor;
+		thecharacter under the cursor is included.
+
+	  procedure CUOFF;
+		The cursor will be switched off; see also CUON.
+
+	  procedure CUON;
+		The cursor will be switched on (necessary if CUON
+		was called).
+
+	  procedure ON25;
+		Enables an entry into the status line (line 25).
+
+	  procedure OFF25;
+		Delete status line (line 25); furtheron an access
+		to the status line will not be possible; see ON25.
+
+	  procedure TIME (var X: string);
+		A string of the length 8 will be assigned to the
+		variable X: "hh:mm:ss".
+
+	  procedure DATE (var X: string);
+		A string of the length 10 will be assigned to the
+		variable X: "dd.mm.19yy".
+
+	  procedure DAY (var X: string);
+		A string of variable length will be assigned to the
+		variable X; the string contains the German day of
+		week.
+
+	  procedure IC;
+		Switches on "insert character" mode:
+		Insert one character at the cursor position and shift
+		the rest of the line one character to the right.
+		Positiob 80 will be deleted.
+
+	  procedure XIC;
+		Switch off the "IC-mode".
+
+	  procedure REVON;
+		The following characters will be output on the screen
+		in "inverse-mode" (black on white); see also REVOFF.
+
+	  procedure REVOFF;
+		Return from "inverse-mode" to "standard-mode".
+
+
+
+rse-mode" (black on white); see also REVOFF.
+
+	  pr

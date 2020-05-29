@@ -1,0 +1,91 @@
+;****************************************************
+;GLOBAL CONFIGURATION EQUATES FOR CCPM 3.1	    *
+;****************************************************
+VER	EQU	'D'		;Production release version 
+TWEAK	EQU	' '		;In-house revision
+;
+;Floppy disk equates
+FLOPPY5	EQU	TRUE		;True if have 5 1/4 inch floppies
+HEADS5	EQU	2		;Number of heads in 5 1/4 inch floppy
+TRK5	EQU	80		;Number of tracks in 5 1/4 inch floppy
+;
+FLPYORDR EQU	0		;Set to 0 if physical drive 0 is to be drive A:
+;				;Set to 2 if physical drive 2 is to be drive A:
+;				; (only 0 and 2 are meaningful)
+;******************
+;Hard disk equates
+;******************
+;Note: The disk2 and disk3 can not both be present at the same time.
+DISK2	EQU	FALSE		;True if disk 2 present
+DISK3	EQU	FALSE		;True if disk 3 present
+   if DISK2 AND	DISK3 
+ -- << ERROR >>	-- ; cannot have disk2 and disk3 both on!!!!!!!!
+HARD EQU	FALSE	
+   else
+HARD	EQU	DISK2 OR DISK3
+   endif
+;
+;disk2 equates, only one at a time can be true
+D2M20	EQU	FALSE		;True for 20 meg. fujitsu
+D2F40b	EQU	TRUE		;True for 40 meg. fujitsu
+;
+NDISK2	EQU	1
+;
+;disk3 equates, only one at a time can be true 
+D3ST506	EQU	FALSE		;True for 5 meg. st506
+D3Q520	EQU	FALSE		;True for 20 meg. quantum drive
+D3Q540	EQU	TRUE		;True for 40 meg. quantum drive
+D3Q80	EQU	FALSE		;True for 80 meg. quantum drive
+;
+NDISK3	EQU	1
+;
+;*****************************
+;Console configuration equates
+;*****************************
+NPCONS	EQU	1		;Number of physical consoles 
+VCOFF	EQU	1		;Number of virtual consoles per physical
+				;Console
+NVCONS	EQU	NPCONS*VCOFF	;Number of virtual consoles
+;
+NLST	EQU	2		;Number of list devices
+;
+;
+;Console equates, only one at a time can be true
+Z19		EQU	FALSE
+;
+TELEVIDEO	EQU	FALSE 
+;
+QUME102		EQU	TRUE	;This represents a general terminal
+;
+;
+;
+;PC Graphics board equates
+PCBRD		EQU	FALSE	;True if have pc compatible graphics board
+;
+NPC_BRD		EQU	1	;Number of pc video boards
+;
+NPC_CONS	EQU	NPC_BRD*VCOFF
+;
+;
+;The following equates define the amount of memory to be reserved
+;by GENCCPM for console screen buffering.
+;
+;
+;At present only the Z19 screen drivers use buffering
+   if Z19 
+CONBUFF	EQU	NVCONS*0F00h/010h  
+   else
+CONBUFF	EQU	0
+   endif
+;
+;Buffer memory for the PC graphics boards if present
+   if PCBRD
+PCBUFF	EQU	25*80*NPC_BRD*(VCOFF*2+1)/10h
+   else
+PCBUFF	EQU	0
+   endif
+;
+;
+MEMBUFF	EQU	CONBUFF+PCBUFF		;Total buffer space required
+;
+

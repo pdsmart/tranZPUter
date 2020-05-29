@@ -1,0 +1,54 @@
+
+eject
+
+
+;	CP/M disk control block equates which define the
+;	disk types and maximum storage capability of each
+;	disk type.
+
+;	CP/M to host disk constants
+
+hstsiz	EQU	1024		;blocking/deblocking buffer size
+cpmsib	EQU	1024/128	;standard sectors in block
+fpysib	EQU	2048/128	;sectors in floppy disk block
+bz1k	EQU	cpmsib
+bz2k	EQU	fpysib
+bz4k	EQU	2*fpysib
+hblksiz	EQU	4*1024		;M20 block size
+hhstsiz	EQU	512		;M20 bytes per sector
+hdspt	EQU	21		;M20 physical sectors per head/track
+hhstspt	EQU	hdspt*8		;M20 physical sectors per track
+hhstblk	EQU	hhstsiz/128	;M20 CP/M records per physical sector
+hcpmspt	EQU	hhstblk*hhstspt	;M20 CP/M records per track
+hardsib	EQU	hblksiz/128	;standard records in hard disk data block
+hmdsib	EQU	2048/128	;sectors in memory disk block
+
+dskhd	EQU	8		;hard drive, 512-byte sectors
+hmddsm	EQU	((512-4)*8)/hmdsib	;dsm for mdrive
+h0dsm	EQU	97*hcpmspt/hardsib	;1st 97 tracks of M20
+h1dsm	EQU	h0dsm			;2nd 97 tracks of M20
+h2dsm	EQU	49*hcpmspt/hardsib	;last 49 tracks of M20
+
+csvflen	equ	256/4		;csv length for floppies
+alvh0ln	EQU	(h0dsm+7)/8	;alv length for logical hard drive 0
+alvh1ln	EQU	(h1dsm+7)/8	;alv length for logical hard drive 1
+alvh2ln	EQU	(h2dsm+7)/8	;alv length for logical hard drive 2
+
+;disk type values
+dsks1	equ	0		;sssd
+dsks2	equ	1		;ddsd
+dskd1	equ	2		;ssdd
+dskd2	equ	3		;dsdd
+dskd3	equ	4		;ssdd
+dskd4	equ	5		;dsdd
+dskd5	equ	6		;ssdd
+dskd6	equ	7		;dddd
+
+fd5type	equ	20h		;Base type for 5 1/4 inch floppies
+
+hd2typ	equ	43h		;Disk 2 type
+	
+hd3typ	equ	53h		;Disk 3 type
+
+hmdtyp	equ	128		;type for M-DRIVE/H
+

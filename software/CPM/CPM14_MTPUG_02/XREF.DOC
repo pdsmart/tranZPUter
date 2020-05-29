@@ -1,0 +1,38 @@
+
+
+
+        Cross Reference Program                           by: Warren A. Smith
+
+             Thió prograí camå mainlù froí Nikolauó Wirtè aó yoõ wilì 
+        seå iæ yoõ reaä thå sourcå code®  However¬ É havå addeä onå majoò 
+        iteí whicè É likå verù much¬ anä thaô ió á graphicaì listinç oæ 
+        the block structuring of your program.
+             Alì compounä statementó arå delimiteä bù lineó whicè arå 
+        connecteä anä nesteä (iæ thå statementó arå nested)®  Aî examplå 
+        might be:
+
+                  B-------------begin
+                  !             If True then
+                  !  B-------------begin
+                  !  !             statement;
+                  !  !             statement
+                  !  E-------------end
+                  !             else
+                  !                statement;
+                  !             statement
+                  E-------------end;
+
+        This can be very helpful in a large, complex program.
+
+             Onå oæ thå sidå benefitó ió iî findinç missinç ENÄ 
+        statements®  Iæ yoõ dï noô havå matchinç BEGIÎ anä END'ó yoõ wilì 
+        noticå thaô thå verticaì baró traiì ofæ aô thå enä oæ youò 
+        program®  Bù followinç thoså lineó tï theiò matchinç BEGIÎ yoõ 
+        will have found the culprit.
+            Onå probleí - therå ió nï waù thå outpuô oæ thió prograí caî 
+        takå aî inpuô sourcå filå whicè maù bå 8° columnó widå anä puô 
+        thå outpuô (witè thå graphó aó above© oî youò terminaì withouô iô 
+        lookinç verù bad®  Sï É recommenä á 13² columî printeò oò á disë 
+        filå thaô yoõ caî scaî aô leisure¬ preferablù witè somethinç thaô 
+        will not wrap the excess lines around your screen.
+

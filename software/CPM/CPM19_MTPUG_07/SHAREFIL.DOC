@@ -1,0 +1,190 @@
+
+
+
+                PASCAL/MT«   INTERFACÅ   TÏ  MP/Í II'Ó  
+                     FILÅ  SHARINÇ   FUNCTIONS
+
+
+
+
+           Thå  abilitù  tï updatå shareä datá while maintaiîing  
+    data integrity is a unique feature of MP/M II. 
+
+           The current version of Pascal/MT+, having been designed
+    foò á singlå-useò environment¬  lackó thå facilitieó tï  takå 
+    advantagå  oæ  thå filå integritù mechanisimó requireä  iî  á 
+    multi-user environment. 
+
+           SHAREFIÌ   ió  aî applicatioî prograí usinç  á  Pascaì 
+    interfacå  tï  assemblù modules provideä bù  Suå  Arnolä  oæ 
+    Centauruó  Software®  Theså  moduleó  togetheò  providå  filå 
+    sharinç   anä   recorä   locking/unlockinç   capabilitù   foò 
+    Pascal/Mt+ ver. 5.5 running under MP/M II.
+
+           Thå firsô useò oæ SHAREFIÌ shoulä creatå á smalì  texô 
+    filå  oæ nameó anä addresses®  Subsequenô useró caî opeî  thå 
+    samå  filå anä attempô accesó oæ thå samå recordó foò reaä oò 
+    write®  Iæ  thå  recorä haó beeî lockeä bù á  previouó  writå 
+    requesô thå currenô writå requesô wilì bå denieä anä aî erroò 
+    codå displayed.
+
+           Onå  drawbacë  oæ extendinç á filå openeä iî  unlockeä 
+    modå  - aó  occuró iî thió examplå - ió  thaô  thå  operatinç 
+    systeí  musô allocatå á fulì blocë oæ disë spacå aô thå firsô 
+    writå  tï aî unallocateä record®  Thå effecô ió, á reaä tï  á 
+    recorä  withiî  the  blocë, thaô haó noô beeî  writteî,  wilì  
+    successfullù  returî uninitializeä data®  Aî applicatioî thaô 
+    useó  thió schemå shoulä maintaiî á headeò tï thå  filå  thaô 
+    keepó tracë oæ valiä records.
+
+           Linkinç  SHAREFIÌ  ió acomplisheä witè  thå  followinç 
+    command.
+
+    0A>LINKMT SHAREFIL,SHARELIB,RANDOMIO,PASLIB/S
+
+
+    Digitaì   Researcè   disclaimó  anù  expresseä   oò   implieä 
+    responsibilitù  foò  thå  effectó oæ thió  softwarå  oî  youò 
+    application®  Thå  externaì moduleó useä iî thió  applicatioî 
+    arå  madå  availablå  tï DRÉ anä ouò customeró  bù  Centauruó 
+    Software®  Iô ió thå intenô oæ thå authoò thaô theså  moduleó 
+    be regarded as public domain.         
+
+
+
+    Daniel Erickson/Dick Lovelace    Digital Research    11/11/82Š
+
+
+
+                                 (1)
+
+
+
+
+
+
+
+                                MODULE LIST
+                                ===========
+
+
+SHARE.PAS
+=========
+   Thió ió thå Pascaì procedurå thaô ió useä bù thå callinç routinå tï opeî 
+   a file in the shared access mode.  The calling procedure is:
+
+             SHARE (VAR ufile:   file_descriptor;
+                        uname:   string15;
+                    VAR file_ID: INTEGER);
+
+   All parameters are passed except file_ID.
+
+
+USET.PAS    (called by SHARE)
+========
+   Thió ió mù versioî oæ "RESET"®   Iô ió basicallù á documenteä versioî oæ 
+   reseô witè thå followinç exceptionsº  (1© Iæ filå optioî ½ FWRITE¬  theî 
+   thå f5§ biô ió seô beforå closinç thå file» (2© Thå f5§ attributå biô ió 
+   seô  beforå  thå filå ió opened»  (3© "@BDOS¢ functioî waó  replaceä  bù 
+   assemblù routinå "UOPEN"®  
+
+                   USET (VAR ufile:   FIB;
+                             bufsize: INTEGER;
+                         VAR file_ID: INTEGER);
+
+   É don'ô kno÷ whetheò oò noô É neeä bufsizå aó thå seconä parameter¬  buô 
+   that'ó thå waù thå originaì reseô looks®   Eventually¬ file_IÄ shoulä bå 
+   type "WORD", and not "INTEGER".
+
+
+UOPEN.PAS    (called by USET)
+========
+   Thió  ió  jusô aî assemblù routinå thaô actuallù calló thå BDOÓ tï  opeî 
+   the file.
+
+                   uopen (VAR ufile:  FIB;
+                          VAR result: INTEGER);
+
+
+LOCK.PASŠ========
+   Thió ió thå Pascaì procedurå thaô ió useä bù thå callinç routinå tï locë 
+   á recorä foò á filå thaô haó beeî openeä iî shareä accesó mode®   Pleaså 
+   seå thå prograí headeò foò furtheò documentation.
+
+             LOCK (VAR ufile:   FIB;
+                       file_ID: WORD;
+                   VAR lck_err: INTEGER);
+
+   The file_ID is the same one as that returned by "SHARE".
+
+
+
+
+
+                                (2)
+
+
+                                
+
+
+
+
+
+
+ALOCK.Z80    (called by LOCK)
+=========
+   Thió   ió jusô aî assemblù routinå thaô actuallù calló thå BDOÓ tï  locë 
+   thå  recorä thå file¬  iô assumeó thaô thå currenô DMÁ haó alreadù  beeî 
+   set.
+
+                   alock (VAR ufile:   FIB;
+                          VAR lck_err: INTEGER);
+
+
+SETDMA.Z80    (called by LOCK and UNLOCK)
+===========
+   Thió  ió  yeô  anotheò assemblù routinå thaô calló thå BDOÓ tï  seô  thå 
+   current DMA (which is passed).
+
+                   setdma (VAR sector_buffer: buftype);
+
+   Whereº  buftypå ½ PACKEÄ ARRAÙ [0..127İ OÆ CHAR¬   anä thå sector_buffeò 
+   is the "fsector" field of the FIB.
+
+
+UNLOCK.PAS
+==========
+   Thió  ió  thå Pascaì procedurå thaô ió useä bù thå  callinç  routinå  tï 
+   unlocë á recorä thaô haó beeî writteî tï iî lockeä mode®  Pleaså seå thå 
+   prograí headeò foò furtheò documentation.
+
+             UNLOCK (VAR ufile:   FIB;
+                         file_ID: WORD;
+                     VAR lck_err: INTEGER);Š
+   The file_ID is the same one as that returned by "SHARE".
+
+
+AUNLCK.Z80    (called by UNLOCK)
+==========
+   Thió  ió jusô aî assemblù routinå thaô actuallù calló thå BDOÓ tï unlocë 
+   thå  recorä thå file¬  iô assumeó thaô thå currenô DMÁ haó alreadù  beeî 
+   set.
+
+                  áunlck (VAÒ ufileº   FIB;
+                          VAR lck_err: INTEGER);
+
+
+ SHARELIB.ERL   
+ ===========½ 
+    Iî  ordeò  tï  makå iô easieò tï linë togetheò, wå havå  provideä  thió 
+    library module containing all of the other modules listed above. 
+
+
+
+
+
+
+
+                                 (3)
+
+                   

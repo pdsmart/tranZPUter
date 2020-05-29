@@ -1,0 +1,43 @@
+(*  VERSION 0008  *)
+program plotter;
+
+
+(*..................................................................*)
+(*                           PLOTLIB                                *)
+(*  Plotlib is a collection of plot routines to aid in graphics     *)
+(*  programs. The routines were originally published in BYTE as     *)
+(*  'Drawing with UCSD Pascal and the Hiplot Plotter' by Dr. James   *)
+(*  Stork, Oct 1981. The routines have been modified to run with    *)
+(*  a MicroAngelo graphics terminal by Ray Hopkins, 8 Chestnut Hill *)
+(*  Ct., Cinnaminson N.J. (609) 829-4686.                           *)
+(*..................................................................*)
+
+type
+{$I PLOTLIB.TYP}
+
+const
+{$I PLOTLIB.CON}
+      
+var clear : char;
+    aline: string[20];
+    xpos,ypos : real;
+    
+(*$IPLOTLIB.DEF*)
+{$ISTDLIB.DEF}
+
+  
+
+begin
+  xpos:=0;
+  ypos:=0;
+  plotline(0,xpos,ypos);
+  aline:='ABCDEFGHIJ';
+  plotstring(1,6,0.5,0,aline);
+  aline:='KLMNOPQRST';
+  plotstring(1,5,0.8,0,aline);
+  aline:='UVWXYZ.><$';
+  plotstring(1,4,0.7,0,aline);
+  aline:='=^*%,&#"/()+-:';
+  plotstring(1,3,0.8,0,aline);
+end.
+ÿ

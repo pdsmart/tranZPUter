@@ -1,0 +1,814 @@
+	TITLE	"Set ZCPR3 and/or ZSDOS Search Path"
+;===============================================================;
+; Z P A T H							;
+;---------------------------------------------------------------;
+; Derived from PATH 3.0, 12 Apr 84 by Richard Conn with 3.1	;
+;	modifications by Joe W. Wright, 12 Mar 85.		;
+; ZPATH changes Copyright (C) 1988  by Harold F. Bower		;
+;		All Rights Reserved				;
+;---------------------------------------------------------------;
+;   ZPATH allows the user to do two things -- display the cur-	;
+; rent path and set a new path.  Named directories may be used	;
+; in the definition of the new path.  If operating under ZSDOS,	;
+; the internal DOS path may also be set independently of the	;
+; ZCPR3 path.							;
+;   A Quiet Flag has been added in conjunction with testing of	;
+; the ZCPR3 QUIET flag for suppression of messages.  Quiet	;
+; testing in the HELP request has been deleted.			;
+;								;
+; ZPATH is invoked in the following forms:			;
+;	ZPATH			<-- Display Path		;
+;	ZPATH //		<-- Print Help			;
+;	ZPATH path-expression	<-- Set CPR Path		;
+;	ZPATH /C=path-expression <--  (alternate form)		;
+;	ZPATH /Q path-expression <-- Set CPR Path Quietly	;
+;	ZPATH /D=path-expression <-- Set ZSDOS Internal Path	;
+;								;
+; Assemble as : ZML ZPATH,Z3LIB/,SYSLIB/			;
+;								;
+; Revision:							;
+;  1.0 - 17 Sep 88 - Release Version				;
+;  1.1 -  4 Jul 93 - Updated for ZSDOS2 Internal Path.	    HFB ;
+;===============================================================;
+
+VERS	EQU	11		; Release Major/Minor Version Number
+DATE	  MACRO			;1.1
+	DEFB	'4 Jul 93'	;1.1
+	  ENDM			;1.1
+
+;  CP/M Constants
+
+CPM	EQU	0		; Base
+BDOS	EQU	5		; Dos Entry point
+FCB	EQU	CPM+5CH
+TBUFF	EQU	CPM+80H
+CR	EQU	0DH
+LF	EQU	0AH
+TAB	EQU	09H
+
+; ZCPR3 Constants
+
+ZPTHOF	EQU	9		; ZCPR3 Path offset in Environment
+QUIEOF	EQU	28H		; ZCPR3 Quiet flag offset
+WHLOF	EQU	29H		; ZCPR3 Wheel flag offset
+MDSKOF	EQU	2CH		; ZCPR3 Max Disk byte offset
+MUSROF	EQU	2DH		; ZCPR3 Max User byte offset
+
+; ZSDOS Constants
+
+PATHOFF	EQU	11H		; Offset of Path vector from ZSDOS base
+IPATH	EQU	0DF1H		; Internal 3-element path (ZSDOS 1.x ONLY)
+Z2PATH	EQU	1DH		;1.1 Internal Ptr to 3-element ZSDOS 2 Path
+GETFLG	EQU	100		; ZSDOS Get Flags Command
+SETFLG	EQU	101		; ZSDOS Set Flags Command
+
+; ..From Z3LIB Get..
+
+	EXT	WHRENV, Z3INIT, DIRTDU, DUTDIR
+
+; ..From SYSLIB Get..
+
+	EXT	EPSTR, EPRINT, RETUD, CODEND
+	EXT	COUT, CRLF, EPSTR, PAFDC
+
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;	    B e g i n    T h e    P r o g r a m
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+	JP	START
+
+	DEFB	'Z3ENV'		; This is a ZCPR3 Utility
+	DEFB	1		; External Environment Descriptor
+Z3EADR:	DEFW	0001		; Dummy to insure search
+
+; Start of Program -- Initialize Variables and ZCPR3 Environment
+
+START:	LD	HL,DATA		; Insure that variables are nulled
+	LD	B,ZMUSER-DATA+1
+STARTL:	LD	(HL),0
+	INC	HL
+	DJNZ	STARTL
+	LD	HL,0AAAAH	; Set a MDISK/MUSER in case no ENV
+	LD	(ZMDISK),HL
+
+	LD	(STACK),SP	; Save ptr to original stack
+	LD	SP,STACK	; ..and set local stack
+	LD	HL,(0001)	; Set Starting Value to force search
+	CALL	WHRENV		; ..and validate/locate it
+	LD	(Z3EADR),HL	; Save the validate location
+	LD	A,H		; Set flags for a valid ENV
+	OR	L
+	LD	(ISZENV),A	; .saving for later tests
+	JR	Z,PRBANR	; Jump to opening if No Z3 ENV
+	CALL	Z3INIT		; Initialize the ZCPR3 Env
+	EX	DE,HL		; ..and get needed values
+	LD	HL,ZPTHOF	; Offset to Path in Environment
+	ADD	HL,DE
+	LD	C,(HL)		; Get Path addr from environment
+	INC	HL
+	LD	B,(HL)
+	LD	(CPRPTH),BC	; ..and save locally
+	INC	HL		; Point to Max # of entries
+	LD	A,(HL)
+	LD	(CPRLEN),A	; ..and set our copy
+	LD	HL,QUIEOF	; Point to the Quiet flag
+	ADD	HL,DE
+	LD	DE,ZQUIET	; ..and copy to local
+	LD	BC,6		; Move QUIET, WHEEL, 2 unk bytes, MDISK & MUSER
+	LDIR
+
+; Print Banner
+
+PRBANR:	CALL	PRMUZL		; Print this only if verbose
+	DEFB	CR,LF,'ZPATH  v'
+	DEFB	VERS/10+'0','.',[VERS MOD 10]+'0','   '
+	DATE			;1.1
+	DEFB	0
+
+; Determine whether we are running under ZSDOS or not
+
+	LD	C,48
+	CALL	BDOS
+	LD	A,H		; Get ZSDOS Type
+	LD	(DOSTYP),A	; ..and save for later tests
+	CP	'S'
+	JR	NZ,START1
+	LD	A,L		;1.1 If ZSDOS, Get Version Number too
+	LD	(DOSVER),A	;1.1 ..for later
+
+; Here we have a validated ZSDOS, now determine base address
+
+	LD	HL,(Z3EADR)	; Is this an extended ENV?
+	LD	A,H
+	OR	L		; 0=No Environment
+	JR	Z,CALCOF	; ..Jump if no Env to calculate addr
+	LD	DE,8		; Offset to Extended flag bit
+	EX	DE,HL
+	ADD	HL,DE
+	BIT	7,(HL)		; Is it extended?
+	JR	Z,CALCOF	; ..jump if not to calculate
+	LD	HL,42H		; Yes, so offset to DOS addr
+	ADD	HL,DE
+	LD	E,(HL)		; ..and retrieve DOS starting addr
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	JR	OKDOS		; Rejoin code
+
+CALCOF:	LD	HL,(0001)	; Get base BIOS addr
+	LD	DE,-0E03H	; Subtract Dos size + Warm Boot offset
+	ADD	HL,DE
+OKDOS:	LD	(DOSBAS),HL	; Save DOS base addr
+	LD	A,(DOSVER)	;1.1
+	AND	0F0H		;1.1
+	CP	20H		;1.1 Is this the Old ZSDOS 1.x?
+	JR	C,Z1PATH	;1.1 ..jump if So
+	LD	DE,Z2PATH	;1.1 Else offset to ptr to Internal Path in 2.x
+	ADD	HL,DE		;1.1
+	LD	A,(HL)		;1.1 .fetch
+	INC	HL		;1.1
+	LD	H,(HL)		;1.1
+	LD	L,A		;1.1
+	JR	SAVPAD		;1.1 ..and set
+
+Z1PATH:	LD	DE,IPATH	; Offset to internal path
+	ADD	HL,DE
+SAVPAD:	LD	(DOSPTH),HL	; .save absolute address
+	LD	A,3
+	LD	(DOSLEN),A	; ..and length
+
+;1.1	CALL	PRMUZL		; Print additional tag if under ZSDOS
+	LD	A,(ZQUIET)	;1.1
+	OR	A		;1.1 Are we working Quietly?
+	JR	NZ,START1	;1.1 ..jump if so
+	CALL	EPRINT		;1.1 Else Say ZSDOS if we have it
+	DEFB	' (ZSDOS ',0
+	LD	A,(DOSVER)	;1.1 Get Version
+	RRA			;1.1
+	RRA			;1.1
+	RRA			;1.1
+	RRA			;1.1
+	AND	0FH		;1.1 First High Nybble
+	ADD	A,'0'		;1.1
+	CALL	COUT		;1.1 .print
+	LD	A,'.'		;1.1
+	CALL	COUT		;1.1 Separate..
+	LD	A,(DOSVER)	;1.1
+	AND	0FH		;1.1 Now Low Nybble
+	ADD	A,'0'		;1.1
+	CALL	COUT		;1.1 .print it too
+	LD	A,')'		;1.1
+	CALL	COUT		;1.1 ..and close parens
+
+;.....
+; Check for valid Env and get CPR Path & Wheel if so
+
+START1:	CALL	CRLF
+	LD	A,(ISZENV)	; Is there a valid ENV?
+	OR	A
+	JR	Z,START3	; ..jump ahead if not
+	LD	A,(ZWHEEL)	; Are we a wheel?
+	OR	A
+	JP	Z,NOZWHL	; ..take error exit if not
+
+START3:	CALL	CODEND		; Set temporary ZCPR path Adr past end of code
+	INC	H		; Leave room for Stack
+	INC	H
+	LD	(CPRPTR),HL	; point to it
+	INC	H		; Next page for DOS Path Adr
+	LD	(DOSPTR),HL
+
+	LD	HL,TBUFF+1	; Point to Command Line for input
+	CALL	SBLANK		; ..skip to non-blank
+	LD	(CMDLIN),HL	; Set ptr to next element
+	JP	Z,PDISPX	; EOL=display..even if ZCPR Quiet flag set
+	CP	'/'		; Are we starting with an option?
+	JR	NZ,BLDPTH	; ..set default mode if not
+	INC	HL		; Point to next char
+	SUB	(HL)		; Were there two slashes for Help Request?
+	DEC	HL
+	JP	Z,PRHELP	; ..jump if so
+
+;.....
+;  **** Set New Path ****
+
+BLDPTH:	CALL	SBLANK		; Advance to Non-space char
+	LD	(TOKEN),HL	; Save addr here in case error encountered
+	JP	Z,PBDONE	; ..jump if EOL to Store Path and Display
+	CP	'/'		; Is it a flag marker?
+	JR	Z,BLDOPT	; ..Process options if so
+	PUSH	AF		; Preserve regs
+	LD	A,(CURRNT) 
+	AND	0011B		; Are we setting a path already?
+	JR	NZ,BLDING	; ..Exit here if so
+	LD	DE,(CPRPTH)	; Else see if we have valid ZCPR3 path
+	LD	A,D
+	OR	E
+	JR	Z,NOZPTV	; ..take error exit if no Z3 Path
+	CALL	SETZCP		; Else set values for Z-Path
+BLDING:	POP	AF		; Restore regs..
+	JR	BLDP0		; ..and vector to set Path
+
+BLDOPT:	CALL	GETNXT		; Advance and Get Next Char
+	JP	Z,PBDONE	; ..exit if no more input
+	CP	'Q'		; Is it a quiet request?
+	JR	NZ,NXTTST	; ..jump if not
+	LD	(ZQUIET),A	; Else store non-zero value in Quiet flag
+	CALL	GETNXT		; Advance and Get Next Char
+	JP	Z,PBDONE	; ..quit here if EOL
+NXTTST:	LD	(TOKEN),HL	; Save addr in case of later error
+	CP	'C'		; Is it the explicit start of CPR Path?
+	JR	NZ,NXTTS0	; ..jump if not
+	LD	A,(ISZENV)	; Do we have a ZCPR3 ENV?
+	OR	A
+NOZPTV:	JP	Z,NOZPTH	; ..jump error exit if not
+	CALL	SETZCP		; Set CPR Path parms
+	JR	NXTTS1		; ..and rejoin common code
+	
+NXTTS0:	CP	'D'		; Is it the start of ZSDOS Path parm?
+	JP	NZ,RANGER	; ..jump to error if not recognizable parm
+	LD	A,(DOSTYP)	; Are we operating under ZSDOS?
+	CP	'S'
+	JP	NZ,NODPTH	; ..jump error if Not ZSDOS, No path to set
+	LD	DE,(DOSPTR)	; Else set Dos Path address
+	LD	A,0010B		; Show that Dos Path being set
+	CALL	SETCUR		; Set current path parms
+NXTTS1:	CALL	GETNXT		; Advance and Get Next Char
+	JP	Z,PBDONE
+	CP	'='		; Next char must be an equals sign
+	JP	NZ,RANGER	; ..jump error if not Equals sign here
+	CALL	GETNXT		; Advance and Get Next Char
+	JP	Z,PBDONE	; ..and jump to set if EOL
+
+BLDP0:	LD	(TOKEN),HL	; save ptr to first byte
+	LD	A,(HL)		; get first char
+	CP	'$'		; is it current?
+	JR	Z,PBDU		; DU: form
+	SUB	'A'		; convert to number
+	JR	C,PBDIR		; DIR: form
+	LD	B,A		; save number
+	LD	A,(ZMDISK)	; Get Max disk number
+	LD	C,A
+	LD	A,B
+	CP	C		; in range?
+	JR	NC,PBDIR	; DIR: form if not
+	INC	HL		; pt to next char -- may be DU or DIR
+	LD	A,(HL)		; get next part of element
+	CP	'$'		; current?
+	JR	Z,PBDU		; is a DU: form
+DIGTST:	OR	A		; EOL ends it
+	JR	Z,PBDU
+	CP	':'		; colon ends it
+	JR	Z,PBDU		; ..jump because it is a DU: form
+	CALL	WHITSP		; White Space (space, comma, tab) ends it
+	JR	Z,PBDU
+	CP	'0'		; must be a digit
+	JR	C,PBDIR		; DIR: form if not in range
+	CP	'9'+1
+	JR	NC,PBDIR
+	INC	HL		; pt to next
+	LD	A,(HL)		; get it
+	JR	DIGTST
+
+;.....
+; It is a DU: form
+
+PBDU:	LD	DE,(PTHPTR)	; pt DE to path entry
+	LD	HL,(TOKEN)	; pt to token
+	LD	A,(HL)		; current?
+	CP	'$'
+	JR	Z,PBDU1
+	SUB	'A'-1		; convert to number from 1 to n
+PBDU1:	LD	(DE),A		; save disk element
+	INC	HL		; pt to next
+	INC	DE
+	LD	A,(HL)		; current user?
+	INC	HL		; pt to after user in case of match to current
+	CP	'$'		; current?
+	JR	Z,PBDU2
+	DEC	HL		; pt to first digit
+	PUSH	DE		; save ptr to path
+	CALL	EVAL10		; convert to number in C
+	JR	C,RANGER
+	LD	A,(ZMUSER)	; Check for Max user
+	INC	A
+	LD	B,A		; place max in B
+	LD	A,C		; value in A
+	CP	B
+	JR	NC,RANGER
+	POP	DE		; get ptr to path
+PBDU2:	LD	(DE),A		; store user number
+	INC	DE
+	XOR	A		; End path with Null
+	LD	(DE),A
+	LD	A,(HL)		; ending with colon?
+	CP	':'
+	JR	NZ,PBDU3
+	INC	HL		; skip over colon
+PBDU3:	LD	(CMDLIN),HL	; save ptr to next command line entry
+	LD	(PTHPTR),DE	; save ptr to next path entry
+BLDPV0:	JP	BLDPTH		; continue processing
+
+;.....
+; Build DIR: form
+
+PBDIR:	LD	HL,(TOKEN)	; pt to name
+	PUSH	HL
+	CALL	DIRTDU		; convert to DU in BC
+	POP	HL		; ..(restore token addr)
+	JR	NZ,PBDIR0	; ..jump if Ok 
+	LD	A,(HL)		; Else check first char
+	CP	'/'		; ..for option
+	JR	Z,BLDPV0	; Jump main loop if option
+			;..else fall thru to error..
+; Entry not found, print error if not Option flag
+
+RANGER:	LD	A,(ZQUIET)	; Are we operating quietly?
+	OR	A
+	JR	NZ,Q1		; ..bypass error messages if so
+	CALL	EPRINT
+	DEFB	CR,LF,'  Bad Expression at : ',0
+	LD	HL,(TOKEN)	; print string starting at token
+	CALL	EPSTR
+Q1:	JP	EXIT		; Jump to main exit point
+
+; Got User and Disk -- Store in Path
+
+PBDIR0:	LD	HL,(PTHPTR)	; get ptr to path
+	INC	B		; disk A = 1
+	LD	(HL),B		; store disk
+	INC	HL
+	LD	(HL),C		; store user
+	INC	HL		; pt to next
+	LD	(HL),0		; Properly end the path
+	EX	DE,HL		; ..put pathptr in DE
+	LD	HL,(TOKEN)	; skip over token
+GOTUD1:	LD	A,(HL)		; skip to space or EOL
+	INC	HL		; pt to next
+	OR	A		; EOL?
+	JR	Z,GOTUD2
+	CALL	WHITSP		; Is it white space?
+	JR	NZ,GOTUD1	; ..jump if not
+GOTUD2:	DEC	HL		; pt to EOL or space
+	JR	PBDU3		; Jump to save Cmdline and Pathptr..and loop
+
+;.....
+; --- Path Building is Done -- Set pertinent path(s) ---
+
+; Truncate the declared path to its maximum length
+
+PBDONE:	LD	HL,(CPRPTR)	; Point to CPR temp path
+	LD	DE,(CPRPTH)	; ..and to Permanent path
+	LD	A,(MODE)	; Did we set this path?
+	PUSH	AF		; ..save flag for next test
+	AND	0001B
+	LD	A,(CPRLEN)	; Get CPR max path length
+	CALL	NZ,PBDON0	; Set CPR Path if we entered one
+
+	POP	AF
+	AND	0010B		; Did we set a Dos Path?
+	JR	Z,PDISP		; ..jump if we didn't and display
+
+	LD	A,(DOSTYP)	; Are we operating under ZSDOS?
+	CP	'S'
+	JR	NZ,PDISP	; ..jump to display ZCPR path if not
+
+	LD	C,GETFLG	; Get ZSDOS Flags with Function 100
+	CALL	BDOS
+	LD	E,A		; ..store flags in case we need to set
+	CPL
+	AND	00100000B	; Is the Path Active?
+	LD	(PTHFLG),A	; ..(save status flag)
+	JR	Z,PATHON	; ..jump if so
+	SET	5,E		; Else activate it
+	LD	C,SETFLG	; Set the new byte with Function 101
+	CALL	BDOS
+
+PATHON:	LD	DE,(DOSBAS)	; Else calculate offset to Dos Path ptr
+	LD	HL,PATHOFF
+	ADD	HL,DE		; ..in HL
+	LD	DE,(DOSPTH)	; Get addr of Dos Path
+	LD	(HL),E		; ..and store at pointer
+	INC	HL
+	LD	(HL),D
+
+	LD	HL,(DOSPTR)	; Point to Dos temp path
+	LD	A,(DOSLEN)	; Get Dos max path length
+	CALL	PBDON0		; Set Dos path elements
+	JR	PDISP		; ..and jump to display
+
+PBDON0:	ADD	A,A		; double it
+	LD	C,A		; put it in C..
+	LD	B,0		; ..and B
+	PUSH	HL		; Save start
+	ADD	HL,BC		; ..offset to last possible terminator
+	LD	(HL),0		; ...and terminate
+	POP	HL
+PCOPY:	LD	A,(HL)		; Get Disk (or end mark)
+	LDI			; Move Disk (or end of string)
+	OR	A		; end of path?
+	RET	Z		; ..return if done
+	LDI			; Not end, so move User
+	JR	PCOPY
+
+;||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+;	     D i s p l a y     P a t h ( s )
+;||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+PDISP:	LD	A,(ZQUIET)	; Are we operating quietly?
+	OR	A
+EXIT0V:	JP	NZ,EXIT0	; ..quit here if so
+
+PDISPX:	CALL	EPRINT
+	DEFB	CR,LF,'- ZCPR3 Path...',0
+	LD	HL,(CPRPTH)	; Do we have a ZCPR3 path?
+	LD	A,H
+	OR	L
+	JR	NZ,DSPLY0	; ..jump if we have one
+	CALL	EPRINT
+	DEFB	CR,LF,TAB,'- None -',0
+DSPLY0:	CALL	NZ,PDISP0	; ..and display it if there
+
+	LD	A,(DOSTYP)	; Are we operating under ZSDOS?
+	CP	'S'
+	JR	NZ,EXIT0V	; ..exit if not
+
+	CALL	EPRINT
+	DEFB	CR,LF,LF,'- ZSDOS Path...',0
+	LD	C,GETFLG
+	CALL	BDOS		; Is the path active?
+	BIT	5,A
+	JR	NZ,DSPLY1	; ..jump if it is
+	CALL	EPRINT		; Else print message
+	DEFB	CR,LF,TAB,'- Disabled -',0
+	JR	EXIT1V		; ..and exit
+
+DSPLY1:	LD	DE,(DOSBAS)	; Prepare for Dos Path
+	LD	A,(PTHFLG)	; Did we activate the path?
+	OR	A
+	JR	Z,DSPLY2	; ..jump if not
+	CALL	EPRINT		; Else notify the user
+	DEFB	'(being activated)',0
+DSPLY2:	LD	HL,PATHOFF
+	ADD	HL,DE
+	LD	E,(HL)		; ..and get it
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL		; Put DOS Path addr in HL
+	CALL	PDISP0		; ..and print the path
+EXIT1V:	JP	EXIT0		; Exit with CRLF
+
+; --- Print Symbolic Path ---
+
+PDISP0:	LD	A,(HL)		; Do we have a Null Path?
+	OR	A
+	JR	NZ,PDISPY	; ..jump if so
+	CALL	EPRINT		; Else say we have zero-length
+	DEFB	CR,LF,TAB,'- Nil -',0
+	RET			; ..and end here
+
+PDISPY:	PUSH	HL		; Save path address for later
+	CALL	EPRINT
+	DEFB	CR,LF,'   Symbolic : ',0
+PDISP1:	LD	A,(HL)		; get disk
+	OR	A		; done?
+	JR	Z,ADISP
+	CP	'$'		; current?
+	JR	Z,PDISP2
+	ADD	A,'@'		; convert to letter
+PDISP2:	CALL	COUT		; print disk letter
+	INC	HL		; pt to user
+	LD	A,(HL)		; get user number
+	CP	'$'		; current?
+	CALL	Z,COUT		; print current indicator if '$' or..
+	CALL	NZ,PAFDC	; ..print user number if not
+	CALL	COLON
+	INC	HL		; pt to next element
+	LD	A,(HL)		; done?
+	OR	A		; 0=yes
+	CALL	NZ,ARROW
+	JR	PDISP1
+
+; --- Print Absolute Path ---
+
+ADISP:	CALL	EPRINT
+	DEFB	CR,LF,'   DU       : ',0
+	CALL	RETUD		; get current user/disk
+	POP	HL		; Get path addr back..
+	PUSH	HL		; ..and keep on stack
+ADISP1:	LD	A,(HL)		; get disk
+	OR	A		; done?
+	JR	Z,NDISP
+	CP	'$'		; current?
+	JR	NZ,ADISP2
+	LD	A,B		; get current disk
+	INC	A		; adjust to 1 to n
+ADISP2:	ADD	A,'@'		; convert to letter
+	CALL	COUT		; print disk letter
+	INC	HL		; pt to user
+	LD	A,(HL)		; get user
+	CP	'$'		; current?
+	JR	NZ,ADISP3
+	LD	A,C		; get current user
+ADISP3:	CALL	PAFDC		; print user
+	CALL	COLON
+	INC	HL		; pt to next
+	LD	A,(HL)		; done?
+	OR	A
+	CALL	NZ,ARROW
+	JR	ADISP1
+
+; --- Print Named Path ---
+
+NDISP:	CALL	EPRINT
+	DEFB	CR,LF,'   Named    : ',0
+	POP	HL		; Get path starting addr back
+NDISP1:	CALL	RETUD		; get current user and disk in C and B
+	LD	A,(HL)		; get disk
+	OR	A		; done?
+	RET	Z
+	CP	'$'		; current?
+	JR	Z,NDISP2
+	LD	B,A		; disk in B
+	DEC	B		; adjust to 0 to n-1
+NDISP2:	INC	HL		; pt to user
+	LD	A,(HL)		; get it
+	CP	'$'		; current?
+	JR	Z,NDISP3
+	LD	C,A		; user in C
+NDISP3:	INC	HL		; pt to next
+	PUSH	HL		; save ptr
+	CALL	UDSCAN		; scan dirs for user/disk and print its name
+	POP	HL		; get ptr
+	CALL	COLON
+	LD	A,(HL)		; done?
+	OR	A
+	CALL	NZ,ARROW
+	JR	NDISP1
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;	    U t i l i t y     R o u t i n e s
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;.....
+; Set current path parameters from preset registers
+
+SETZCP:	LD	DE,(CPRPTR)	; Set values for Z-Path
+	LD	A,0001B
+SETCUR:	LD	(CURRNT),A	; This is current..
+	PUSH	HL
+	LD	HL,MODE
+	OR	(HL)		; ..and being set
+	LD	(HL),A
+	POP	HL
+	LD	(PTHPTR),DE	; ..and the addr of the candidate path
+	XOR	A		; Start with a null path
+	LD	(DE),A
+	RET
+
+;.....
+; Print Help message and exit
+
+PRHELP:	CALL	EPRINT		; This not muzzled.  Help always available
+	DEFB	CR,LF,'Syntax:'
+	DEFB	CR,LF,'	ZPATH [/[Q][o=]] expr [/[Q][o=expr]]'
+	DEFB	CR,LF,'Options:'
+	DEFB	CR,LF,'	C - ZCPR3 Path Spec	Q - Quiet Mode',0
+	LD	HL,(DOSBAS)	; Are we under ZSDOS?
+	LD	A,H
+	OR	L
+	PUSH	AF		; ..save flags for later
+	JR	Z,NOTZS0
+	CALL	EPRINT
+	DEFB	CR,LF,'	D - ZSDOS Path Spec',0
+NOTZS0:	CALL	EPRINT
+	DEFB	CR,LF,'Examples:'
+	DEFB	CR,LF,'	ZPATH				<-- Display Path(s)'
+	DEFB	CR,LF,'	ZPATH expr -or- ZPATH /C=expr	<-- Set ZCPR Path'
+	DEFB	CR,LF,'	ZPATH /Q expr -or- ZPATH /QC=expr <-- ..do it Quietly',0
+	POP	AF		; Get flags for ZSDOS back
+	JR	Z,EXIT0		; ..jump if not ZS
+	CALL	EPRINT
+	DEFB	CR,LF,'	ZPATH /D=expr			<-- Set ZSDOS Path'
+	DEFB	CR,LF,'	ZPATH expr,/D=expr		<-- Set Both Paths',0
+EXIT0:	CALL	CRLF
+EXIT:	LD	SP,(STACK)	; Restore user's entry stack
+	RET			; ..and quit
+
+NOZPTH:	CALL	PRMUZL		; Else print error and exit
+	DEFB	'- No ZCPR3 Path -',0
+	JR	EXIT
+
+NOZWHL:	CALL	PRMUZL
+	DEFB	'- No Wheel -',0
+	JR	EXIT
+
+NODPTH:	CALL	PRMUZL		; Print error if not ZSDOS, No path
+	DEFB	'- No DOS Path -',0
+	JR	EXIT
+
+;.....
+; Convert Chars pted to by HL to Number in C
+;  Return with Carry Set if Overflow
+;  If OK, Value in C and HL pts to character after last digit
+
+EVAL10:	LD	C,0		; set value
+EVAL1:	LD	A,(HL)		; get first digit
+	SUB	'0'		; convert to binary
+	JR	C,EVALX		; done with value in C
+	CP	10		; range?
+	JR	NC,EVALX	; done with value in C
+	LD	B,A		; digit in B
+	LD	A,C		; multiply by 10
+	ADD	A,A		; *2
+	RET	C		; error abort
+	ADD	A,A		; *4
+	RET	C
+	ADD	A,C		; *5
+	RET	C
+	ADD	A,A		; *10
+	RET	C
+	ADD	A,B		; add value
+	RET	C
+	LD	C,A		; value in C
+	INC	HL		; pt to next
+	JR	EVAL1
+
+EVALX:	OR	A		; clear carry flag
+	RET
+
+;.....
+; Print Colon
+
+COLON:	LD	A,':'		; print colon
+	JP	COUT
+
+;.....
+; Print Arrow
+
+ARROW:	CALL	EPRINT
+	DEFB	' --> ',0
+	RET
+
+;.....
+; Sample for White Space characters
+
+WHITSP:	CP	' '
+	RET	Z
+	CP	','
+	RET	Z
+	CP	TAB
+	RET
+
+;.....
+; Advance to next Non-Whitespace char, returning it in A
+
+GETNXT:	INC	HL		; Point to next
+			;..and fall thru to get and test
+;.....
+; Skip to non-blank
+
+SBLANK:	LD	A,(HL)		; get char
+	INC	HL		; pt to next
+	CALL	WHITSP		; White space?
+	JR	Z,SBLANK	; ..loop if so
+	DEC	HL		; Else back up to non-blank
+	OR	A		; Set flags based on char in A
+	RET
+
+;.....
+; Scan directories for user and disk in C and B
+;  Print name if found or "Noname" if not
+
+UDSCAN:	CALL	DUTDIR		; convert to name
+	JR	Z,UDSCAN1	; error return if no name
+	LD	B,8		; 8 chars max
+UDSPRN:	LD	A,(HL)		; get name char
+	CP	' '		; done?
+	RET	Z
+	CALL	COUT		; print char
+	INC	HL		; pt to next
+	DJNZ	UDSPRN
+	RET
+
+UDSCAN1: CALL	EPRINT
+	DEFB	'Noname',0
+	RET
+
+;.....
+; Print only if Quiet Flag not active (Not Muzzled)
+
+PRMUZL:	LD	A,(ZQUIET)	; Are we muzzled?
+	OR	A
+	JP	Z,EPRINT	; ..jump to print if not
+	POP	HL		; Else scan around end of line passed
+PRMUZ0:	LD	A,(HL)
+	INC	HL
+	OR	A		; End of line yet?
+	JR	NZ,PRMUZ0	; ..loop if not
+	JP	(HL)		; Else resume execution
+
+;==============================================
+;	    D A T A     A R E A
+;==============================================
+	DSEG
+
+DATA:	DEFS	80H		; Space for Library Vars
+STACK:	DEFS	2		; Space for Stack storage
+DOSTYP:	DEFS	1		; 'S' if ZSDOS, otherwise garbage
+DOSVER:	DEFS	1		;1.1 ZSDOS Version Number (Hex)
+PTHFLG:	DEFS	1		; 0=Path Not active, FF=Int Path Active
+DOSBAS:	DEFS	2		; Address of DOS Base
+CMDLIN:	DEFS	2		; Ptr to next char in Command Line
+TOKEN:	DEFS	2		; Ptr to Current Token
+MODE:	DEFS	1		; Path Mode, 0001B=CPR, 0010B=Dos
+
+DOSLEN:	DEFS	1		; Maximum length of Dos path
+DOSPTR:	DEFS	2		; Pointer to Temp Dos path
+DOSPTH:	DEFS	2		; Pointer to Real Dos path
+CPRLEN:	DEFS	1		; Maximum length of ZCPR path
+CPRPTR:	DEFS	2		; Pointer to Temp CPR path
+CPRPTH:	DEFS	2		; Pointer to Real CPR path
+
+PTHPTR:	DEFS	2		; Pointer to Next Path entry
+CURRNT:	DEFS	1		; B0=Setting Dos, B1=Setting Z3
+ISZENV:	DEFS	1		; 0=No Z3ENV, Non-0=Z3ENV Found
+
+;----- The following 4 bytes MUST remain in this order -------
+
+ZQUIET:	DEFS	1		; Z3 Quiet Flag/Local Quiet Flag
+ZWHEEL:	DEFS	1		; Z3 Wheel Flag
+	DEFS	2		; 2 bytes - Who Cares?
+ZMDISK:	DEFS	1		; Z3 Maximum Disk Byte
+ZMUSER:	DEFS	1		; Z3 Maximum User Byte
+
+
+;;STACK	EQU	DATA+80H	; Leave space for library vars & stack
+
+;;DOSTYP	EQU	STACK+2		; 1 byte - 'S' if ZSDOS, otherwise garbage
+;;PTHFLG	EQU	STACK+3		; 1 byte - 0=Path Not active, FF=Int Path Activ
+;;DOSBAS	EQU	STACK+4		; 2 bytes- Address of DOS Base
+;;CMDLIN	EQU	STACK+6		; 2 bytes- Ptr to next char in command line
+;;TOKEN	EQU	STACK+8		; 2 bytes- Ptr to current token
+;;MODE	EQU	STACK+10	; 1 byte - Path Mode, 0001B=CPR, 0010B=Dos
+
+;;DOSLEN	EQU	STACK+11	; 1 byte - Maximum length of Dos path
+;;DOSPTR	EQU	STACK+12	; 2 bytes- Pointer to Temp Dos path
+;;DOSPTH	EQU	STACK+14	; 2 bytes- Pointer to Real Dos path
+;;CPRLEN	EQU	STACK+16	; 1 byte - Maximum length of ZCPR path
+;;CPRPTR	EQU	STACK+17	; 2 bytes- Pointer to Temp CPR path
+;;CPRPTH	EQU	STACK+19	; 2 bytes- Pointer to Real CPR path
+
+;;PTHPTR	EQU	STACK+21	; 2 bytes- ptr to next path entry
+;;CURRNT	EQU	STACK+23	; 1 byte - B0=Setting Dos, B1=Setting Z3
+;;ISZENV	EQU	STACK+24	; 1 byte - 0=No Z3ENV, Non-0=Z3ENV Found
+
+;----- The following 4 bytes MUST remain in this order -------
+
+;;ZQUIET	EQU	STACK+25	; 1 byte - Z3 Quiet Flag/Local Quiet Flag
+;;ZWHEEL	EQU	STACK+26	; 1 byte - Z3 Wheel Flag
+				; 2 bytes- who cares???
+;;ZMDISK	EQU	STACK+29	; 1 byte - Z3 Maximum Disk Byte
+;;ZMUSER	EQU	STACK+30	; 1 byte - Z3 Maximum User Byte
+
+	END
+

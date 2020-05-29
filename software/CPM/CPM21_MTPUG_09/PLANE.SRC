@@ -1,0 +1,374 @@
+PROGRAM PLANE;            (*D.COVILL - from BASIC program by
+                            John L. Eggert*)
+CONST VERSION = 'PLANE  version 1.2    7/10/81  D.Covill';
+
+VAR ESC,GRAPHON,GRAPHOFF: STRING;
+    ERASE,HOME,REVON,REVOFF: STRING;
+    CH: CHAR;
+
+    ALT,ALT0,ALT2,CLIMB,CLIMB0,CLIMB2:INTEGER;
+    SPEED,SPEED0,SPEED2,POWER,POWER0,POWER2:INTEGER;
+    HEAD,HEAD0,HEAD2,FUEL,FUEL0,FUEL2:INTEGER;
+    ATT,ATT0,ATT2:INTEGER;   {Attack angle}
+    DIST,DIST2:INTEGER;    {Distance to goal}
+    TURN:INTEGER;     {-1=LEFT, +1=RIGHT, 0=CENTER}
+    WAITLOOP:INTEGER;
+    STALLED:BOOLEAN;
+
+LABEL 999;
+(*----------------------------------------------*)
+EXTERNAL FUNCTION @BDOS(FUNC:INTEGER; PARM:WORD):INTEGER;
+(*----------------------------------------------*)
+PROCEDURE INITIALIZE;
+BEGIN
+   ESC := CHR($1B);               {Escape}
+   GRAPHON := CONCAT(ESC,'F');
+   GRAPHOFF := CONCAT(ESC,'G');
+   ERASE := CONCAT(ESC,'E');
+   HOME  := CONCAT(ESC,'H');
+   REVON  := CONCAT(ESC,'p');
+   REVOFF := CONCAT(ESC,'q');
+   WRITE(ERASE);
+   WRITE(ESC,'x1');    {Enable line 25}
+
+   ALT:=2500;  CLIMB:=6;  FUEL:=980;
+   HEAD:=280;  POWER:=75;  SPEED:=125;
+   HEAD2:=280;   ATT:=7;
+   DIST:=32000;  DIST2:=30000;
+   WAITLOOP := 60;   {Approx 1 second}
+END {INITIALIZE};
+(*----------------------------------------------*)
+FUNCTION BOUND(WHAT,LO,HI:INTEGER):INTEGER;
+BEGIN
+   IF WHAT<LO THEN BOUND:=LO
+   ELSE IF WHAT>HI THEN BOUND:=HI
+   ELSE BOUND:=WHAT;
+END {BOUND};
+(*----------------------------------------------*)
+PROCEDURE CURSOR(L,C:INTEGER);
+   {move cursor to line L, column C (starting from 1,1)}
+BEGIN
+   WRITE(ESC,'Y',CHR(L+31),CHR(C+31));
+END {CURSOR};
+(*----------------------------------------------*)
+PROCEDURE COMM(L:INTEGER; STR:STRING);
+   {Display STR in line L of the COMM box on the panel}
+VAR I:INTEGER;
+BEGIN
+   IF L=1 THEN WRITE(CHR($07));    {bell}
+   CURSOR(2+L,48);  FOR I:=1 TO 24 DO WRITE(' ');
+   CURSOR(2+L,48);  WRITE(STR);
+END {COMMUNICATE};
+(*----------------------------------------------*)
+PROCEDURE DISPLAY;
+   {Display all status instruments, clear old readings}
+VAR I,L,N:INTEGER;  CH:CHAR;
+BEGIN
+   CURSOR(15,5);  WRITE(ALT:4);
+   CURSOR(15,16);  WRITE(CLIMB:3);
+   CURSOR(ROUND(13-(ALT0/500)),8);  WRITE('  ');
+   CURSOR(ROUND(13-(ALT/500)),8);  WRITE(GRAPHON,'aa',GRAPHOFF);
+   N := BOUND(CLIMB0,-25,25);
+   CURSOR(ROUND(8-(N/5)),19);  WRITE('  ');
+   N := BOUND(CLIMB,-25,25);
+   CURSOR(ROUND(8-(N/5)),19);  WRITE(GRAPHON,'aa',GRAPHOFF); 
+   CURSOR(4,33);  WRITE(HEAD:3);
+   CURSOR(8,56);  WRITE(FUEL:4);
+   N := ROUND((SPEED-40)*7/20)+1;  IF N>71 THEN N:=71;  
+   CURSOR(18,2);  
+   WRITE(REVON);   FOR I:=2 TO N DO WRITE(' ');
+   WRITE(REVOFF);  FOR I:=N+1 TO 71 DO WRITE(' ');
+   N := ROUND(POWER*7/10)+1;  IF N>71 THEN N:=71;
+   CURSOR(21,2);  
+   WRITE(REVON);   FOR I:=2 TO N DO WRITE(' ');
+   WRITE(REVOFF);  FOR I:=N+1 TO 71 DO WRITE(' ');
+
+   L := 14-((ATT0+6)DIV 3);         {clear old ATT display}
+   CURSOR(L,32);   WRITE('     ');
+   CURSOR(10,32);  WRITE('-----');  {may be overwritten}
+   L := 14-((ATT+6)DIV 3);          {new ATT display line} 
+   CASE (ATT MOD 3) OF 
+     0: CH := '{';        {low}
+     1: CH := 'a';        {center}
+     2: CH := 'z';        {high}
+   END;
+   CURSOR(L,32);   
+   WRITE(GRAPHON,CH,CH,REVON,' ',REVOFF,CH,CH,GRAPHOFF);
+   CURSOR(25,1);
+END {DISPLAY};
+(*----------------------------------------------*)
+PROCEDURE DOTURN(VAL:INTEGER);
+BEGIN
+   IF VAL=TURN THEN EXIT;
+   CASE TURN+1 OF 
+   0: BEGIN CURSOR(9,28);   WRITE('   ');
+            CURSOR(11,38);  WRITE('   ');   END;
+   1: BEGIN CURSOR(10,27);  WRITE('    ');
+            CURSOR(10,38);  WRITE('    ');  END;
+   2: BEGIN CURSOR(11,28);  WRITE('   ');
+            CURSOR(9,38);   WRITE('   ');   END;
+   END;
+   TURN := VAL;
+   CASE TURN+1 OF 
+   0: BEGIN CURSOR(9,28);   WRITE(GRAPHON,'z a',GRAPHOFF);
+            CURSOR(11,38);  WRITE(GRAPHON,'z a',GRAPHOFF);   
+            END;
+   1: BEGIN CURSOR(10,27);  WRITE('----');
+            CURSOR(10,38);  WRITE('----');  END;
+   2: BEGIN CURSOR(11,28);  WRITE(GRAPHON,'a z',GRAPHOFF);
+            CURSOR(9,38);   WRITE(GRAPHON,'a z',GRAPHOFF);   
+            END;
+   END;
+END {DOTURN};
+(*----------------------------------------------*)
+PROCEDURE DISASTER(MSG:STRING);
+VAR I:INTEGER;
+BEGIN
+   FOR I:=1 TO 10 DO BEGIN
+      CURSOR(24,5);  WRITE(REVON,MSG);
+      END;
+   GOTO 999;
+END {DISASTER};
+(*----------------------------------------------*)
+PROCEDURE COMPUTE;
+   {Compute new values for performance parameters}
+VAR NEWCLRATE:REAL;
+BEGIN
+   HEAD := HEAD + (2*TURN);
+   IF HEAD<1 THEN HEAD:=HEAD+360;
+   IF HEAD>360 THEN HEAD:=HEAD-360;
+
+   IF SPEED<55 THEN BEGIN
+      CURSOR(12,52);  WRITE(REVON,'STALL WARNING',REVOFF);
+      STALLED := TRUE;
+      END;
+   IF STALLED THEN BEGIN
+      CURSOR(12,52);  WRITE('             ');
+      IF SPEED>80 THEN STALLED:=FALSE
+      ELSE BEGIN
+         CURSOR(12,52);  {This will make it blink}
+         WRITE(REVON,'STALL WARNING',REVOFF);
+         ATT := ATT-3;  
+         END;
+      END;
+
+   ATT := BOUND(ATT,-45,45);
+   NEWCLRATE := -32 + SPEED*SIN(ATT*6.28319/180);
+   ALT := ALT + CLIMB + ROUND(NEWCLRATE/2);
+   ALT := BOUND(ALT,0,5000);
+   CLIMB := CLIMB + ROUND(NEWCLRATE);
+   CLIMB := BOUND(CLIMB,-50,25);
+   CLIMB := ROUND(CLIMB0*0.7 + CLIMB*0.3);  {Smooth it}
+
+   IF FUEL<=0 THEN POWER:=0;
+   POWER := BOUND(POWER,0,100);
+   SPEED := ROUND(SPEED*0.9 + POWER*0.17 - CLIMB*0.4);
+   IF SPEED>240 THEN 
+      DISASTER('YOUR WINGS JUST FELL OFF DUE TO EXCESS SPEED');
+   SPEED := BOUND(SPEED,0,240);
+   FUEL := FUEL-ROUND(POWER/12);
+END {COMPUTE};
+(*----------------------------------------------*)
+PROCEDURE CALLTHETOWER;
+   {Check distance and issue new instructions}
+VAR MSG:STRING; GLIDE:INTEGER;
+   (*-----------*)
+PROCEDURE ADDCH(CH:CHAR);
+BEGIN  MSG := CONCAT(MSG,CH);  END;
+   (*-----------*)
+BEGIN
+   DIST2 := DIST2-500;
+   IF DIST2=29500 THEN 
+      COMM(1,'YOU ARE IN RADAR CONTACT')
+   ELSE IF DIST2=29000 THEN BEGIN
+      COMM(1,'TURN TO HEADING OF 242');
+      HEAD2:=242;  END
+   ELSE IF DIST2=28000 THEN
+      COMM(1,'DESCEND TO 1500 FEET')
+   ELSE IF DIST2=21000 THEN BEGIN
+      COMM(1,'TURN TO HEADING OF 304');
+      HEAD2:=304;  END
+   ELSE IF DIST2=20000 THEN
+      COMM(1,'REDUCE AIRSPEED TO 90')
+   ELSE IF DIST2=18000 THEN
+      COMM(1,'BEGIN DESCENT 10 fps')
+   ELSE IF DIST2<17500 THEN BEGIN
+      {Runway is 3000 ft from +500 to -2500}
+      IF DIST<500 THEN BEGIN
+         IF DIST<-2800 THEN 
+           IF ALT<100 THEN
+            DISASTER('YOU HAVE OVERSHOT THE RUNWAY AND CRASHED')
+           ELSE
+            DISASTER('YOU HAVE JUST BUZZED THE FIELD - NOW WHAT?');
+         MSG := '';
+         WRITE([ADDR(ADDCH)],2500+DIST,' FT OF RUNWAY LEFT');
+         COMM(2,MSG);  END 
+      ELSE BEGIN
+         {On the glidepath}
+         GLIDE := ROUND(0.0875*DIST);
+         IF ALT<GLIDE-50 THEN BEGIN
+            MSG := '';
+            WRITE([ADDR(ADDCH)],'YOU ARE ',GLIDE-ALT,' FT LOW');
+            COMM(1,MSG);  END
+         ELSE IF ALT>GLIDE+50 THEN BEGIN
+            MSG := '';
+            WRITE([ADDR(ADDCH)],'YOU ARE ',ALT-GLIDE,' FT HIGH');
+            COMM(1,MSG);  END
+         ELSE COMM(1,' ');      
+         END;
+      END;
+END {CALLTHETOWER};
+(*----------------------------------------------*)
+PROCEDURE RUNIT;
+VAR I,B:INTEGER;  X:REAL;
+LABEL 100;
+BEGIN
+REPEAT
+100:
+   COMPUTE;
+   FOR I:=1 TO WAITLOOP DO BEGIN
+      B := @BDOS(6,WRD($FF));    {Direct Console Input}
+      {if there was no input B will be $00}
+      CASE CHR(B) OF
+      'X':  EXIT;           
+      '4':  DOTURN(-1);     {Left}
+      '5':  DOTURN(0);      {Home}
+      '6':  DOTURN(+1);     {Right}
+      '8':  ATT:=ATT+1;     {Up}
+      '2':  ATT:=ATT-1;     {Down}
+      'F':  POWER:=POWER+2; 
+      'D':  POWER:=POWER-2; 
+      END {CASES};
+      X := SQRT(7.7);    {Kill some time}
+      END {1-SECOND LOOP};
+   DISPLAY;
+   ALT0:=ALT;  CLIMB0:=CLIMB;  HEAD0:=HEAD;
+   FUEL0:=FUEL;  POWER0:=POWER;  SPEED0:=SPEED;
+   ATT0:=ATT;
+   IF ABS(HEAD-HEAD2) < 4 THEN BEGIN
+      {Making progress toward the goal}
+      DIST := DIST-ROUND(SPEED*1.5);
+      IF DIST<=DIST2 THEN CALLTHETOWER;
+      END;
+   UNTIL ALT<=5;
+
+   IF CLIMB<-10 THEN 
+      DISASTER('YOU JUST CRASHED INTO THE GROUND');
+   IF DIST>500 THEN 
+      DISASTER('WHAT ARE YOU DOING IN THIS CORNFIELD?');
+   IF SPEED>100 THEN BEGIN
+      COMM(1,CONCAT(REVON,' BOUNCE ',REVOFF));
+      ALT:=50;  GOTO 100;  END;
+   COMM(1,'  --LANDED OK--');
+   POWER:=0;  ALT:=0;  SPEED:=0;  CLIMB:=0;
+   DISPLAY;
+END {RUNIT};
+(*----------------------------------------------*)
+PROCEDURE PRINTPANEL;
+   (*Print the instrument panel on the terminal*)
+ PROCEDURE PANEL;   (*PRINTPANEL is too big in one piece*)
+ BEGIN
+WRITELN
+('faaaaaaaaasaasaaaaaaasaaaaaaaaaaaaaaaaaaaaaaasaaaaaaaaaaaaaaaaaaaaaaaaac');
+WRITELN
+('` ALTITUDE`  ` CLIMB `    faaaaaaaaaaaaac    vaaaa COMMUNICATIONS aaaaat');
+WRITELN
+('` 5000    `  ` 25    `    `   HEADING   `    `                         `');
+WRITELN
+('` 4500    `  ` 20    `    `     ...     `    `                         `');
+WRITELN
+('` 4000    `  ` 15    `    eaaaaaaaaaaaaad    eaaaaaaaaaaaaaaaaaaaaaaaaat');
+WRITELN
+('` 3500    `  ` 10    `    xzzzzzzzzzzzzzy          faaaaaaaaaaac       `');
+WRITELN
+('` 3000    `  `  5    `   x               y         `   FUEL    `       `');
+WRITELN
+('` 2500    `  `  0    `  }                }         `   ....    `       `');
+WRITELN
+('` 2000    `  ` -5    `  }                }         eaaaaaaaaaaad       `');
+WRITELN
+('` 1500    `  `-10    `  } ---- ----- ----}                             `');
+WRITELN
+('` 1000    `  `-15    `  }                }       faaaaaaaaaaaaaaac     `');
+WRITELN
+('` 0500    `  `-20    `  }                }       `               `     `');
+WRITELN
+('` 0000    `  `-25    `   y               x       eaaaaaaaaaaaaaaad     `');
+WRITELN
+('vaaaaaaaaabaabaaaaaaat    y             x                              `');
+WRITELN
+('`   ....  `  `  ..   `     zzzzzzzzzzzzz                               `');
+WRITELN
+('vaaaaaaaaauaauaaaaaaauaaaaaaa AIRSPEED aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaat');
+WRITELN
+('`40    60     80    100    120    140    160    180    200             `');
+WRITELN
+('`                                                                      `');
+WRITELN
+('vaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa POWER aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaat');
+WRITELN
+('`0     10     20     30     40     50     60     70     80     90   100`');
+WRITELN
+('`                                                                      `');
+WRITELN
+('eaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad');
+ END {PANEL};
+BEGIN
+   WRITE(ERASE,GRAPHON);
+   PANEL;
+   WRITE(GRAPHOFF,HOME);
+END {PRINTPANEL};
+(*----------------------------------------------*)
+PROCEDURE INSTRUCT;
+   (*Print Instructions*)
+BEGIN
+WRITELN('This version by D.Covill based on BASIC original by J.Eggert.');
+   WRITELN;
+WRITE('This program simulates an instrument landing in a light ');
+WRITELN('aircraft.');
+WRITELN('You will see a representation of a pilot''s instrument panel');
+WRITELN('  with real-time updates at 1-second intervals.');
+WRITELN; 
+WRITELN('When the game starts, you will be flying level at 2500 feet.');
+WRITELN('Instructions from the ground radar controller will appear');
+WRITELN('  in the upper RH corner of the screen.  He/she will attempt');
+WRITELN('  to talk you down safely.  Don''t screw up!');
+WRITELN; 
+WRITELN('Please note the following:');
+WRITELN('  The plane will stall below 60 MPH');
+WRITELN('  Touchdown above 100 MPH results in a 50-foot bounce');
+WRITELN('  Descent rate at touchdown must be less than 10 fps');
+WRITELN('  A 100-foot hill is at the far end of the runway');
+WRITELN('  You do not have an unlimited supply of fuel');
+WRITELN('  You only get nearer the field when on the proper heading');
+WRITELN('  A forced landing is possible, if touchdown is gentle');
+WRITELN; 
+WRITELN('	DEPRESS RETURN FOR NEXT PAGE');
+   READLN;
+WRITELN('THE FOLLOWING KEYS ARE YOUR CONTROLS-'); 
+WRITELN('   4-LEFT ARROW  - TURN LEFT');
+WRITELN('   6-RIGHT ARROW - TURN RIGHT');
+WRITELN('   5-HOME        - WINGS LEVEL');
+WRITELN('   8-UP ARROW    - NOSE UP');
+WRITELN('   2-DOWN ARROW  - NOSE DOWN');
+WRITELN('   F - FORWARD THROTTLE');
+WRITELN('   D - DECREASE THROTTLE');
+WRITELN;
+WRITELN('   X - BAIL OUT (TO CP/M)');
+WRITELN;
+WRITELN('THEY MAY BE DEPRESSED REPEATEDLY FOR GROSS CHANGES');
+WRITELN('	DEPRESS RETURN TO BEGIN');
+   READLN;
+END {INSTRUCT};
+(*----------------------------------------------*)
+BEGIN
+   WRITELN(VERSION);  WRITELN;
+   WRITELN('DO YOU WANT INSTRUCTIONS (Y/N)?');
+   READ(CH);  IF CH='Y' THEN INSTRUCT;
+   INITIALIZE;
+   PRINTPANEL;
+   RUNIT;
+999:
+   CURSOR(25,1);  WRITE(ESC,'E');   {Erase line 25}
+   CURSOR(24,1);  WRITE(GRAPHOFF,REVOFF);
+END.

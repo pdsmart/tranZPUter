@@ -1,0 +1,575 @@
+	TITLE	('SLINK Microsoft .REL-format Link Module')
+;=======================================================================;
+;  Copyright (C) 1987,88,91 by Harold F. Bower
+;  Author  : Harold F. Bower
+;  Date	   : 14 Dec 87
+;  Version : 1.1a
+;  Module  : SLINK
+;  Revision:
+;	25 Apr 88 - Added Common Relative capability.		 HFB
+;	19 Jul 88 - Added Alternate reg save, COMMON code.	 HFB
+;	23 Mar 90 - Added ability to handle ORG relocations within
+;		    and between CSEG and DSEG.			 HFB
+;	 6 Apr 90 - Added ability to handle relocations in both
+;		    directions, removed Disk IO for EXT ref.	 HFB
+;  1.1	10 Mar 91 - Added sizing for Named COMMONs and expanded
+;		COMMON table for "ORG" and physical load loc'ns. HFB
+;  1.1a 13 Apr 91 - Changed Error Codes >16H to Ascii Chars, Added
+;		Error return for Common Entry Not found.	 HFB
+;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+;  Module Entry Points
+	PUBLIC		LINK
+;  External References
+	EXT		@GBYTE		; Get a byte from the Input File
+					; ..saving all registers
+	.Z80
+	CSEG
+;=======================================================================
+; NAME - LINK:  Link MicroSoft format REL files to specified memory
+;   address.  Optionally generate a relocation bit map at a specified
+;   address.  This routine optionally returns Data and Program sizes for
+;   the specified module in registers, and named COMMON sizes in a table.
+;
+; Entry:  A - Bit 0 = 0 for just sizing info, 1 to link file
+;		 Bit 1 = 0 for No Reloc Bit Map, 1 to generate map
+;	  BC - Points to physical address to put CSEG
+;	  DE - Points to physical address to put DSEG
+;	  HL - Points to table of Common Relative Names & Offsets
+;	 BC' - Offset to add to CSEG (Code Segment ORG)
+;	 DE' - Offset to add to DSEG (Data Segment ORG)
+;	 HL' - Destination Addr for Relocation Bit Map
+; Exit : AF - A=0, Zero Set (Z) if OK,
+;		 A=Error Code, Zero Clear (NZ) on err
+;		Error Codes Are:
+;			N - Not Sized.  Write attempt before Dseg/Cseg set
+;			S - Special-Special encounteres & not supported
+;			C - Common reference not in Table
+;	  BC - Size of Data Segment (DSEG)
+;	  DE - Size of Program Segment (CSEG)
+;	(if Sizing only, COMMON sizes returned in OFFSET field of table)
+; Uses : AF,BC,DE,AF',BC',DE',HL'
+; Special Requirements:
+;	a) Entry parameters for sizing need only A and HL.
+;	b) COMMON is indexed via user-supplied table whose structure is:
+;	        Name (1-7 char, 80H terminated in 8-byte field)
+;		16-bit logical offset base (COMMON segment ORG)
+;		16-bit physical load location.
+;	   Example:
+;		DEFB	'BASE1',80H,0,0	; Name, Null terminated
+;		DEFW	OFFSET1		; "Org" for this segment
+;		DEFW	PHYSCL1		; Physical load locn for this seg
+;		DEFB	'SECOND',80H,0	; Second entry
+;		DEFW	OFFSET2		; "Org" for this segment
+;		DEFW	PHYSCL1		; Physical load locn for this seg
+;		DEFB	80H		; Table terminator
+;=======================================================================
+;  Register Useage during execution:
+;	 A  = General Purpose 8-bit accumulator/flags
+;	 B  = Bit count for source byte
+;	 C  = Source byte shifted, b7=current
+;	 D  = General Purpose counter
+;	 E  = Output Byte for map
+;	HL  = General Purpose 16-bit register
+;	AF' = General Purpose 8-bit accumulator/flags
+;	BC' = Program 'ORG' Base offset
+;	DE' = Data 'ORG' Base offset
+;	HL' = 16-bit accumulator for displacement calculations
+;	IX  = Code Segment Physical load location
+;	IY  = points to flags
+;-----------------------------------------------------------------------
+; Begin pass by initializing all variables
+
+LINK:	LD	(COMTBL),HL	; Save the Address of COMMON Rel table
+	PUSH	IX		; Save some registers
+	PUSH	IY
+	PUSH	BC		; Put Physical Code Segment base address..
+	POP	IX		; .to proper register
+	LD	(PRGLOD),BC	; ..and storage location
+
+; Insure that all variables are zeroized
+
+	LD	HL,COMORG	; Start clearing memory from here..
+	LD	B,ENDDAT-COMORG	; ..for this many bytes
+CLRLOP:	LD	(HL),0
+	INC	HL
+	DJNZ	CLRLOP
+
+; Now Initialize some of the variables for a pass
+
+	EXX			; Swap to alternate..
+	LD	(BITMAP),HL	; .and save addr of Bit Map (if needed)
+	LD	(MAPLOC),HL	; ..with Reference Entry Address
+	EXX
+	LD	(DATLOD),DE	; Save physical Data Segment load location
+	LD	IY,FLAGS	; Set flag pointer
+	LD	(IY+0),A	; ..Set flags to entry parms
+
+; Open the file addressed by the FCB and prepare for linkage
+
+	LD	(STACK),SP
+	LD	B,1		; Set to trigger read on first pass
+	CALL	GETBIT		; Get a byte from the input file
+	LD	E,0		; Insure we start with clear Map byte
+	JR	LOOP1		; Jump to main loop with bit already set
+
+;=======================================================;
+;	 M a i n     P r o g r a m     L o o p		;
+;=======================================================;
+
+LOOP:	BIT	0,(IY+0)	; Is this a sizing request?
+	JR	NZ,LOOP0	; ..jump if loading
+	BIT	7,(IY+0)	; If sizing, are we done?
+	JP	NZ,FINIX	; ..Exit if both areas sized
+
+LOOP0:	CALL	GETBIT		; Get a source bit in position
+LOOP1:	JR	NZ,LOOP2	; If first bit=1, jump and test next
+	CALL	BYTE0		; 0 = load 8 bits absolute
+	JR	LOOP		; ..and back for more
+
+; Have 1x form.  Check second bit
+
+LOOP2:	CALL	GETBIT
+	JR	NZ,LOOP3	; Jump if 11x
+
+; Have 10x form.  Check third bit
+
+	CALL	GETBIT
+	JR	Z,SPECL		; 0 = Special, 1 = Program
+
+;  101 = Program Relative.
+
+	CALL	ADDR16		; Get 16 bits, prog relative
+	EXX			; ..writing 01 in bit map
+	LD	HL,(TEMP)
+	ADD	HL,BC		; Add offset to CSEG base
+OUTV:	LD	A,L		; Vector here to output
+	EXX			; ..relative addresses
+	CALL	BYTE0V
+	EXX
+	LD	A,H
+	EXX
+	CALL	BYTE1V
+	JR	LOOP
+
+; Have 11x form.  Check third bit
+
+LOOP3:	CALL	GETBIT
+	JR	NZ,LOOP4	; Jump Common Relative if 111
+
+;  110 = Process Data Relative
+
+	CALL	ADDR16		; Get 16 bits, data relative
+	EXX			; Write 01 to map
+	LD	HL,(TEMP)
+	ADD	HL,DE		; Add offset to DSEG base
+	JR	OUTV
+
+;  111 = Process Common Relative
+
+LOOP4:	CALL	ADDR16		; Get 16 bits, Common Relative
+	EXX			; Write 01 to map
+	LD	HL,(TEMP)
+	PUSH	DE		; Save regs
+	LD	DE,(COMORG)	; Get Common offset value
+	ADD	HL,DE		; ..and add code value
+	POP	DE		; Restore regs
+	JR	OUTV		; Jump to write bytes and bits to output
+	
+; Arrive here if special link (100xxxxxxxx)
+
+SPECL:	CALL	GETTYP		; Get 4 bit type
+	OR	A		; 0=Entry Symbol?
+	JR	Z,PNAME		; ..bypass name if so
+	CP	1		; 1=Set Common Block?
+	JR	Z,SETCOM	; ..jump to get Common block offset if so
+	CP	2		; 2=Program Name?
+	JR	Z,PNAME		; ..bypass name if so
+	CP	5		; 5=Common Size?
+	JR	Z,COMSIZ	; ..get common size if so
+	CP	7		; 7=Entry Point?
+	JR	Z,BYPASS	; ..bypass address and name if so
+	CP	10		; 10=Data Size?
+	JR	Z,DATSIZ	; ..get data size if so
+	CP	11		; 11=Load Location?
+	JP	Z,LODLOC	; ..set pointers to new load location if so
+	CP	13		; 13=Program Size?
+	JR	Z,PRGSIZ	; ..get program size if so
+	JR	C,FINI0		; All less values are error exits
+			;..fall thru to exit..
+;.....
+; End of activity, so wind it up and exit.
+
+FINI:	BIT	1,(IY+0)	; Are we generating a Map?
+	JR	Z,FINIX		; ..exit if not
+
+	LD	A,(COUNT)	; shift last map byte if needed
+	OR	A		; ..exit if not needed
+	JR	Z,FINI0
+FINLOP:	RLC	E
+	INC	A		; Bump count
+	CP	8		; At the end of a byte yet?
+	JR	C,FINLOP	; ..loop if not
+
+	LD	HL,(BITMAP)	; Save the last Map byte
+	LD	(HL),E
+
+FINIX:	XOR	A		; Set OK Error Status Code
+FINI0:	LD	DE,(PROGSZ)	; Set size registers
+	LD	BC,(DATASZ)
+	OR	A		; Set return flags
+	LD	SP,(STACK)
+	POP	IY		; ..and restore registers
+	POP	IX
+	RET
+
+;.....
+; Error routine Exits
+
+ERRNS:	LD	A,'N'		; Set status for "Not Sized" Error
+	DEFB	21H		; ..(code to Trash HL and fall thru)
+
+SPCLER:	LD	A,'S'		; "Special Special" typeing not supported
+	JR	FINI0
+
+;.....
+; Set data area size when found
+
+DATSIZ:	CALL	GET16		; Get the 16-bit value
+	LD	(DATASZ),HL	; ..and save in Data Size location
+	SET	5,(IY+0)	; Show data area OK
+	JR	SZEXIT		; Check status and go back for more
+
+;.....
+; Set program size when found
+
+PRGSIZ:	CALL	GET16		; Get the 16-bit value
+	LD	(PROGSZ),HL	; ..and save in Program Size location
+	SET	6,(IY+0)	; Show data area OK
+SZEXIT:	CALL	SETSTAT
+	JP	LOOP		; ..continue with Main loop
+
+;.....
+; Bypass a 16-bit address field & name field and keep going
+
+BYPASS:	CALL	GET16		; Get the 16-bit value
+			;..fall thru to..
+;.....
+; Bypass name field and keep going
+
+PNAME:	CALL	GETNAM		; get name to local buffer..forget and..
+	JP	LOOP		; ..resume main program
+
+;.....
+;== Get size for specified COMMON Block, set in COMMON table if sizing.
+
+COMSIZ:	CALL	GET16		;== Get 16-bit value
+
+;.....
+; Set COMMON Block offset and ORG locn by scanning table for name if linking,
+;  insert COMMON Size in table if sizing.
+
+SETCOM:	CALL	GETNAM		; Gather name to temporary buffer
+	PUSH	DE		; Save DE reg
+	LD	HL,(COMTBL)	; Get address of COMMON table from user
+SETC0:	LD	DE,NAMBUF	; Point to desired name
+	BIT	7,(HL)		;; End of Common Table?
+	LD	A,'C'		;; .(prepare for error exit)
+	JR	NZ,FINI0	;; ..exit w/error if at end
+	PUSH	HL		; Save current table pointer
+SETC1:	LD	A,(DE)		; Get character from desired name
+	BIT	7,A		; Is it the end of string marker?
+	JR	NZ,SETCHK	; ..jump to check for end if so
+	CP	(HL)		; Compare to char of table name
+	JR	NZ,SETEND	; Check for end of table/advance to next
+	INC	HL		; ..else advance to next char
+	INC	DE
+	JR	SETC1		; Loop til end
+
+SETCHK:	CP	(HL)		; Are both strings at end?
+	JR	NZ,SETEND	; ..check end/advance to next if not
+	POP	HL		; Retrieve table addr
+;;	BIT	7,(HL)		; ..and check for end
+;;	JR	NZ,SETXIT	; Quit with error status if the end
+	LD	DE,8		; Else advance to offset value
+	ADD	HL,DE
+	BIT	0,(IY+0)	;== Just Size?
+	JR	Z,SETCHS	;== ..jump if just sizing
+
+	LD	E,(HL)		; ..and get it
+	INC	HL
+	LD	D,(HL)
+	LD	(COMORG),DE	; Save Common Offset Value for this segment
+	INC	HL		;== Advance to Load Location
+	LD	E,(HL)		;== .and
+	INC	HL		;== ..load
+	LD	D,(HL)		;==
+	LD	(COMLOC),DE	;== Save Common load location
+	JR	SETXI0		; Jump below to continue w/Ok status
+
+SETCHS:	LD	DE,(TEMP)	;== Get the Size value from storage
+	LD	(HL),E		;== .and
+	INC	HL		;== ..store
+	LD	(HL),D		;== ...in Org field
+	JR	SETXI0		;== Continue w/Ok status
+
+SETEND:	POP	HL		; Retrieve entry starting address
+;;	BIT	7,(HL)		; Is it the end of the table?
+;;	JR	NZ,SETXIT	; ..exit if so with error code
+	LD	DE,12		;==-- Else advance to next entry
+	ADD	HL,DE
+	JR	SETC0		; ..and try again
+
+;;SETXIT:	DEFB	0F6H		; ..and set error code w/"OR  0AFH"
+SETXI0:	XOR	A		; Entry here sets Ok status
+	POP	DE		; Restore entry DE reg
+	JP	LOOP		; ..and back to the main program
+
+;.....
+; Set load location when found
+
+LODLOC:	CALL	GET16		; Get a 16-bit address to TEMP variable
+
+; If building Bit Map, purge partial byte from system & restore to Bit Map Area
+
+	BIT	1,(IY+0)	; Are we generating a Map?
+	JR	Z,LODLO0	; ..bypass purge if Not
+	LD	A,(COUNT)	; Get current count of Map Bits
+PURGE:	RLC	E		; .and rotate it.
+	INC	A		; ..while bumping counter
+	BIT	3,A		; ...til we reach byte alignment
+	JR	Z,PURGE
+	LD	HL,(BITMAP)	; Get pointer into Bit Map
+	LD	(HL),E		; ..and save the byte
+
+LODLO0:	PUSH	BC		; Save critical registers
+	LD	HL,(TEMP)	; Get new load address
+	LD	A,(TYPLOD)	; Check type of load
+	OR	A		; Is it Type 0?
+	JP	Z,SPCLER	; ..Error if so.  No Special Specials
+	LD	BC,(PRGLOD)	; Get Code Segment physical Base Load Addr
+	CP	2
+	JR	C,CHECK1	; .jump if Type 1 = Program Segment
+	JR	NZ,CHECK3	; ..jump to special process if Type 3 (COMMON)
+
+; Else is Type 2 = Data Segment.  Calc Addresses based on PRL generation or Not
+
+	BIT	1,(IY+0)	; Are we generating a Bit Map?
+	JR	Z,CHECK0	; ..jump if not (to specified Data Segment)
+	LD	DE,(PROGSZ)	; Else assume DSEG right after CSEG & offset
+	ADD	HL,DE		; .assume consecutive CSEG->DSEG->Map
+	JR	CHECK1		; ..and jump to Code Segment
+
+CHECK0:	LD	BC,(DATLOD)	; Get base of Data Load Area
+CHECK1:	LD	E,L		; Duplicate offset value in DE
+	LD	D,H
+	ADD	HL,BC		; Add offset to physical segment base address
+	PUSH	HL
+	POP	IX		; ..and load pointer register
+	EX	DE,HL		; Put things back
+	RES	2,(IY+0)	; Show we are in CSEG/DSEG mode
+	BIT	1,(IY+0)	; Are we generating a PRL Bit Map?
+	JR	Z,LOOPV		; ..Exit here if Not
+
+; We are now in CSEG or DSEG and Generating a PRL Bit map.  Index into Map,
+;  get current byte and shift into position for next byte of code
+
+	LD	A,L		; Get Low index byte
+	AND	00111B		; Index MOD 8 is bit pointer into byte
+	LD	(COUNT),A	; ..save in variable
+	LD	B,3		; Index DIV 8 is byte pointer into Map
+CHECK2:	SRL	H
+	RR	L
+	DJNZ	CHECK2
+	LD	DE,(MAPLOC)	; Get base of Physical Map location
+	ADD	HL,DE		; .and offset
+	LD	(BITMAP),HL	; ..saving for later use
+	LD	B,A		; Move bit shift counter to B
+	OR	A		; Is it ready for the first bit?
+	LD	A,(HL)		; .Get the current Map Byte
+	JR	Z,CHECK5	; ..jump if ready for first bit
+CHECK4:	RLCA			; Else rotate the Map Byte
+	DJNZ	CHECK4		; ..as needed to position it for the next
+CHECK5:	LD	E,A		; Store in the shifting register
+	JR	LOOPV		; ..and exit
+
+; Process an ORG to COMMON segment
+
+CHECK3:	LD	DE,(COMLOC)	; Get address of current COMMON segment
+	ADD	HL,DE		; ..and calculate absolute address
+	SET	2,(IY+0)	; Show that we are assembling COMMON segment
+	PUSH	HL		; Move the destination address
+	POP	IX		; ..to the pointer register
+LOOPV:	POP	BC		; Restore critical registers
+	JP	LOOP		; ..and rejoin main loop
+
+;.....
+; Subroutine for name retrieval
+
+GETNAM:	LD	D,3		; Get char count
+	XOR	A
+	CALL	GBITS
+	LD	D,A		; Move cc to counter
+	OR	A
+	LD	HL,NAMBUF	; Set local buffer address
+	JR	NZ,PNAME1	; Jump to gather name if Count > 0
+	LD	(HL),' '	; ..else set blank common
+	INC	HL
+	JR	PNAMEX		; Jump to write end mark
+
+PNAME1:	PUSH	DE		; Get 1 ascii char
+	PUSH	HL		; Save pointer
+	CALL	GETBYT
+	POP	HL		; Restore pointer
+	LD	(HL),A		; Save character
+	INC	HL		; ..and advance to next position
+	POP	DE
+	DEC	D
+	JR	NZ,PNAME1	; Go back for more
+PNAMEX:	LD	(HL),80H	; Store ending mark
+	RET
+
+;------------------------------------------------------------------
+;     L o w e r - L e v e l   B i t   M a n i p u l a t i o n
+;------------------------------------------------------------------
+;.....
+; Get a bit from the input file, reading as necessary
+
+GETBIT:	RL	C		; Rotate byte for test
+	DJNZ	READX		; ..jump if new byte not necessary
+	LD	B,A		; ..(preserving A in B)
+	CALL	@GBYTE		; Else get a byte from the input file
+
+	LD	C,A		; Put the byte in C for shifting
+	LD	A,0FFH		; .(prepare for Error exit in case)
+	JP	C,FINI0		; ..jump to Error exit if Carry Set
+	LD	A,B		; Restore contents of A
+	LD	B,8		; ..and set the counter
+
+READX:	BIT	7,C		; Set Zero flag to MSB of subject byte
+	RET
+
+;.....
+; Accumulate 16-bits from input file as pointer.
+;  EXIT: HL and Variable TEMP contain 16-bit value
+
+GET16:	XOR	A
+	LD	D,2		; Get number type
+	CALL	GBITS		; ..but don't do anything with it
+	LD	(TYPLOD),A	; Save load type
+ADDR16:	CALL	GETBYT		; Get low byte
+	EX	AF,AF'		; ..and temporarily save
+	CALL	GETBYT		; Now get hi byte
+	LD	H,A		; Prepare to save 16-bit value & return
+	EX	AF,AF'		; Get Low byte back
+	LD	L,A
+	LD	(TEMP),HL	; Save the Word if needed
+	RET
+
+;.....
+; Output a byte with a 1 map bit
+
+BYTE1V:	SCF			; Set carry for 1 in bit map
+	JR	CHKWRT
+
+;.....
+; Accumulate 8 bits into a byte and output with a 0 map bit
+
+BYTE0:	CALL	GETBYT		; Gather 8 bits into a byte
+BYTE0V:	OR	A		; Reset carry for 0 bit in map
+			;..fall thru to..
+;.....
+; Check for output write status on map bit
+
+CHKWRT:	BIT	0,(IY+0)	; Just Size?
+	RET	Z		; ..quit if so
+
+	BIT	7,(IY+0)	; Has everything been sized?
+	JP	Z,ERRNS		; ..jump error if not
+
+	LD	(IX+0),A	; Save Code Byte
+	INC	IX		; ..and bump code pointer
+
+	BIT	1,(IY+0)	; Are we generating a map?
+	RET	Z		; ..quit here if not
+
+	RL	E		; Add Carry bit to Map Byte
+	LD	HL,COUNT
+	INC	(HL)		; Bump count..
+	BIT	3,(HL)		; ..check = 8?
+	RET	Z		; Return if < 8
+	LD	(HL),0		; ..else reset counter to 0
+	LD	HL,(BITMAP)	; Write 8 bits out
+	LD	(HL),E
+	INC	HL		; ..bumping address
+	LD	(BITMAP),HL
+	LD	E,(HL)		; Get next Map Byte
+	RET
+
+;.....
+; Get 4 bit designator for Special Link Type
+
+GETTYP:	LD	D,4		; Get type of spec link
+	XOR	A		; ..into A register
+	JR	GBITS		; Jump to it
+
+;.....
+; Get 8-bit byte into the accumulator
+
+GETBYT:	LD	D,8		; 8 bits to a byte
+GBITS:	CALL	GETBIT
+	SCF			; Prepare to shift in "1" bit
+	JR	NZ,GBITS0	; ..jump if MSB is a "1"
+	CCF			; Else complement carry for "0" bit
+GBITS0:	RLA			; Rotate bit into accumulator
+	DEC	D		; Count down number of loops
+	JR	NZ,GBITS	; Loop til no more bits
+	RET
+
+;.....
+;  Check status of area set flags.  If Program and Data areas are sized,
+;  Set OK-to-Load flag, and load registers and pointers
+
+SETSTAT: BIT	5,(IY+0)	; Data size set?
+	RET	Z		; ..Ret if not
+	BIT	6,(IY+0)	; Program size set?
+	RET	Z		; ..Ret if not
+	SET	7,(IY+0)	; Ready, so set ok-to-load
+	RET
+
+;-------------------------------------------------------;
+;	V A R I A B L E        S T O R A G E		;
+;-------------------------------------------------------;
+
+	DSEG			; Put this in Data Segment
+
+PRGLOD:	DEFS	2		; Code Segment Physical load base address
+COMTBL:	DEFS	2		; Address of COMMON Relative table
+
+; The following variables are cleared to zero on each execution
+
+COMORG:	DEFS	2		; Value for current COMMON segment Org
+COMLOC:	DEFS	2		;== Value to load physical COMMON code
+NAMBUF:	DEFS	8		; Buffer for name accumulation
+TEMP:	DEFS	2		; temporary working storage
+STACK:	DEFS	2		; Entry Stack pointer
+DATLOD:	DEFS	2		; Data Segment Physical load base address
+PROGSZ:	DEFS	2		; PROGRAM size
+DATASZ:	DEFS	2		; DATA size
+COUNT:	DEFS	1		; output bit count
+BITMAP:	DEFS	2		; Current Bit Map address
+MAPLOC:	DEFS	2		; Entry address (base) of Bit Map
+LODPTR:	DEFS	2		; load location storage
+TYPLOD:	DEFS	1		; type of load operation
+FLAGS:	DEFS	1		; Flags for operations -
+				; Bit 7 - 0 = CSEG/DSEG not set, 1 = Both set
+				;     6 - 0 = No Pgm size set, 1 = Pgm Sized
+				;     5 - 0 = No Data size set, 1 = Data Sized
+				;     3,4 - reserved
+				;     2 - 0 = CSEG/DSEG load, 1 = Common Load
+				;     1 - 0 = No Bit Map, 1 = Form Bit Map
+				;     0 - 0 = Size Module, 1 = Link Code/Data
+
+ENDDAT	EQU	$
+
+	END
+

@@ -1,0 +1,48 @@
+								  1984-SEP-09
+
+Z80 fig-FORTH using random CP/M file access
+-------------------------------------------
+
+Z80 fig-FORTH 1.1g is the first version of Z80 fig-FORTH by Dennis Lee Wilson
+& Edmund Ramm  that makes use of  random file access routines  as written  by
+Albert van der Horst, with a few modifications.
+
+To  achieve compatibility  with  CP/M 3.0,  all former  BIOS  calls have been
+changed to BDOS calls.
+
+Words which have been deleted from the dictionary (most of them low level de-
+finitions) are DRIVE, TRACK, SECTOR, SETIO, SETDRV, SEC/BLK & DENSITY.
+
+A BDOS call has been introduced: BDOS   ( parm fcode --- dircode)  where parm
+stands  for  the  parameter  passed to the BDOS in the DE register pair,  and
+fcode is the BDOS function number.  Dircode is the directory code returned by
+the BDOS. This enables you to access CP/M files using high level definitions.
+
+BYE  is now defined  as  a high level word  which  ensures that  all  updated
+screens are written back to disc.
+
+COLD re-opens the screens file and issues a warning upon failure.
+
+FCB  is another new word.  It leaves the address  of the current file control
+block on the stack.
+
+REC# pushes the corresponding record count address onto the stack.
+
+EXTEND   ( n ---)  extends (sic!) the logged in screens file by n blocks,  as
+long as disc space permits.  You could start by SAVE-ing a 0-size file at CCP
+level and then expand it after you logged in same file at the time you invoke
+Z80FORTH (e.g. Z80FORTH B:SCREENS.FRT).
+
+The actions of all other words remain  as defined in the fig-FORTH Installa-
+tion Manual's Glossary, available from the FORTH Interest Group, PO Box 8231
+San Jose, CA 95155, USA. ($18.- incl. air mail).
+
+Recommended reading:
+Leo Brodie: "Starting FORTH", Prentice-Hall, ISBN 0-13-842922-7
+
+Please report bugs to   Edmund  R a m m
+			Anderheitsallee 24
+                        Bramfeld
+		      D-22175 Hamburg 71
+			Germany
+			Tel.: +49 40 6425430

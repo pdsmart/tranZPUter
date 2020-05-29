@@ -1,0 +1,504 @@
+{$K0} {$K2} {$K12} {$K13} {$K14} {$K15}
+program epson;
+ 
+{	A print 'formatter' program to facilitate use of the epson    }
+{	Written by Harry Eckerson on 9/18/81 and last revised 12/7/81 }
+{	This program requires erl files epson2, utilmod and paslib     }
+{			IT USES					    }
+{		******** NO cpm LST device IO *******		    }
+{	location of ioport's base = 80H 			    }
+
+const
+  signon = '	Initializing EPSON (80H) - Procedure of H. Eckerson 12/7/81';
+  maxthings = 10;
+  blank = ' ';
+  spec_c = '?'; {spec character in col 1 to detect spec action }
+  base = $80;
+  base7 = $87;
+  bell = 7;
+  c_ret = 13;	{ carriage return }
+  cr_lf = 10;	{ line feed }
+
+type
+  big_string = string[255];
+var
+  in_fil,
+  p_fil : text;
+  f_name,
+  str : string;
+  ok  : char;
+  no_c,
+  code : boolean;
+  long_s : big_string;
+  count, i , 
+  copies, last_copy, 
+  ten_top, ten_bot, ten_page,
+  top, bottom, lines_per , spaces,
+  num, l_count, page_l, p_number	: integer;
+  l_feed, d_strike, number, comp, emph : boolean;
+
+external function keypressed : boolean;
+external procedure @HLT;
+external procedure p_error (ok : char);
+external procedure clr_line;
+external procedure p_out(let_val : integer);
+external procedure set_page(page_l : integer);
+external procedure d_blanks( var d_line : string);
+external function yes_1
+		(var str : string; var zero_ch : boolean) : boolean;
+external procedure init_io;
+external function convert( var line : string; tenths : boolean): integer;
+external procedure set_epson;
+
+procedure forms( prompt_n : integer);
+const
+ width = 4;
+ mov_rt = 8;
+begin
+case prompt_n of
+1 :   writeln(chr(13),chr(13),chr(13),chr(13) ,
+	'		The following format is selected:');
+2 :   write('		Number of lines/inch (6,8 or 10):	',
+		lines_per div 10:width, blank:mov_rt);
+3 :   write('		Page length (inches):			',
+	ten_page div 10:2,'.',ten_page mod 10, blank:mov_rt);
+4 :   write('		Top margin (inches):			',
+	ten_top div 10:2,'.',ten_top mod 10, blank:mov_rt);
+5 :   write('		Bottom margin (inches): 		',
+	ten_bot div 10:2,'.',ten_bot mod 10, blank:mov_rt);
+6 : begin
+      write('		Characters/line (80 or 132):		');
+   if comp then write('132':width, blank:mov_rt)
+	else write(   '80':width, blank:mov_rt)
+    end;
+7 :   write('		Spacing (1, 2 or 3):			'
+		,spaces:width, blank:mov_rt);
+8 : begin
+      write('		Letter quality print:			');
+   if emph then write('YES':width, blank:mov_rt)
+	   else write('NO':width, blank:mov_rt)
+    end;
+9 :   write('		Strikes/letter (1 or 2):		',
+		ord(d_strike) mod 2 + 1:width, blank:mov_rt);
+10 : begin
+      write('		Number pages:				');
+   if number then write( 'YES':width, blank:mov_rt)
+	     else write( 'NO':width, blank:mov_rt)
+    end;
+11 :  write('		Starting page number:			',
+		p_number:width, blank:mov_rt);
+12 : begin
+      writeln;
+      write('	Are these values correct? (Y/N) ')
+     end
+ end { cases }
+end; { forms }
+
+function format_ok : boolean;
+var i : integer;
+begin
+  for i := 1 to 10 do
+    begin
+	forms(i);
+	writeln
+    end;
+  if number then forms(11);
+  writeln;
+  forms(12);
+  format_ok := yes_1(str, no_c)
+end; {format_ok }
+
+procedure parameters;
+var
+  str	:	string;
+  old_page, old_lines : integer;
+  done : boolean;
+begin
+old_lines := lines_per;
+old_page := page_l;
+repeat
+ page(output);
+ writeln
+ ('Enter file format parameters - <cr> selects the current value.');
+ writeln;
+
+ repeat
+   forms(2);
+   read(str);
+   num := convert(str,false) * 10;
+   if num in [60,80] then lines_per := num
+   else if num = 100 then lines_per := 103
+   else if num <> 0 then clr_line
+ until num in [0,60,80,100];
+
+ forms(3);
+ read(str);
+ num := convert(str,true);
+ if num > 0 then ten_page := num;
+
+ repeat
+   forms(4);
+   read(str);
+   if length(str) > 0 then num := convert(str,true)
+			else num := ten_top;
+   done := num < ten_page;
+   if done then begin
+		ten_top := num
+	   end
+	   else clr_line
+ until done;
+
+ repeat
+   forms(5);
+   read(str);
+   if length(str) > 0 then num := convert(str,true)
+			else num := ten_bot;
+   done := num < ten_page -ten_top;
+   if done then begin
+		ten_bot := num
+	   end
+	   else clr_line
+ until done;
+
+
+ repeat
+    forms(6);
+    read(str);
+    if comp then num := 132
+	    else num := 80;
+    if length(str) > 0 then num := convert(str,false);
+    if not (num in [132,80]) then clr_line
+ until num in [80,132];
+ comp := num = 132;
+
+ repeat
+   forms(7);
+   read(str);
+   if length(str) > 0 then num := convert(str,false)
+			else num := spaces;
+   done := num in [1..3];
+   if done
+	then begin
+	 spaces := num
+	end
+	else clr_line
+  until done;
+
+   if comp
+     then begin
+	emph := false;
+	forms(8);
+	writeln('Compressed ON');
+     end
+     else begin
+	forms(8);
+	done := yes_1(str, no_c);
+	if not no_c then emph := done
+     end;
+
+  repeat
+   forms(9);
+   read(str);
+   num := ord(d_strike) mod 2 + 1;
+   num := convert(str,false);
+   done := num in [0,1,2];
+   if done then begin
+		if num > 0 then d_strike := num = 2
+	   end
+	   else clr_line
+  until done;
+
+   forms(10);
+   done := yes_1(str, no_c);
+   if not no_c then number := done;
+
+   if number
+     then begin
+	forms(11);
+	read(str);
+	if length(str) >0 then p_number := convert(str,false)
+      end;
+
+   page(output);
+   done := format_ok
+
+ until done; { end of overall repeat loop }
+
+ l_count := (l_count * lines_per) div old_lines;
+ page_l := ten_page * lines_per div 100;
+ top := ten_top * lines_per div 100;
+ bottom := ten_bot * lines_per div 100;
+
+ { actually sends codes to epson }
+  if page_l <> old_page 
+	then begin
+		init_io; {note 1st time old_page=-66}
+		set_page(page_l)
+	end;
+  set_epson
+end; { parameters }
+
+
+procedure end_page;
+var 
+	on : boolean;
+	m, divid, mov_d, i : integer;
+begin
+ mov_d := 0;
+ for i := l_count downto 1
+	do begin
+	  p_out(cr_lf);
+	  l_count := l_count - 1
+	end;
+ if number and (p_number > 1) then begin
+  mov_d := (bottom - 1 ) div 2;
+  for i := 1 to mov_d do p_out(cr_lf); {move to line to be numbered }
+  if comp then m := 64  { number of char to center of page }
+	  else m := 38;
+  for i := 1 to m do p_out(ord(blank));
+  p_out(ord('-'));
+  divid := 1000;
+  i := p_number;
+  m := i;
+  on := false;
+  repeat
+    i := i div divid;
+    m := m mod divid;
+    if ( i > 0) or on
+	then begin
+		p_out(i + 48);
+		on := true
+	end;
+    i := m;
+    divid := divid div 10;
+  until divid = 0;
+  p_out(ord('-'));
+  mov_d := mov_d + 1; { for line feed here }
+  p_out(cr_lf)
+ end; { when a page to be numbered }
+ for i := bottom  - mov_d downto 1 do p_out(cr_lf);
+ if number then p_number := p_number + 1
+end; { end_page }
+
+procedure print_f;
+var
+  copy_active,
+  i : integer;
+  let : char;
+
+procedure spec_act;
+var
+  i : integer;
+begin
+while long_s[1] = spec_c
+ do begin
+  long_s[1] := blank;
+  case long_s[2] of
+    '#' 	:
+	  begin
+		num := convert(long_s,false) * 10;
+		if num = 100 then num := 103;
+		if num in [60,80,103] then begin
+			bottom := (bottom * num ) div lines_per;
+			l_count := (l_count * num) div lines_per;
+			top := (top * num) div lines_per;
+			page_l :=(ten_page * num) div 100;
+			page_l := page_l - top - bottom;
+			lines_per := num
+		end { if when in 6,8,10 }
+	  end;
+
+    'C','c'	:
+	begin
+		comp := (pos('Y',long_s) =3) or (pos('y',long_s) =3);
+		if comp then emph := false
+	end;
+
+    'D','d'	:
+	d_strike := (pos('Y',long_s) =3) or (pos('y',long_s) =3);
+
+
+    'L','l'	:
+		emph := (pos('Y',long_s) =3) or (pos('y',long_s) =3)
+			and not comp;
+
+    'N','n'	:
+	begin
+	  str := copy(long_s,3,length(long_s) - 2);
+	  d_blanks(str);
+	  writeln('Closing ',f_name,' & opening ',str);
+	  f_name := str;
+	  close(p_fil,count);
+	  open(p_fil,f_name,count);
+	  if count = 255
+	    then begin
+		writeln('IOERR on ',f_name,' ABORTING.');
+		@HLT
+	    end
+	end;
+
+    'O','o'	: l_feed := false;
+
+    'P','p'	:
+	  begin
+		if length(long_s) > 3
+		  then begin
+			number := true;
+			p_number := convert(long_s,false)
+		  end
+		  else number := false
+	  end;
+
+    'S','s'	:
+	begin
+	  num := convert(long_s,false);
+	  if num in [1..3] then spaces := num
+	{ this way if S7 given its ignored }
+	end;
+
+    'T','t'	: begin
+		    end_page;
+		    for i := 1 to top do p_out(cr_lf);
+		    l_count := page_l-top-bottom
+		 end
+    end; { case }
+   num := pos(spec_c, long_s);
+   if num > 0 then delete(long_s,1, num - 1)
+	      else if eof(p_fil)
+		then begin
+		  l_feed := false;
+		  long_s :=''
+		end
+		else readln(p_fil,long_s)
+  end; { while }
+  set_epson
+end;
+
+begin { body of print_f }
+  l_feed := true;
+  page(output);
+  writeln; writeln; writeln; writeln;
+  write('How many copies? ');
+  read(str);
+  copies := convert(str,false);
+  if copies < 1 then copies := 1;
+  copy_active := 1;
+
+  writeln('Press <cr> to start printing.');
+  read(str);
+  if l_count < 1
+    then begin
+	l_count := page_l - top - bottom;
+	for i := 1 to top do p_out(cr_lf)
+    end;
+  while not eof(p_fil)
+   do begin
+    readln(p_fil, long_s);
+    if long_s[1] = spec_c then spec_act;
+    for i := 1 to length(long_s) do p_out(ord(long_s[i]) );
+    i := 0;
+    if l_feed
+	then repeat
+		p_out(cr_lf);
+		i := i + 1;
+		l_count := l_count - 1
+	     until (i = spaces) or (l_count = 0)
+	else begin
+	  l_feed := true;
+	  p_out(c_ret)
+	end;
+   if keypressed
+	then begin
+	  read(let);
+	  if let = chr(19)
+		then read(let)
+		else begin
+		 writeln('  ABORT? (Y/N) ');
+		 if yes_1(str, no_c) then exit
+		end
+	end; { when keypressed }
+   if l_count <= 0 then end_page;
+   if eof(p_fil) and (copies > 1)
+	  then begin
+		copies := copies -1;
+		reset(p_fil);
+		if l_count > 0 then end_page;
+		p_number := 1
+	  end; { if eof & copies > 0 }
+
+   if l_count <= 0
+	then begin
+	  for i := 1 to top do p_out(cr_lf);
+	  l_count := page_l -top - bottom
+	end
+  end; { while }
+{ put things back to default if changed }
+last_copy := 0
+end; { print_f }
+
+begin
+page(output);
+writeln;
+writeln;
+writeln;
+writeln(signon);
+
+{ set default format }
+   top := 3; bottom := 3; lines_per := 60; page_l := -66; p_number := 1;
+   number := false; comp := false; emph := false; d_strike := false;
+   spaces := 1; ten_page := 110; ten_top := 5; ten_bot := 5;
+   l_count := 0; last_copy := 0;
+
+if not format_ok then parameters
+		 else begin
+		  page_l := 66;
+		  init_io;
+		  set_page(page_l);
+		  set_epson
+		 end;
+writeln;
+write('Do you want to print a file now? (Y/N) ');
+code := yes_1(str, no_c);
+while code
+ do begin
+	write('File name? ');
+	read(f_name);
+	open(p_fil,f_name,count);
+	if (count = 255) or (eof(p_fil) and code)
+		then begin
+		  writeln('IOERR or File ',f_name,' is not on line.');
+		  writeln;
+		  write('  Exit? (Y/N) ');
+		  code := not yes_1(str, no_c)
+		end
+		else begin
+		 if code then begin
+		  print_f;
+		  close(p_fil, count);
+		  p_out(bell);
+		  writeln;
+		  write('Printing done -');
+		  if number then end_page
+		     else begin
+			write(' Move to top of next form? (Y/N) ');
+			if yes_1(str, no_c) then begin
+				for i := 1 to l_count + bottom
+					do p_out(cr_lf);
+				l_count := 0
+			end {then when moved to TOF }
+		     end; { when not numbered }
+		 end; { when code true }
+		 writeln;
+		 write('			 Print another? (Y/N) ');
+		 code := yes_1(str, no_c);
+		 page(output);
+		 if code
+		    then if not format_ok then parameters
+		end { when no ioerr }
+  end { while when code = Y }
+end.
+
+(*
+?T  ?N epson2.src
+*)
+

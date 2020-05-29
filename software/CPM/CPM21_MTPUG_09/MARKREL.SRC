@@ -1,0 +1,94 @@
+{###################################################################
+####                                                            ####
+####  Full module name: NEW_MARK_AND_RELEASE ROUTINES.          ####
+####  File name: MARKREL.SRC.                                   ####
+####  Support modules reqd: SYSERR.                             ####
+####  Compile time environment: MT MicroSYSTEMS Pascal/MT+5.2   ####
+####  PUBLIC DOMAIN.                                            ####
+####  Module development history:                               ####
+####  ---- 30-SEP-81  Module published in MTPUG newsletter      ####
+####  ---- 20-OCT-81  Modified to compare words and not integers####
+####                                                            ####
+###################################################################}
+
+MODULE NEW_MARK_AND_RELEASE;
+
+VAR SYSMEM: EXTERNAL INTEGER; { start of free area }
+    @SFP:   EXTERNAL INTEGER; { start of stack frame }
+    HERR:   BOOLEAN;          { indicates heap overflow error }
+
+EXTERNAL PROCEDURE @ERR (AN_ERROR: BOOLEAN; ERROR_NUMBER: INTEGER);
+
+
+(*####################################################################
+####  return the amount of free space existing between the top of the 
+####  heap at present and the reverse top of the local variable stack.
+####      -------+----->    <-----+-------
+####      ....   | heap    local  |   ....
+####   low mem   | area    var    |   hi mem
+####             |         stack  |
+####      -------+----->    <-----+-------
+####             ^                ^
+####           SYSMEM-->    <---@SFP
+####  This routine will return only the absolute value of the differ
+####  ence between sysmem and @sfp, and will not know if sysmem is 
+####  already higher than (on wrong side of) @sfp.
+###################################################################*)
+  
+FUNCTION MEMAVA: INTEGER;
+  BEGIN  MEMAVA := ORD (WRD(@SFP) - WRD(SYSMEM))  END;
+  
+
+
+
+
+(*###################################################################
+####  Dynamic allocation routine.  Expands the heap by objectsize   
+####  bytes.  If resulting heap collides with the stack then notify
+####  user of heap overflow error.
+####  The comparison of two words is used to avoid the possibility
+####  that we are comparing a positive integer (0 <= word <= 32767)
+####  with a negative integer (32768 <= word <= 65534).
+###################################################################*)
+  
+PROCEDURE @NEW (VAR POINTER: INTEGER; OBJECTSIZE: INTEGER);
+  BEGIN
+  POINTER := SYSMEM;
+  SYSMEM := SYSMEM + OBJECTSIZE;
+  HERR := WRD (SYSMEM) >= WRD (@SFP); { memavail wont tell us this }
+  IF HERR THEN @ERR (TRUE, 2)         { heap overflow error }
+  END;	(* keep check in until exception checking works again *)
+
+
+
+  
+ 
+
+(*##################################################################
+####  Mark start of heap to be deallocated later.
+##################################################################*)
+
+PROCEDURE MARK (VAR P: INTEGER);
+  BEGIN  P := SYSMEM  END;
+
+
+
+(*##################################################################
+####  Release area allocated since call to mark(addr(pointer))
+##################################################################*)
+
+PROCEDURE RELEASE (P: INTEGER);
+  BEGIN  SYSMEM := P  END;
+
+
+
+
+
+
+MODEND.
+
+
+
+
+
+

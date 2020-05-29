@@ -1,0 +1,35 @@
+CALCULAT/CMD/COM/DOC/ERL/PAS   Intended to replace a Scientific
+                               Calculator, but because of the limited
+                               accuracy should be used with caution.
+                               Excellent example of statement parsing,
+                               and recursion. Written by Warren Smith.
+
+XREF/CMD/COM/DOC/ERL/PAS       A comprehensive cross reference program
+                               with a graphical listing in which the
+                               block structure is delimited by 
+                               lines connected between each begin and
+                               end statement. Written by Warren Smith.
+
+
+
+CP/M-DEC/DOC                   The source code for the programs to
+CPMTODEC/ASM                   read and write DEC files from CP/M.
+DECTOCPM/ASM                   Written by Brian Chase under the
+LISTDEC/ASM                    direction of Ceasar Castro.
+                               He reports that there is one bug in
+                               the program as it will not transfer
+                               DEC object files.(Normally not needed).
+
+
+HEATH/DOC/PAS/ERL              A module which implements all the
+                               functions available to the Heath H-19 
+                               terminal. (Includes cursor and screen
+                               controls). Written by Jerome Jankura.
+
+SPEAKER/DOC/PAS/ERL            This program is a software driver for 
+                               the Votrax SC-01 voice synthesis chip.
+                               You can enter a word, say a word, modify
+                               the word, or disassemble the word into its
+                               phonemes. WRitten by Jerome Jankura.
+
+

@@ -1,0 +1,80 @@
+module tstcpmname;
+ {Test input string for valid CP/M file name or device	}
+ {by Steve Clamage}
+
+
+  function cpmname(fname: string): boolean;
+
+    const
+      numdevs = 6;  {number of defined devices}
+
+    type
+      devs = 1..numdevs;
+      devnames = array [devs] of string[4];
+
+    var
+      gotdot: boolean;
+      cname, cext, i, len: integer;
+      badset: set of char;
+      devtptr: ^devnames;
+
+
+    procedure devname;  {table of device names}
+
+      begin  {[f-]}
+	inline( 4/ 'CON:'/
+		4/ 'KBD:'/
+		4/ 'TRM:'/
+		4/ 'LST:'/
+		4/ 'RDR:'/
+		4/ 'PUN:'
+	      ); {[f+]}
+      end;
+
+    begin  {cpmname}
+      devtptr := addr(devname);
+      for i := 1 to numdevs do  {check for device name}
+	if fname = devtptr^[i] then
+	  begin
+	  cpmname := true;
+	  exit;  {got one, so it's ok}
+	  end;
+      cpmname := false;  {assume the worst}
+      badset := [' ', '<', '>', ',', ':', '=', '*', '?', '[', ']'];
+      len := length(fname);
+      if len = 0 then  {zero-length name}
+	exit;
+      i := 1;  {start with 1st character}
+      if len > 1 then
+	if fname[2] = ':' then  {if 2nd is colon...}
+	  i := 3;  {...start test with 3rd}
+      gotdot := false;
+      cname := 0;  {# chars in name portion}
+      while (i <= len) and (not gotdot) do  {scan name portion}
+	begin
+	if fname[i] = '.' then  {period terminates name scan}
+	  gotdot := true
+	else
+	  begin
+	  cname := cname + 1;
+	  if fname[i] in badset then
+	    exit;  {illegal character}
+	  end;
+	i := i + 1
+	end;
+      cext := 0;  {# chars in extent portion}
+      badset := badset + ['.'];
+      while (i <= len) do  {scan extent portion}
+	begin
+	cext := cext + 1;
+	if fname[i] in badset then
+	  exit;  {illegal character}
+	i := i + 1;
+	end;
+      if (cname < 1) or (cname > 8) or (cext > 3) then
+	exit;  {improper length}
+      cpmname := true;  {it's ok!}
+    end;
+
+modend .
+

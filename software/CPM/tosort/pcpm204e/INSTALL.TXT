@@ -1,0 +1,25 @@
+To make a Personal CP/M-86 bootable floppy (I assume that it will a 3.25
+diskette in drive A: on your PC/AT) please execute the below steps:
+
+1) Uncompress PCPM204E.ZIP, you will get the following files:
+   a) PCPM204E.DSK - diskette image file of PCP/M-86 ver 2.0/4 for PC16-20/AT,
+   b) INSTALL.TXT - a file you are reading.
+2) In a directory which contains a diskette image (PCPM204E.DSK) execute
+   the following command:
+   COPYQM A: VERIFY=ALL COUNT=1 PLAYBACK=PCPM204E.DSK BLIND
+3) Follow the instructions displayed on the monitor and put the 3.5 target
+   floppy in drive A: .
+4) Boot your PC to check the floppy boot feature. Since the submit file:
+   A:STARTUP.SUB
+   will be executed, don't protect the floppy, it must be un-protected !
+
+
+Note:
+     If you want to create a CP/M-86 partition on your HD you must run
+     the HDMAINT.CMD command (it will create and format your new CP/M-86
+     partition) and copy (use for this a PIP.CMD command) all files from floppy
+     (A:) to the HD (B: or C:), except the start-up submit file A:STARTUP.SUB
+     (i.e. the equivalence of the AUTOEXEC.BAT batch file under DOS). This last
+     file must be adapted (edited and changed) before coping it on a HD.
+
+Kuba (03472791922@mail.omnitel.it)	26 Oct 99

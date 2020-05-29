@@ -1,0 +1,20 @@
+
+{ -> 35 }
+function randg(mean,sigma: real): real;
+
+{ produce random numbers with a gaussian distribution }
+{ MEAN and SIGMA are supplied by calling program }
+{ function RANDOM is required !!! }
+
+var
+ i	: integer;
+ sum	: real;
+
+begin
+  sum:=0.0;
+  for i:=1 to 12 do
+	sum:=sum+random(0);
+  randg:=(sum-6)*sigma+mean
+end;	{ function randg }
+
+

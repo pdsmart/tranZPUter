@@ -1,0 +1,135 @@
+
+
+                    The    Pascal   programs    PASFFT1.SRC    to 
+              PASFFT4.SRC   are   programs  which   use   several 
+              different techniques to calculate the Fast  Fourier 
+              Transform. These techniques are taken directly from 
+              the book:
+
+              'Introduction to Digital Filtering' by
+               R.E Bogner and A.G Constantinides, Wiley, 1975
+
+                    This book is one of the better references  to 
+              the  FFT.   The heart of the programs given here is
+              the  procedure, 'easy', which is a direct translation 
+              of  the  FORTRAN subroutines given by the  authors. 
+              They actually give two versions and I wrote another 
+              two in the hope that they might prove to be faster.
+
+                    These  were originally written on an Apple II 
+              using  their  version of  UCSD  Pascal.  This  code 
+              represents  a minimum change version which runs  on 
+              Pascal MT+.
+
+                    There  are 4 programs each of which  contains 
+              the  procedure  'easy'  which  does  the  FFT.  The 
+              various  implementations differ only in the way  in 
+              which the cosine and sine terms are derived.
+
+                    PASFFT2 is the most straight forward and uses 
+              the  calculated values of sine and cosine using the 
+              'cos'  and  'sin' functions.  This version  is  the 
+              slowest.
+
+                    PASFFT1 is an improved ( from the speed point 
+              of  view ) version in which the incremental  values 
+              of  the  sine  and  cosine  are  derived  from  the 
+              equation  for the sum of cosines and  sines.  Since 
+              the  transcendental  functions  are  not  used   as 
+              frequently,  the  procedure  executes  considerably
+              faster.
+
+                    PASFFT3  is  a  version in which a  table  of 
+              cosines  is  first precalulated and passed  to  the 
+              procedure 'easy'.   Then the values used are  first 
+              just  looked  up  and then incremental  values  are 
+              calculated as in PASFFT1.
+
+                    PASFFT4  is  similar  except  that  only  the 
+              lookup  table is used - there is  no  'incremental' 
+              calculation.    If   table  lookup  is  done   very 
+              efficiently,  this version probably ought to be the 
+              fastest.
+
+                    I  have  tried all the versions  shown  using 
+              both the AMD9511 floating point chip and just using 
+              the  'normal' MT+ TRANCEND and FPREALS  relocatable 
+              modules.
+
+                    The  following  table  shows the  results  of 
+              these  tests  on a 5 MHz Z80 machine using  the  $Z 
+
+
+                                1
+
+
+
+
+
+
+
+
+              option  during compilation.  The times shown are in 
+              seconds  and  are the average of two  runs  of  the 
+              program.  The  probable accuracy is not much better 
+              than about a quarter of a second.  NOTE - these are 
+              the times for procedure 'easy' ONLY.
+
+
+              ---------------------------------------------------
+
+              Procedure  | AMD 9511     | without |  Comment
+              ___________________________________________________
+
+              PASFFT1    |    7.6       |    11.3 |   just passes
+              _____________________________________   the array
+
+              PASFFT2    |    18.8      |    72.1 |
+              ___________________________________________________
+
+              PASFFT3    |    8.2       |    11.4 |   passes the
+              _____________________________________   array and a
+                                                      precalcul-
+              PASFFT4    |    7.4       |    10.6 |   ated cosine
+                                                      table
+              ---------------------------------------------------
+
+
+
+                    My general conclusion is that PASFFT1 is  the 
+              easiest to use ( you don't have to precalculate the 
+              table  and hence use the memory space ).  The speed 
+              penalties for it compared to PASFFT4 are negligible 
+              anyway.
+
+                     The  AMD9511  floating  point  chip  doesn't 
+              produce  an  appreciable  increase  in  speed  with 
+              PASFFT1 since there are only simple multiplications 
+              being  used.  It's great advantage is shown in  the 
+              PASFFT2 test where the transcendental functions are 
+              used frequently.
+
+                    Finally,   I   hope  its  obvious  that   the 
+              procedure  'easy' can be easily changed  to  handle 
+              any  (  limited by memory size ) size array by  re-
+              defining the data type 'data'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                2
+
+
+
+
+
+

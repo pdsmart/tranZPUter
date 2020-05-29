@@ -1,0 +1,22 @@
+	PRETTY is a program for capitalizing reserved words in a pascal
+source file. I normally type everthing in in lower case.
+
+	I hope to eventually make this the basis of a complete
+'pretty-printing' program which will indent properly etc. If anyone
+has one, I would love to hear of it.
+
+	My name and address are:
+
+	J.A. Koehler
+	2 Sullivan St.
+	Saskatoon, SK, S7H-3G8
+
+	Basically the program searches through the source file looking
+for reserved words and capitalizing them. It writes them out to a file
+with the same name but with a 'type' of TMP. Thus, to operate on a
+Pascal MT+ source file called DUMMY.SRC, you would just type:
+
+	PRETTY DUMMY
+
+The program would operate on DUMMY.SRC and would write DUMMY.TMP.
+

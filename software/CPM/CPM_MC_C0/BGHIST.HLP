@@ -1,0 +1,124 @@
+:
+	   BGii HISTORY and ERROR line editor controls
+
+	back	fwd	delete	delete	delete
+			left	right	all
+
+Char	^S	^D	BS,DEL	^G
+				
+Word	^A	^F	^W	^T
+
+Cmd	^Q	^R			^Z
+
+Line	^E	^X		^Y	^U
+
+toggle:
+ESC:	command history recording (single token commands skipped)
+^B:	recall of Both tasks' commands
+^V:	insert/oVerwrite mode
+
+^L:	Look (search) backward for matching partial command
+^J:	this help (LINEFEED)
+
+
+
+Prompt is:
+	     =  uppercase DU if upper-task, lower if lower task
+	    /
+[!+^] hr:mi Duu>
+/ | \
+| |  =  ^ if INSERT active
+| |
+| =     + if upper-task, - if lower-task and recall BOTH active
+|
+=       ! if LOG active
+
+TIME ON/OFF controls hr:mi display in prompt.
+
+
+
+			   CP command
+
+	CP  [DU:|DIR:]destination=[DU:|DIR:]source		(CP/M form)
+
+or, 	CP  [DU:|DIR:]source  [DU:|DIR:]destination		(MS-DOS form)
+
+	unambiguous name only.
+
+If DateStamper is active, destination file's DateStamp = source's DateStamp.
+
+
+	REGister  command
+
+	REG D or REG		<-- Display Register Value
+
+	REG Mreg		<-- Decrement Register Value
+	REG -reg
+
+	REG Preg		<-- Increment Register Value
+	REG +reg
+
+	REG Sreg value		<-- Set Register Value
+
+	where:	reg   = 0 ... 9
+		value = 0 ... 255
+
+
+These are technical DOC-notes:		April 13, 1987
+
+They are provided in hopes that someone will be inspired to write
+an editor to manipulate the history file!
+
+BGHIST.VAR is in user 0 on swap drive.
+
+BGHIST [n] invokes BGHIST as the history shell for currently-active
+task.  
+	n = size of swap file x 2K, default is n=1.
+
+On first task switch, run BGHIST again to install as alternate-task
+shell.
+
+
+BGERRH invokes the error-handler.  It has the same editing controls
+as BGHIST.
+
+
+Data Structure for BGHIST.VAR
+
+Sector 0:
+recorq:	ds	1		;NZ if record-line flag is on
+insert:	ds	1		;NZ if insert-mode is on
+skipq:	ds	1		;NZ if search/dispay only current task
+				;i.e. Both is false
+maxrec:	ds	1		;max. record number for VAR file size
+newptr:	ds	2		;ptr to <record> for next command line
+topptr:	ds	2		;ptr to last-recorded history
+	...
+	ds	2
+;
+Sector 1...maxrec
+	command-line 1,NUL, command-line 2, NUL, ...
+
+The first byte of the command line has bit 7 set if the command
+was entered in the LOWER task.
+
+Each recorded command line has a 2-byte <record> pointer:
+
+	ds	1		;offset (0...7Fh)
+	ds	1		;file record number (1...maxrec)
+
+The pointer list is terminated by a NUL record number.
+E.g.:
+
+newptr:	dw	0248		;record 2, offset 48 will begin next line
+topptr:	dw	0204		;most recently recorded command at rec2,off 4
+	dw	0170
+	dw	0112
+	dw	0100		;first line at rec. 1, offset 0
+	dw	00xx		;no more
+
+Note that the pointers will wrap around when/if the file fills up,
+beginning again with record 1 (not 0, which holds the pointers).
+
+
+ i

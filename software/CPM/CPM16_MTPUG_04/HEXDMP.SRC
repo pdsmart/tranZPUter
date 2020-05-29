@@ -1,0 +1,48 @@
+program hexdmp;
+
+type
+  buffer = array[1..128] of char;
+
+var
+  name : string;
+  i,j,k,result  : integer;
+  infil : file of buffer;
+  inbuf : buffer;
+  outfil : text;
+
+begin
+  writeln('enter name of file');
+  readln(name);
+
+  assign(infil,name);
+  reset(infil);
+  assign(outfil,'HEXDMP.DAT');
+  rewrite(outfil);
+
+  result := 0;
+  j:=0;
+  while result <> 1 do
+    begin
+      seekread(infil,j);
+      result := ioresult;
+      if result = 0 then begin
+      inbuf := infil^;
+      for i:=1 to 32 do
+        writehex(outfil,inbuf[i],1);
+      writeln(outfil);
+      for i:=33 to 64 do
+        writehex(outfil,inbuf[i],1);
+      writeln(outfil);
+      for i:=65 to 96 do
+        writehex(outfil,inbuf[i],1);
+      writeln(outfil);
+      for i:=97 to 128 do
+        writehex(outfil,inbuf[i],1);
+      writeln(outfil);
+      j:=j+1;
+   end;
+  end;
+  close(outfil,i);
+writeln('all done')
+end.
+

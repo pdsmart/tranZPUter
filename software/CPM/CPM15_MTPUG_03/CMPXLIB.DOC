@@ -1,0 +1,39 @@
+CMPXLIB: Complex math library for Pascal; by Ficomp, Inc., Fairfax, Va.
+This library uses pointer variables so that functions rather than procedures
+can be used. Reference: "Information Hiding in Pascal", Michael B. Feldman,
+BYTE, November 1981, pp. 493-498.
+
+As pointed out in the reference, the problem with pointer variables is that
+a new record is created every time a complex function is called. Temporary
+record space is not reused unless it is specifically released with the
+built-in function DISPOSE( ). These library functions create temporary
+records that will automatically be erased when used in a subsequent complex
+operation. The CPERM( ) procedure will mark a complex number so that it will
+not be erased until DISPOSE( ) is used. The program segment below illustrates
+the use of the functions:
+
+1     T1:=CMPLX(SQR(COS(RPSI)),0.0);
+2     T1:=CSQRT(CMPXO(N2,'-',T1));
+3     CPERM(T1);
+4     T2:=CMPLX(SIN(RPSI),0.0);
+5     IF POL = 'V' THEN
+6	T2:=CMPXO(T2,'*',N2);
+7     CPERM(T2);
+8     GAMA:=POLAR(CMPXO(CMPXO(T2,'-',T1),'/',CMPXO(T2,'+',T1)));
+9     DISPOSE(T1);
+10    DISPOSE(T2);
+11    LAG:=-ANG(GAMA);
+12    IF LAG < 0 THEN
+13	LAG:=LAG+PI_2;
+14    WRITELN(MAG(GAMA),LAG);
+15    DISPOSE(GAMA);
+
+In line 1, complex variable T1 is created. In line 2 T1 is replaced by a new
+T1. The old T1 was erased by CMPXO function call. That intermediate variable
+was also erased by the CSQRT function. In line 3, T1 is made permanent because
+it will be used twice in line number 8. T2 is treated in the same manner in
+lines 4 to 7. Lines 9 and 10 erase T1 & T2 since they are no longer needed.
+All of the intermediate complex numbers created in line 8 are automatically
+erased as they are used. In line 15, GAMA is specifically erased, since it 
+is no longer needed.
+

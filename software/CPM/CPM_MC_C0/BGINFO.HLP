@@ -1,0 +1,287 @@
+HOW TO ORDER BackGrounder ii
+BGii COMMANDS
+FOREGROUND and BACKGROUND
+TASK SWITCHING
+TRANSFERRING DATA BETWEEN PROGRAMS
+KEYBOARD EXTENSION FUNCTIONS
+PRINT SPOOLING and BACKGROUND PRINTING
+DIAGRAM OF BGii LEVELS
+:
+		HOW TO ORDER BackGrounder ii
+
+You can obtain a serialized copy of BackGrounder ii from 
+Plu*Perfect Systems or an authorized distributor.  The complete
+version runs on all drives and loads more rapidly than the
+demonstration version. It includes a printed and indexed user's
+manual, as well as the Spooler and other BGii utilities.
+
+If you aren't yet using DateStamper to automatically time- and
+date-stamp your files, consider adding this fundamental feature
+to your system too.
+
+
+  BackGrounder ii			$75	Please specify
+  DateStamper				$45	preferred disk format
+  6% sales tax in California		...	with your order.
+  shipping & handling, each order	$ 3
+
+Plu*Perfect Systems		Sage Microsystems East
+Box 1494			1435 Centre St.
+Idyllwild CA 92349		Newton Centre MA 02159
+
+N. A. One-Eighty Group		Echelon, Inc
+P. O. Box 2781			885 N. San Antonio Rd.
+Warminster PA 18974		Los Altos CA 94022
+:
+			  BGii COMMANDS
+
+Type CP/M commands and parameters at the usual CP/M prompt.
+
+Multiple commands may be entered on a single line, separated by
+the command separator (by default, a semicolon),  for example:
+
+	A0>dir a:*.com ; dir b:
+
+If a Named DiRectory file is loaded, Backgrounder will show the
+current directory with both the DU and named forms, for example:
+
+	A0:BASE:>
+
+You may use the convenient "DU" (drive-user) form or a named-directory
+to specify a program:
+
+	A0>b12:myprog     or     A0>PROGS:myprog
+
+Both forms will look on drive B, user number 12 for MYPROG.COM,
+(assuming the B12: directory is named PROGS).
+:
+		    FOREGROUND and BACKGROUND
+
+BGii operates at three levels, shown in the diagram screen.
+
+
+1. FOREGROUND CP/M
+
+This is the familiar "A0>" or "A prompt" level.
+
+You type in a command and CP/M either executes it from its
+repertoire of built-in commands (DIR, ERA,...) or loads the .COM
+file of that name and starts executing it.
+
+
+2. USER/APPLICATIONS TASK
+
+This is the running COM program such as a text editor or
+spreadsheet. The program needn't be on the currently-logged drive
+(which is displayed by the  Foreground CP/M prompt, e.g. "B4>"). 
+
+BGii will look for the named COM program along the BGii "search path"
+(which is configurable with SETBG).  The default path searchs in
+this order:
+
+	1) the logged drive and user number
+	2) user number 0 of the logged drive
+	3) user number 0 of the A: drive
+
+This means you can put commonly-used programs in A0: and BGii will
+automatically find them, regardless of the drive/user you are
+logged into.
+
+
+3.  BACKGROUND CP/M
+WITHOUT EXITING from an applications program, you can put it "on
+hold" to run the built-in BGii commands.
+
+To do this, press the <SUSPEND> key (default is CNTL-^), and you
+will see the BACKGROUND CP/M prompt with the logged drive and
+user number followed by a right-brace prompt character "}"
+instead of the default prompt character ">", e.g. "A2}".
+
+In Background CP/M you can use the usual built-in commands,
+such as DIR.  In addition, special commands are available
+to dump the screen, jot a note to a notepad file, and more.
+
+To return to your applications program, press <SUSPEND> again.
+BGii will restore the screen and the computer memory to exactly
+what it was when you interrupted your program, and you can
+resume just where you left off.
+
+When you exit from your applications program you will, as usual,
+return to the Foreground CP/M level and again see the familiar
+prompt, e.g. "A2>".
+:
+			 TASK SWITCHING
+
+BGii lets you run a SECOND program while the original one is
+still active.  This feature is called "task switching" and is
+activated by the special SWAP command.
+
+Suppose that you have started running a program, perhaps a
+spreadsheet calculation, and need to interrupt it to write a
+memorandum.  When the spreadsheet is running you are at level 2
+in a user/application task (see diagram).  Press <SUSPEND> to get
+to the Background CP/M (level 3).
+
+Now, type the BGii command "SWAP<CR>".  BGii will save the complete
+spreadsheet program in its swap file and in a moment prompt you
+with a new LOWER FOREGROUND CP/M prompt: "a2>".
+
+
+It's just like Foreground CP/M, except that the drive is shown
+with a lower-case letter.  So you can start up your second
+program  (perhaps a text editor, such as WS) by typing in its
+name.
+
+BGii will now be at the LOWER USER TASK level. It works just like
+the normal user/applications level; behind the scenes BGii has
+hidden away the first program for safekeeping.
+
+Eventually, you will want to resume the spreadsheet.  If you've
+finished the memo, you can exit from your editor to LOWER
+FOREGROUND CP/M and the "a2>" prompt again.
+
+
+But if you haven't finished -- perhaps you need some additional
+data from the spreadsheet -- you can <SUSPEND> the editor to
+reach Background CP/M and the prompt: "a2}". (The lower-case
+drive letter indicates the lower task; the right-brace indicates
+Background CP/M).
+
+From either Foreground or Background CP/M, you can now use the
+SWAP command again to put the current program (the editor) on
+hold and resume the spreadsheet, exactly where you left off!
+
+And you can repeatedly swap back and forth, each time by typing
+<SUSPEND> and then SWAP.
+:
+		TRANSFERRING DATA BETWEEN PROGRAMS
+
+Suppose you need a whole column of figures from the spreadsheet for
+your memo.  BGii gives you several ways of moving data shown on the
+screen of one program into another.
+
+1.  SCREEN
+
+First, you can use the background SCREEN command to write a copy of the
+screen to a file.  The file will capture the complete (24-line) screen,
+except for any graphics characters.  To do this, press <SUSPEND> at the
+appropriate point in your program, then type:
+
+	SCREEN filename <CR>
+
+using some appropriate filename.  If your alternate program is a text
+editor you can then SWAP to it, read in the screen-file, and add it to
+your memo.
+
+
+2.  CUT and PASTE
+Second, you can use the background CUT command to mark a rectangular
+region on the screen and have BGii save it for later use.  To do this,
+press <SUSPEND> and type CUT<CR>.  The screen will be restored.
+
+Now you should use the cursor keys to move to the upper-left corner of
+the region you want to "cut".  When you get to the right point, type an
+"X".  Then move the cursor (to the right, or down, or both) to trace out
+the rectangle you need.  When you reach the bottom right corner, again
+type "X" (or <CR>).  The region is now fully marked, automatically cut
+and saved, and the screen restored.
+
+Next, type SWAP to switch to your editor, which is the alternate task. 
+Move the cursor to the point at which you want to put the just-cut
+information.  Then type <SUSPEND> and this time type PASTE.  BGii will
+now send each row of the cut region to your editor, followed by a <CR>
+character.  If your cursor was at the left margin, the information will
+look just like what you cut out; if it's indented, the extra rows will
+be on the left, and you can move them as necessary.
+
+3.  JOT
+
+And there's a third way to move information between programs. 
+BGii includes a built-in note-taking command.  To use it, type:
+
+	JOT <CR>  or  JOT filename <CR>
+
+If you don't type a filename, BGii adds the notes to a running JOTPAD
+file.  The JOT function opens a blank screen-pad (with reminders of
+commands at the top).  Type in your notes, moving around with the cursor
+keys and using the insert and delete functions of your terminal.
+
+You can use a version of the PASTE command to put the previously- cut
+region into your jotpad, at any position on the screen.  To do so, just
+type <CNTL-P>.  You can repeat this for multiple copies.
+
+When you're finished, type <SUSPEND> to close the jotpad and
+automatically write it to the file.
+:
+		  KEYBOARD EXTENSION FUNCTIONS
+
+BGii has a comprehensive "keyboard macro" capability, a means of
+extending regular and numeric-keypad keys to include strings of
+characters, text, and commands.  The KEYS command will show a menu of
+Keys functions.
+
+In response to the KEYS menu, type "D" to "Define" a key.
+BGii will ask which key is to be defined; if it's a numeric keypad
+key, just press it.  If it's on the main keyboard, press the
+<ALT> key (initially set to "\", the backslash character) and
+then the desired key.  BGii will show an equals sign ("=") and wait
+for your definition.  Type in the characters you want to have
+this key stand for, and terminate your definition by typing
+<SUSPEND>.
+
+Now type a "V" to View this new definition, as well as any other
+keys already defined.
+
+You can change a definition by re-defining it; edit any mistakes
+using DEL and Control-X while typing it in.
+
+To exit from the KEYS menu back to a CP/M level, type "X".
+
+The key you defined is now available for use.  Test it out by
+pressing the (numeric-keypad) key or <ALT> followed by the main
+keyboard key.
+
+Information about saving and loading definitions, special characters
+for time, date, printer control, etc. is found in the user's manual.
+:
+	     PRINT SPOOLING and BACKGROUND PRINTING
+
+The BGii Print Spooler module takes output that normally goes to the
+printer and "spools" (redirects) it into a disk file.  The file can be
+printed later, or kept for a permanent disk record of a program's
+printed output.
+
+Files can also be "unspooled" and printed automatically from a
+queue while other applications programs are running.  For
+example, in addition to running the spreadsheet and text editor
+as alternate tasks, you can be printing selected files.
+
+The Q program maintains the queue of files to be unspooled.
+Use it to add files to the queue, set format options, and
+show files yet to be printed.
+
+:
+	   Figure 1 -- Three BGii Levels and Two Tasks.
+
+
+  >>>> ACTIVE TASK <<<<
+	    |  
+	    |  
+	    V
+
+   LEVEL	        PROMPT	   LEVEL		PROMPT
+
+1.  Upper		A0>	   Lower		a0>
+    Foreground CP/M		   Foreground CP/M
+
+2.  Upper user		(1st	   Lower user		(2nd
+    task	  	program)   task			program)
+
+3.  Upper 		A0}	   Lower		a0}
+    Background CP/M		   Background CP/M
+
+
+NG
+
+The BGii Print Spooler module takes output that normally goes to the
+printer and "spools" (r

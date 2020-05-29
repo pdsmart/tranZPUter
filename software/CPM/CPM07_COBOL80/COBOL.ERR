@@ -1,0 +1,160 @@
+Compiler error; consult Technical Support
+Illegal format : Data-name 
+Illegal format : Literal, or invalid use of ALL
+Illegal format : Character
+Data-name not unique
+Too many data or procedure names declared
+Illegal character in column 7 or continuation error
+Nested COPY statement or unknown COPY file specified
+'.' missing
+Statement starts in wrong area of source line
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+'.' missing
+DIVISION missing
+SECTION missing
+IDENTIFICATION missing
+PROGRAM-ID missing
+AUTHOR missing
+INSTALLATION missing
+DATE-WRITTEN missing
+SECURITY missing
+ENVIRONMENT missing
+CONFIGURATION missing
+SOURCE-COMPUTER missing
+OBJECT-COMPUTER/SPECIAL-NAMES clause error
+OBJECT-COMPUTER missing
+Compiler error; consult Technical Support
+SPECIAL-NAMES missing
+SWITCH clause error or system name/mnemonic name error
+DECIMAL-POINT clause error
+CONSOLE clause error
+Illegal currency symbol
+'.' missing
+DIVISION missing
+SECTION missing
+INPUT-OUTPUT missing
+FILE-CONTROL missing 
+ASSIGN missing 
+SEQUENTIAL or RELATIVE or INDEXED missing
+ACCESS missing on indexed/relative file
+SEQUENTIAL or DYNAMIC missing or > 64 alternate keys
+Illegal ORGANIZATION/ACCESS/KEY combination
+Unrecognized phrase in SELECT clause
+RERUN clause syntax error
+SAME AREA clause  syntax error
+Missing or illegal file-name
+DATA DIVISION missing
+PROCEDURE DIVISION missing or unknown statement
+Program collating sequence not defined
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+'.' missing
+DIVISION missing
+SECTION missing
+File-name not specified in SELECT stmt or invalid CD name
+RECORD SIZE integer missing or line sequential rec > 1024 bytes
+Illegal level no (01-49),01 level reqd,or level hierarachy wrong
+FD, CD or SD qualification syntax error
+WORKING-STORAGE missing
+PROCEDURE DIVISION missing or unknown statement
+Data description qualifier or '.' missing
+Incompatible PICTURE clause and qualifiers
+BLANK illegal with non-numeric data-item
+PICTURE clause too long
+VALUE with non-elementary item,wrong data-type or value truncated
+VALUE in error or illegal for PICTURE type
+Non-elementary item has FILLER/SYNC/JUST/BLANK clause
+Preceding item at this level has > 8192 bytes or 0 bytes
+REDEFINES of unequal fields or different levels
+Data storage exceeds 64K bytes
+Compiler error; consult Technical Support
+Data description qualifier inappropriate or repeated
+REDEFINES data-name not declared
+USAGE must be COMP,DISPLAY or INDEX
+SIGN must be LEADING or TRAILING
+SYNCHRONIZED must be LEFT or RIGHT
+JUSTIFIED must be RIGHT
+BLANK must be ZERO
+OCCURS must be numeric, non-zero, unsigned or DEPENDING
+VALUE must be literal, numeric literal or figurative constant
+PICTURE string has illegal precedence or illegal char
+INDEXED data-name missing or already declared
+Numeric-edited PICTURE string is too large
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Unrecognized verb
+IF....ELSE mismatch
+Operand has wrong data-type, is not declared or '.' missing
+Procedure not unique
+Procedure name same as data-name
+Name required
+Wrong combination of data-types
+Conditional statement not allowed in this context
+Malformed subscript
+ACCEPT/DISPLAY wrong or Communications syntax incorrect
+Illegal syntax used with I-O verb
+Invalid arithmetic statement
+Invalid arithmetic expression
+Compiler error; consult Technical Support
+Invalid conditional expression
+IF stmts nested too deep, or too many AFTERs in PERFORM stmt
+Incorrect structure of PROCEDURE DIVISION
+Reserved word missing or incorrectly used
+Too many subscripts in one statement (internal buffer overflow)
+Too many operands in one statement
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Inter-segment procedure name duplication
+Unterminated condition at end of source
+Operand has wrong data-type or not declared
+Procedure name undeclared
+INDEX data-name declared twice
+Bad cursor control : illegal AT clause
+KEY declaration missing or illegal
+STATUS declaration missing
+Bad STATUS record
+Undefined inter-segment reference or error in ALTERed para
+PROCEDURE DIVISION in error
+USING parameter not declared in LINKAGE SECTION
+USING parameter not level 01 or 77
+USING parameter used twice in parameter list
+FD missing
+Compiler error; consult Technical Support
+Incorrect structure of PROCEDURE DIVISION
+Compiler error; consult Technical Support
+Compiler error; consult Technical Support
+Too many operands in one statement

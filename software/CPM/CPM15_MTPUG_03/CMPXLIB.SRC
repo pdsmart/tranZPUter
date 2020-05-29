@@ -1,0 +1,234 @@
+{CMPXLIB: Complex math library for Pascal; by Ficomp, Inc., Fairfax, Va.
+This library uses pointer variables so that functions rather than procedures
+can be used. Reference: "Information Hiding in Pascal", Michael B. Feldman,
+BYTE, November 1981, pp. 493-498.
+
+As pointed out in the reference, the problem with pointer variables is that
+a new record is created every time a complex function is called. Temporary
+record space is not reused unless it is specifically released with the
+built-in function DISPOSE( ). These library functions create temporary
+records that will automatically be erased when used in a subsequent complex
+operation. The CPERM( ) procedure will mark a complex number so that it will
+not be erased until DISPOSE( ) is used. The program segment below illustrates
+the use of the functions:
+
+1     T1:=CMPLX(SQR(COS(RPSI)),0.0);
+2     T1:=CSQRT(CMPXO(N2,'-',T1));
+3     CPERM(T1);
+4     T2:=CMPLX(SIN(RPSI),0.0);
+5     IF POL = 'V' THEN
+6	T2:=CMPXO(T2,'*',N2);
+7     CPERM(T2);
+8     GAMA:=POLAR(CMPXO(CMPXO(T2,'-',T1),'/',CMPXO(T2,'+',T1)));
+9     DISPOSE(T1);
+10    DISPOSE(T2);
+11    LAG:=-ANG(GAMA);	   
+12    IF LAG < 0 THEN	     
+13	LAG:=LAG+PI_2;
+14    WRITELN(MAG(GAMA),LAG);
+15    DISPOSE(GAMA);
+
+In line 1, complex variable T1 is created. In line 2 T1 is replaced by a new
+T1. The old T1 was erased by CMPXO function call. That intermediate variable
+was also erased by the CSQRT function. In line 3, T1 is made permanent because
+it will be used twice in line number 8. T2 is treated in the same manner in
+lines 4 to 7. Lines 9 and 10 erase T1 & T2 since they are no longer needed.
+All of the intermediate complex numbers created in line 8 are automatically
+erased as they are used. In line 15, GAMA is specifically erased, since it 
+is no longer needed.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+
+MODULE CMPXLIB; 		 
+{$M CMPLX}
+{$M RE}
+{$M IM}
+{$M PHASOR}
+{$M MAG}
+{$M ANG}
+{$M CMPXO}
+{$M POLAR}
+{$M CART}
+{$M CSQR}
+{$M CSQRT}
+{$M CRECP}
+{$M CONJG}
+{$M CABS}
+{$M CPERM}
+{$M *}
+
+TYPE 
+  CMPXNUM = RECORD
+	      RE_PART,IM_PART: REAL
+	      TEMPSTO: BOOLEAN
+	    END;
+  COMPLEX = ^CMPXNUM;
+
+VAR
+  P:COMPLEX;
+  NR,NI,NRE,NIM,T:REAL;
+
+EXTERNAL PROCEDURE @ERR(AN_ERROR:BOOLEAN;ERRNUM:INTEGER);
+EXTERNAL FUNCTION ATAN2(X,Y:REAL): REAL;
+
+FUNCTION CMPLX(R,I:REAL): COMPLEX;
+{to create complex number with cartesian coordinates}
+BEGIN
+  NEW(P);
+  P^.RE_PART := R;
+  P^.IM_PART := I;
+  P^.TEMPSTO := TRUE;
+  CMPLX := P
+END;
+
+FUNCTION RE(N:COMPLEX): REAL;
+{returns real part of complex number}
+BEGIN
+  RE := N^.RE_PART
+END;
+
+FUNCTION IM(N:COMPLEX): REAL;
+{returns imaginary part of complex number}
+BEGIN
+  IM := N^.IM_PART
+END;
+
+FUNCTION PHASOR(M,A:REAL): COMPLEX;
+{to create phasor from magnitude and angle}
+BEGIN
+  NEW(P);
+  P^.RE_PART := M;
+  P^.IM_PART := A;
+  P^.TEMPSTO := TRUE;
+  PHASOR := P
+END;
+
+FUNCTION MAG(N:COMPLEX): REAL;
+{returns magnitude part of phasor}
+BEGIN
+  MAG := N^.RE_PART
+END;
+
+FUNCTION ANG(N:COMPLEX): REAL;
+{returns angle part of phasor}
+BEGIN
+  ANG := N^.IM_PART
+END;
+
+FUNCTION CMPXO(N1:COMPLEX;OP:CHAR;N2:COMPLEX): COMPLEX;
+{to add, subtract, miltiply, or divide complex numbers}
+BEGIN
+  NR := RE(N1);
+  NI := IM(N1);
+  NRE := RE(N2);
+  NIM := IM(N2);
+  CASE OP OF
+    '+': {complex sum of 2 complex numbers, N1+N2}
+	 CMPXO := CMPLX(NR+NRE,NI+NIM);
+    '-': {complex difference of 2 complex numbers, N1-N2}
+	 CMPXO := CMPLX(NR-NRE,NI-NIM);
+    '*': {complex product of 2 complex numbers, N1*N2}
+	 CMPXO := CMPLX(NR*NRE-NI*NIM,NR*NIM+NI*NRE);
+    '/': {complex quotient of 2 complex numbers, N1/N2}
+	 BEGIN
+	   T := SQR(NRE)+SQR(NIM);
+	   CMPXO := CMPLX((NR*NRE+NI*NIM)/T,(NRE*NI-NR*NIM)/T)
+	 END;
+    ELSE
+      BEGIN
+	@ERR(TRUE,4);
+	WRITELN(OP,' is an illegal complex operator');
+	CMPXO := CMPLX(0.0,0.0)
+      END;
+  END;
+  CERASE(N1);
+  CERASE(N2)
+END;
+
+FUNCTION POLAR(N:COMPLEX): COMPLEX;
+{to convert complex number from cartesian to polar coordinates}
+BEGIN
+  NR := RE(N);
+  NI := IM(N);
+  POLAR := PHASOR(SQRT(SQR(NR)+SQR(NI)),ATAN2(NR,NI));
+  CERASE(N)
+END;
+
+FUNCTION CART(N:COMPLEX): COMPLEX;
+{to convert complex number from polar to cartesian coordinates}
+BEGIN
+  NR := MAG(N);
+  NI := ANG(N);
+  CART := CMPLX(NR*COS(NI),NR*SIN(NI));
+  CERASE(N)
+END;
+
+FUNCTION CSQR(N:COMPLEX): COMPLEX;
+{square of complex number, SQR(N)}
+BEGIN
+  NR := RE(N);
+  NI := IM(N);
+  CSQR := CMPLX(SQR(NR)-SQR(NI),2*NR*NI);
+  CERASE(N)
+END;
+
+FUNCTION CSQRT(N:COMPLEX): COMPLEX;
+{square root of complex number, SQRT(N)}
+BEGIN
+  NR := RE(N);
+  NI := IM(N);
+  T := SQRT((NR+SQRT(SQR(NR)+SQR(NI)))/2);
+  CSQRT := CMPLX(T,NI/(2*T));
+  CERASE(N)
+END;
+
+FUNCTION CRECP(N:COMPLEX): COMPLEX;
+{recripical of complex number, 1/N}
+BEGIN
+  NR := RE(N);
+  NI := IM(N);
+  T := SQR(NR)+SQR(NI);
+  CRECP := CMPLX(NR/T,-NI/T);
+  CERASE(N)
+END;
+
+FUNCTION CONJG(N:COMPLEX): COMPLEX;
+{conjugate of a complex number}
+BEGIN
+  CONJG := CMPLX(RE(N),-IM(N));
+  CERASE(N)
+END;
+
+FUNCTION CABS(N:COMPLEX): REAL;
+{absolute value of complex number, ABS(N)}
+BEGIN
+  CABS := SQRT(SQR(RE(N))+SQR(IM(N)));
+  CERASE(N)
+END;
+
+PROCEDURE CPERM(N:COMPLEX);
+{to make complex number permanent}
+BEGIN
+  N^.TEMPSTO := FALSE
+END;
+
+PROCEDURE CERASE(N:COMPLEX);
+{to release temporary complex variables}
+BEGIN
+  IF N^.TEMPSTO THEN
+    DISPOSE(N)
+END;
+
+MODEND.
+
+
+
+ASE(N:COMPLEX);
+{to release temporary complex variables}
+BEGIN
+  IF N^.TEMPSTO THEN
+    DISPOSE(N)
+END;
+
+MODEND.
+
+

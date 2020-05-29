@@ -1,0 +1,338 @@
+
+
+
+               MicroFast Z80 Emulation Engine code,
+                            MYZ80 API,
+      and The MYZ80 Emulator Package Versions 1.xx are each:
+              Copyright 1991,1992,1993 Simeon Cran.
+
+
+
+
+
+                            M Y Z 8 0
+                            =========
+
+                         by Simeon Cran.
+
+Welcome to MYZ80!
+~~~~~~~~~~~~~~~~~
+MYZ80 is a Z80/64180 emulator package. It was written to allow you 
+to finally get rid of those old Z80 computers which  have done  so 
+many fine years of service.  The new 80486, 80386 & 80286 machines 
+with the fast hard drives and  the snazzy  OS/2 operating  systems 
+are such a delight... but for many, the Z80 machines still have to 
+be fired up from to time in order to develop code for CP/M and the 
+Z80 chip. Well, not any more, thanks to MYZ80.
+
+Other  emulators  on  the  market  are   less  than   satisfactory 
+solutions.  Of  the small  number which  can actually  run without 
+causing system errors under the later versions of  DOS, apparently 
+none is capable of running real CP/M. Instead they use an emulated 
+version of CP/M which is only as accurate  as the  developers have 
+bothered to make it.
+
+None can run CP/M  3.0, and  none can  run ZCPR  (which is  such a 
+useful Z80 developer's environment).  Add to that their  less than 
+perfect  Z80  emulation and  slow overall  performance, and  until 
+MYZ80, the  'real' Z80  machines were  destined to  remain in  the 
+office.
+
+MYZ80 provides the solution being conceived, born and  nurtured to 
+the point where it  is now  the most  useful Z80  emulator package 
+ever!
+
+
+MYZ80 features.
+~~~~~~~~~~~~~~~
+MYZ80 emulates the instruction set of the 8080, Z80 and Z180/64180 
+CPU chips. It does this with the "MicroFast Z80 Emulation  Engine" 
+which is a very highly tuned piece of code designed to be  as fast 
+and as accurate as technically possible on 80286, 80386 and  80486 
+CPUs.
+
+MYZ80 provides an interface (the MYZ80 API) to  the host  computer 
+which allows real Z80 BDOSes to run in the MYZ80 environment. This 
+interface provides disk and character I/O as well as two  banks of 
+64k RAM (with common  area) and  a large  RAM disk.   These unique 
+features allow MYZ80 to run 'real'  CP/M 2.2,  CP/M 3.0,  Z-System 
+and ZPM3.
+
+MYZ80  is  designed  for  the  latest  host computer  multitasking 
+operating systems and makes Z80 programs  'host friendly'.   MYZ80 
+will  share  time  very  fairly  with  the  host.   Even  multiple 
+instances of MYZ80 are supported.
+
+MYZ80  can  take  advantage  of the  latest computer  hardware for 
+increased performance. The Microfast Z80 Emulation Engine operates 
+in either 16 (80286) or 32 (80386/80486/P5) bit mode depending  on 
+the capabilities of the host computer.
+
+MYZ80 runs beautifully on IBM AT compatible (or  better) computers 
+under  DOS  3.3  compatible  (or later)  operating systems.   This 
+includes running under OS/2 2.x, Desqview, and Windows 3.x.
+
+
+Installing MYZ80.
+~~~~~~~~~~~~~~~~~
+To install MYZ80 onto your computer, all you need do is place  all 
+the MYZ80 files in the one subdirectory on your hard  disk (it  is 
+recommended that you make  a subdirectory  especially for  MYZ80). 
+You can also run  MYZ80 from  a floppy  disk if  required, however 
+this severely limits the amount of space available for CP/M  files 
+(and reduces the performance of the program).
+
+
+Starting MYZ80.
+~~~~~~~~~~~~~~~
+MYZ80 is started from the DOS  command line  by simply  typing the 
+name of its executable (CPM). When you first start MYZ80  you will 
+be shown some text which explains the basic concepts of  the MYZ80 
+environment. Try it now and read the text. The experience you gain 
+will help you understand the more advanced topics below.
+
+
+Leaving MYZ80.
+~~~~~~~~~~~~~~
+There are two ways to exit  from the  MYZ80 environment.   You may 
+select the 'Abort and exit' choice from the pause box menu, or you 
+may run the MYZ80 utility QUIT.COM. The latter method also  allows 
+you to specify an error level with which to return to DOS (for use 
+in batch files).
+
+
+Further information.
+~~~~~~~~~~~~~~~~~~~~
+Some explanations of the terms used above and  further information 
+will be displayed to you when you start MYZ80 for the first  time. 
+Advanced users will find  important information  in the  "Advanced 
+Topics" section which follows.  Legal information  is provided  in 
+the file READ.1ST which was supplied with this  package.  All  the 
+MYZ80 utilities have online  help. Other  support files  for MYZ80 
+should be provided in the future  and will  probably be  available 
+from the place where you found this package.
+
+
+
+Advanced Topics.
+~~~~~~~~~~~~~~~~
+The following information presumes  that you  have already  gained 
+some experience with the MYZ80 package.  It is  meant to  help you 
+use some of the many more  advanced facilities  that MYZ80  has to 
+offer.
+
+MYZ80 API.
+The  API  is  what  enables  Z80  programs  running  on  MYZ80  to 
+communicate  with  facilities  on  the host  computer.  The  MYZ80 
+utilities are the prime users of the API however you  may use  the 
+API functions in programs that you write. The  file "MYZ80API.TXT" 
+is provided with the package (in user area 1 on  the A:  disk) and 
+contains  all  the  necessary  specifications  you   should  need.  
+Further information is provided in that document.
+
+KEYBOARD REDEFINITION.
+MYZ80 includes  one the  most comprehensive  keyboard redefinition 
+systems you're likely to find. Almost  every key  on the  keyboard 
+can be redefined to output strings of up to 127 characters to your 
+Z80 programs.  In addition, the definitions  for the  keyboard may 
+be saved in a file and reloaded at a later time. To set or  change 
+the definition of a key, hold down the CONTROL Key  and the  SHIFT 
+Key and press the BREAK Key. This will bring up a menu.  Note that 
+keys can be defined on two "levels".  The "transient" level is the 
+one you will normally use. The "default" level  exists to  provide 
+the keys with definitions when the "transient" level is completely 
+cleared out. When a key is pressed, MYZ80 first checks  to see  if 
+it has a "transient" level definition, and if it does,  it outputs 
+that. If it doesn't, it checks to see if there it has  a "default" 
+level definition, and if it does,  it outputs  that. If  neither a 
+"transient"  level  nor  a  "default" level  definition is  found, 
+nothing is output (the  key is  ignored). The  KEY.COM utility  is 
+used to save and load definitions from files.  Run KEY.COM  to see 
+instructions on how to use it.
+
+DISK FILES IN DIFFERENT DIRECTORIES.
+As you may have  already discovered,  by default  MYZ80 uses  disk 
+files called A.DSK, B.DSK and C.DSK which are located in  the same 
+directory as the CPM.EXE file. However it is  possible to  specify 
+different names for these  disk files,  and even  to specify  disk 
+files  in  different directories  or on  different disks  by using 
+"aliases" for the disk files .  This is all done using the DOS SET 
+command. Before starting MYZ80, use the SET command  to specify  a 
+new name for any of the disk files in the following way:
+SET A.DSK=D:\TESTING\DISKFILE.TST
+The above command would mean that  MYZ80 would  use a  file called 
+DISKFILE.TST which  resided in  the \TESTING  directory of  the D: 
+disk. Note that if the file didn't exist it would  be created  (if 
+possible). The same system can be  used for  B.DSK and  C.DSK. The 
+disk file definitions will remain until you reboot DOS.  To  clear 
+the definition use the command:
+SET A.DSK=
+
+DIFFERENT BOOT FILES.
+By default,  MYZ80 uses  the Boot  File called  BOOT.CPM which  is 
+located in the same directory as the CPM.EXE file. You may specify 
+a different boot file  so that  MYZ80 starts  up with  a different 
+CP/M system.  To do this use the keyword "MYZ80BOOT" with the  DOS 
+SET command in the following way:
+SET MYZ80BOOT=C:\TEST\OTHER.STM
+The above command would  cause MYZ80  to boot  from the  Boot File 
+C:\TEST\OTHER.STM. Note that you can also specify a boot file name 
+from within  the  MYZ80  environment   using  the   MYZ80  utility 
+COLDBOOT.COM.
+
+TERMINAL EMULATIONS.
+CP/M programs of any complexity have  always required  customising 
+to suit different terminals.  MYZ80 provides a terminal  emulation 
+which  is  closely  based  on  the  most  common  of the  powerful 
+terminals used for CP/M: the ADM3A/Televideo 912/Morrow MT70/ANSI.  
+If you have software which can not be customised appropriately for 
+this terminal you may be able to use one of the alternative MYZ80 
+terminal emulations.  TERM.TXT (in  user area  1 on  the A:  disk) 
+describes these alternative terminals.   Normally MYZ80  starts up 
+running the standard MYZ80 terminal, however  you may  change this 
+by using the DOS  SET command  with the  keyword "MYZ80TERM".  For 
+example:
+SET MYZ80TERM=VT52
+will set the default terminal to the VT52 emulation. You can still 
+change  this  during the  session with  the TERMINAL.COM  utility, 
+however  on  cold  boot  the  default   terminal  (from   the  DOS 
+environment) is always returned and reset.
+
+COLOURS
+CP/M is a monochrome  system. There  is no  allowance for  colour. 
+However  many  of the  larger CP/M  programs do  allow control  of 
+terminal  "attributes".   These attributes  make the  text on  the 
+screen bright or dim or reversed or underlined.  MYZ80 understands 
+these attributes but takes the concept  one step  further to  give 
+you  CP/M  computing  in  glorious  colour.   Each  attribute  and 
+attribute  combination  can  be  assigned  a   colour  using   the 
+COLOUR.COM utility.  COLOUR.COM is  easy to  use, self-explanatory 
+and allows you to save and load colour preferences from  files. To 
+complement this system, when first started up, MYZ80 will look for 
+the file MYZ80.CLR in the same DOS directory as the  CPM.EXE file.  
+This file should be one produced by COLOUR.COM and it will provide 
+the start-up colours for the MYZ80 environment.
+
+
+
+
+
+
+
+GLOSSARY  -  Some terms explained.
+~~~~~~~~
+
+CP/M
+The operating system used by most  8080 and  Z80 based  computers.  
+CP/M provides a fixed set of rules and services that  programs can 
+take advantage of.  CP/M is to 8 bit computers what  DOS is  to 16 
+bit computers. Two versions of CP/M became very  popular: 2.2  and 
+3.0.  After market (improved but compatible) versions of  CP/M are 
+also available (e.g. ZPM3).
+
+CPU
+Central Processing  Unit. In  a CP/M  computer the  CPU is  a Z80, 
+8080, 8085, 64180, Z180 or Z280 integrated circuit. The CPU is the 
+central brain of the computer. MYZ80 emulates the Z80 CPU as  well 
+as the instruction set of the 64180 and Z180 CPU.
+
+DISK FILE
+CP/M stores data on disks.  In  order to  satisfy CP/M's  need for 
+particular  disk  formats,  MYZ80  emulates  the  real  CP/M  disk 
+structure and stores the resultant data on your DOS disk. The data 
+for each emulated CP/M disk is held in  a DISK  FILE. Usually  the 
+disk files  are  called A.DSK,  B.DSK and  C.DSK, however  you may 
+change the default names of the disk files with a  setting in  the 
+DOS enironment block.
+
+EMULATION
+MYZ80 emulates a real CP/M computer. This means that it  acts like 
+it in a way which is hardly distinguishable  from the  real thing. 
+In order to emulate a CP/M computer, MYZ80 also emulates  a number 
+of sub-systems that are typically found  in a  CP/M computer,  for 
+example the CPU, the terminal and the disk system.  This emulation 
+of sub-systems is one of  the things  that sets  MYZ80 apart  from 
+other CP/M emulators and makes MYZ80 the most compatible emulation 
+of a CP/M computer.
+
+SHRINKING
+Because the MYZ80 virtual disks are able to hold over  8 megabytes 
+of data, and because CP/M expects to be able to access all of that 
+data at any time, disk files would normally have to be at  least 8 
+megabytes in size all the time.  This would take up a lot  of your 
+hard disk space and  would be  extremely wasteful  when your  disk 
+files don't hold much useful data.  MYZ80 solves  this problem  by 
+only storing useful data and returning dummy blank sectors to CP/M 
+in return for any requests for data from unused parts of the disk. 
+As you add more data to your MYZ80 disk files  you will  find that 
+they grow, however when you delete files from the MYZ80 disk files 
+they will not shrink automatically. This is a feature, not  a bug! 
+You can shrink disk files that have had data removed from them  so 
+that MYZ80 will return the dummy blank sectors for the  previously 
+used sectors  using the  SHRINK.COM utility.   Note well  however, 
+that disk files can only be shrunk down  to the  highest block  of 
+data in use on the disk.  SHRINK.COM will tell you which file owns 
+the highest block of data so that you can delete that file or move 
+it  in  order  to  allow  further  shrinking  of  the  disk  file.  
+SHRINKING does  not "pack"  your disk  files, it  simply frees  up 
+previously  allocated  blocks  that  are  no  longer  being  used.  
+SHRINKING is  not necessary,  except to  save space  on your  hard 
+disk.
+
+TERMINAL
+Most CP/M computers consist of at least two  boxes: the  computer, 
+and the  terminal.  The  computer does  the work  required by  the 
+program,  and  the  terminal  displays  the  result. The  terminal 
+typically contains a small computer of its own in order to display 
+the results in a pleasing way.  Many different  types of  terminal 
+have been produced, and each different design requires a different 
+type of communication with CP/M programs.  CP/M programs  which do 
+anything clever with the screen must  therefore be  "installed" to 
+suit the terminal in use.  MYZ80  has built-in  emulation of  most 
+common  terminals.   You  therefore  have  the  choice  to  either 
+"install" your  programs, or  to tell  MYZ80 to  emulate terminals 
+which are already suitable for each program.  TERMINAL.COM  is the 
+utility which makes this possible.
+
+ZCPR
+An advanced software system for CP/M computers. MYZ80  is able  to 
+run ZCPR in its many forms. ZCPR gives UNIX-like features  to CP/M 
+and is a favourite with most serious CP/M hobbyists.
+
+ZPM3
+An after market replacement for CP/M version 3.0. ZPM3 is  written 
+to take advantage of  the Z80  CPU and  offers compatibility  with 
+CP/M 3.0, but with extra features and improved  performance. MYZ80 
+is able to run ZPM3.
+
+
+
+
+
+Package Footnote.
+~~~~~~~~~~~~~~~~~
+The version of MYZ80 that you have now may not be perfect,  but it 
+is pretty close! It has been released so  that as  many people  as 
+possible can  join the  MYZ80 revolution,  and keep  CP/M and  Z80 
+alive for years to come. Please enjoy it.
+
+
+                           Simeon Cran.
+            (Author and designer of the MYZ80 package)
+
+
+
+         
+       
+  *************************************************************
+  Acknowledgments:
+  Due to all the great help,  I feel  compelled to  acknowledge 
+  the support given by a number of people in the "Z" community. 
+  Especially Bruce Dudley (Sysop of Z-Node 62 in Perth, Western 
+  Australia), and the handful of crash testers in Australia and 
+  around  the  world.   And  to  all  those  people  who  truly 
+  appreciate  the  elegance  of   the  art   of  machine   code 
+  optimization, please enjoy "MYZ80 by Simeon Cran."
+  *************************************************************
+
+        MYZ80 - Virtual Z80 Reality for today's computers.

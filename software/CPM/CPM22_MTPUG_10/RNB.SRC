@@ -1,0 +1,114 @@
+module rnbmodule;
+
+   const
+      cr = $0D;
+      lf = $0A;
+      bs = $08;
+
+  {$I B:FIBDEF.LIB}
+
+   var
+      @lfb: external ^fib;
+      resultio: external integer;
+
+   external function @bdos(func: integer; parm: word): integer;
+   external procedure @dflt;
+
+{ Purpose:	Read N bytes from a file pointed to by @lfb
+  		N is specified by @lfb^.iosize
+  update:	14 Mar 82, H. Lucas, correct eof/eoln problem
+  last update:  13 Aug 82, S. Clamage, correct eof problem	}
+
+     {$E-}
+
+
+   procedure nu_sect;
+
+      var
+	 i: integer;
+
+      begin
+	 with @lfb^ do
+	    begin
+	    fsecinx := 0;
+	    i := @bdos(26, wrd(addr(fsector)));   { set dma }
+	    resultio := @bdos(20, wrd(addr(fcb)));   { read sector }
+	    if resultio <> 0 then
+	       begin
+	       nosectrs := true;
+	       bufidx := 0
+	       end
+	    end
+      end;
+
+   {$E+}
+
+
+   procedure @rnb;
+
+      var
+	 dstptr: ^byte;
+	 n, i: integer;
+
+      begin
+	 with @lfb^ do
+	    begin
+	    dstptr := fbufadr;
+
+	    if option = fconio then   { con:, do an echoing read }
+	       begin
+	       dstptr^ := chr(@bdos(1, wrd(0)));   { read a char with
+						    echo }
+	       if dstptr^ = cr then   { echo cr with crlf }
+		  i := @bdos(2, wrd(lf))
+	       else if dstptr^ = bs then   { echo bs with sp/bs }
+		  begin
+		  i := @bdos(2, wrd(' '));
+		  i := @bdos(2, wrd(bs))
+		  end;
+	       exit
+	       end;   { con: }
+
+	    if option = ftrmio then   { kbd: do a non-echo read }
+	       begin
+	       repeat   { read a char with no echo }
+		  dstptr^ := chr(@bdos(6, wrd($FF)));
+	       until dstptr^ <> 0;
+	       exit
+	       end;   { kbd: }
+
+	    if option = fauxio then   { rdr: }
+	       begin
+	       dstptr^ := chr(@bdos(3, wrd(0)));   { read rdr: }
+	       exit
+	       end;   { rdr: }
+
+	    if nosectrs then
+	       begin
+	       feof := true;
+	       exit
+	       end;   { nosectrs }
+
+	    for n := 1 to iosize do
+	       begin
+	       if fsecinx = 128 then
+		  nu_sect;   { need new sector }
+	       if nosectrs then
+		  begin   { end of file }
+		  dstptr^ := chr($FF);
+		  @dflt;
+		  exit
+		  end;   {nosectrs}
+	       dstptr^ := fsector[fsecinx];
+	       fsecinx := fsecinx + 1;
+	       dstptr := dstptr + 1
+	       end;   { for }
+	    if @lfb^.fsecinx = 128 then   { why is this needed? }
+	       nu_sect;
+	    @lfb^.bufidx := 0;   { so gnb works }
+	    @dflt;   { to protect user data from i/o clobber }
+	    end;   { with }
+      end;   { @rnb }
+
+modend .
+

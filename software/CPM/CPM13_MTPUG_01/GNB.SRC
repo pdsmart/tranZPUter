@@ -1,0 +1,58 @@
+MODULE GETNEXT;
+
+(*$M GNB*)
+(*$M **)
+
+(*$I FIBDEF.LIB*)
+
+VAR
+  @LFB:		EXTERNAL ^FIB;
+
+EXTERNAL PROCEDURE @RNB;
+
+FUNCTION GNB(VAR F:FIB; SZ:INTEGER):CHAR;
+BEGIN
+  @LFB := ADDR(F);
+
+  WITH F DO
+    BEGIN
+      IF BUFIDX = BUFLEN THEN (* TIME TO GO READ MORE *)
+        BEGIN
+          @RNB;
+          BUFIDX := 0
+        END;
+
+      IF NOT FEOF THEN
+        BEGIN
+          GNB := FBUFFER[BUFIDX];
+          BUFIDX := BUFIDX + 1
+        END
+      ELSE
+        GNB := CHR($FF);
+
+    END (* WITH *)
+END;
+
+MODEND.
+
+%%%START PURGE
+MODULE KILLFILE;
+
+(*$M PURGE*)
+(*$M **)
+
+(*$I FIBDEF.LIB*)
+VAR
+  RESULTIO:	EXTERNAL INTEGER;
+
+EXTERNAL FUNCTION @BDOS(FUNC:INTEGER; PARM:WORD):INTEGER;
+EXTERNAL PROCEDURE @DFLT;
+
+PROCEDURE PURGE(VAR F:FIB; SZ:INTEGER);
+BEGIN
+  @DFLT;
+  RESULTIO := @BDOS(19,WRD(ADDR(F.FCB)));
+  RESULTIO := 0					(* NO DATA FROM CP/M *)
+END;
+
+

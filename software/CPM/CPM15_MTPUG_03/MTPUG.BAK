@@ -1,0 +1,82 @@
+VOLUME #3 JANUARY 1982
+
+CALCAL/SRC            Convert dates from the MMDDYY year format to
+                      an integer which increases by one for each
+                      day.  Corrects for leap year and includes
+                      an example.  By Ed. Reed.
+
+VARIO/SRC             A self modifying program which can be used
+                      to read/write multiple random files with
+                      differing record sizes. By Ed. Reed.
+
+DIRFILE/SRC/ERL       This program reads the disk directory and
+                      writes it to a file.  Useful for backup
+                      purposes and with modification within
+                      a program.  By Ed. Reed.
+
+EPSON/DOC             This program allows the formatting characters
+EPSON/SRC/ERL         used by the EPSON printer to be passed to it
+EPSON2/SRC/ERL        without requiring the user to commit the codes
+                      to memory.  The program interacts with the user
+                      to print a formatted text file using different
+                      spacing, fonts, etc.  By Harry Eckerson.
+
+CMPXLIB/DOC/SRC       Complex math library for Pascal.  This library
+                      uses pointer variables so that functions rather
+                      than functions may be used.  By Ron Finger.
+
+MATHLIB/DOC           The Mathlib function library has been split
+POWRLIB/SRC           and now includes range checking, a new trig
+TRIGLIB/SRC           function ATAN2 has been added.  This is the
+STATLIB/SRC           arctangent function with quadrant recognition
+FNC9511/SRC           (like Fortran).  The Statlib uses the
+                      conformant array schema for passing arrays of
+                      differing upper and lower bounds. The procedures
+                      find the MIN, MAX, MEAN(average) and standard
+                      deviation(Sigma) of the array passed.
+                      The FNC9511 library is the MT+ TRAN9511 library
+                      with additional range checking.  The functions
+                      TAN, ASIN, ACOS, ALOG10, AND PI have been
+                      added.
+                      By Ron Finger, Ficomp, Inc.
+
+NSB/DOC/SRC           Modified for use with Zenith Z-19/Heath H-19
+                      terminals. SB_GETCH has been modified to 
+                      intercept the Escape sequence commands so that
+                      the 18 keypad & special function keys can be
+                      used. By Ron Finger.
+
+NSBCUR19/DOC/SRC      Modified for use with Zenith Z-19/Heath H-19
+                      terminals. Both the function and cursor keys
+                      on the terminal are used.  This version works
+                      with 4 MHz systems and instructions are
+                      included for converting the code on a 2 MHz
+                      system. By Jerry Jankura.
+
+ACOUSTIC/PAS          A set of routines designed to emulate a 
+                      D.C.Hayes modem with an acoustic coupler)
+                      (Can be used by TERMINAL instead of DCMODEM
+                       By Warren Smith
+
+CIRQUE/PAS            A set of routines to mainuplate a circular que
+                      By Warren Smith
+ 
+CRT/PAS               A set of routines for manipulating a cursor
+                      addressable CRT (Used by TERMINAL and RINGING)
+
+                      By Warren Smith
+
+DCMODEM/PAS           A set of routines to access the features of a
+                      D.C.Hayes S-100 modem (Used by TERMINAL and
+                      RINGING) By Warren Smith
+
+RINGING/PAS/CMD       A program to let your computer tell you that
+                      your phone is ringing. By Warren Smith
+
+TERMINAL/PAS/CMD      A program to act as a dumb terminal, can also
+                      display control characters coming in on the line.
+                      By Warren Smith
+
+UTILITY/PAS           Only has one routine, a lower to upper case
+                      translating. By Warren Smith
+

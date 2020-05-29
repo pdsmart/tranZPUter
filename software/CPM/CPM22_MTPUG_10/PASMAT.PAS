@@ -1,0 +1,955 @@
+		{*-----------------------------------*
+		 | PASMAT: PAScal source code forMAT |
+		 *-----------------------------------*}
+{$K0}  {$K7}  {$K12}  {$K13}  {$K14}  {$K15}
+(* {$Q2 for parser recursion} *)
+program pasmat;
+{$p---------------------*
+ | Labels and Constants |
+ *----------------------*}
+
+  const
+    titleheader = 'Pasmat 3.15, revised 22 Mar 83';
+    maxlinelen = 132;  {max output line length}
+    bufsize = 134;  {output buffer size, > maxlinelen}
+    maxwordlen = 9;  {reserved words char size}
+    noreswords = 53;  {number of reserved words}
+    defaultoutline = 72;  {default output line length}
+    defaulttabspaces = 2;  {logical indentation increments}
+    defaultcomentspaces = 1;  {spacing before and after comments}
+    tab = 9;  {ord of tab character}
+    tabinterval = 8;  {standard tab interval for CP/M}
+    stacksize = 256;  {extra hardware stack size}
+    ibufsize = 2047;  {size of input buffer - 1}
+{$p------*
+ | Types |
+ *-------*}
+
+  type
+    symbols = (abslutesy, andsy, arraysy, beginsy, casesy, constsy,
+	       divsy, dosy, downtosy, elsesy, endsy, externsy, filesy,
+	       forsy, forwardsy, funcsy, gotosy, ifsy, insy, intruptsy,
+	       labelsy, modsy, modendsy, modulesy, nilsy, notsy, ofsy,
+	       orsy, othwisesy, packedsy, procsy, programsy, recordsy,
+	       repeatsy, setsy, stringsy, thensy, tosy, typesy, untilsy,
+	       varsy, whilesy, withsy, plus, minus, mult, divide,
+	       becomes, period, comma, semicolon, colon, equal,
+	       notequal, lessthan, lessequal, greatequal, greatthan,
+	       pointer, subrange, apostrophy, openparen, closeparen,
+	       openbrack, closebrack, identifier, number, stringcon,
+	       coment, textend, dummysy);
+    {basic symbol enumeration}
+    setofsyms = set of symbols;  {set ops on basic symbols}
+    wordtype = packed array [1..maxwordlen] of char;
+    {reserved}
+    lentabletype =  {index into reserved word table by length}
+      record
+	lowindex, hiindex: 1..noreswords;
+      end;
+    lineindex = 0..maxlinelen;
+    actions = (graphic, spaces, beginline);
+    bufferindex = 0..bufsize;  {output buffer index}
+    charbuffer = array [bufferindex] of
+	record
+	  case actionis: actions of
+	    spaces, beginline:
+	      (spacing: lineindex);
+	    graphic:
+	      (character: char)
+	end;
+    collog =
+      record
+	logchar: integer;  {charcount at time of log}
+	logcol: lineindex;  {writecol at time of log}
+	logline: integer;  {currentline at time of log}
+      end;
+    abortkind = (syntax, nesting, comformat);  {error types}
+    stringp = ^string;
+{$p----------*
+ | Variables |
+ *-----------*}
+
+  var
+    {CP/M interface control variables}
+    @sfp: external integer;  {initial stack pointer}
+    strptr: stringp;
+    clinearg: string[127];
+
+    {Structured Constants}
+    stdsyms: setofsyms;  {symbols valid in standard pascal}
+    validdirectives: set of char;  {valid formatter directives}
+    spacebefore, spaceafter: setofsyms;  {individual symbol spacing}
+    alphanumerics: setofsyms;  {alpha symbols}
+    resvwrd: array [1..noreswords] of wordtype;  {reserved word table}
+    ressymbol: array [1..noreswords] of symbols;  {symbols for resvwrd}
+    reslen: array [2..maxwordlen] of lentabletype;  { length index}
+    digits, letters: set of char;
+    uppercase: array [char] of char;
+    lowercase: array [char] of char;  {case conversion tables}
+    progset, blockbegsys, statset: setofsyms;  {syntactic symbol types}
+    cnstnts: setofsyms;  {symbols which can be constants}
+    headingbegsys: setofsyms;  {symbols which begin a block heading}
+    typebegsys: setofsyms;  {type beginning symbols}
+    exprbegsys: setofsyms;  {expression beginning symbols}
+    relops: setofsyms;  {relational operators}
+    arithops: setofsyms;  {arithmetic operators}
+
+    {Formatting variables}
+    indent: integer;  {current number of indentation spaces}
+    statindent: integer;  {indentation for major statement}
+    writecol: integer;  {current output column}
+    symbolbreak: integer;  {break symbol for putsym}
+    breakcol: integer;  {output column for putsym}
+    lastsym: symbols;  {last symbol processed}
+    symwritten: boolean;  {last symbol was written}
+    indentstate: array [lineindex] of lineindex;
+    indentlevel: lineindex;  {these make a stack of indent levels}
+
+    {comment formatting}
+    statbreak: integer;  {character where line can be broken}
+    statblanks: boolean;  {set if blank was last char}
+    firstinputline: boolean;  {set if first input line}
+
+    {miscellaneous}
+    outputline: integer;  {line numbers for output}
+    currentline: integer;  {line number being written}
+    inputline: integer;  {input line number}
+    linenumber: integer;
+
+    {Formatting Control Values}
+    outlinelen: integer;  {current output line length}
+    onehalfline: integer;  {significant point upon line}
+    fiveeighthline: integer;  { "}
+    threefourthline: integer;  {"}
+    tabspaces: integer;  {spaces to indent for each level}
+    continuespaces: integer;  {spaces to indent continuation line}
+    comentspaces: integer;  {spaces before statement comment}
+    statsperline: integer;  {statements per line}
+
+    {Flags to direct formatting}
+    ucreswords: boolean;  {convert reserved words to UC}
+    ucidents: boolean;  {convert identifiers to UC}
+    litcopy: boolean;  {copy identifiers and reserved words literally}
+    portabilitymode: boolean;  {eliminate underscores}
+    formatting: boolean;  {do formatting (otherwise, copy)}
+    newformatting: boolean;  {start formatting at end of comment}
+    bunching: boolean;  {bunch statements on one line}
+    silentmode: boolean;  {don't even generate error messages}
+
+    {lexical scanner variables}
+    symbolfound: boolean;  {success from lexical analysis}
+    newinputline: boolean;  {true when no chars as yet on new line}
+    endfile: boolean;  {eof read}
+    blankline: boolean;  {true when blank line is ok to output}
+    ch: char;  {current character for lexical analysis}
+    doubleperiod: boolean;  {set if double period found}
+    column: integer;  {input column for last char input}
+    sym: symbols;  {current basic symbol from lex}
+    symbol: array [lineindex] of char;  {workspace for lex analysis}
+    symlen: 0..maxlinelen;  {index into WINDOW array}
+    {output character buffering}
+    unwritten: charbuffer;  {unwritten characters}
+    charcount: integer;  {characters written so far}
+    oldest: bufferindex;  {oldest char in buffer}
+
+    {error handling variables}
+    overflows: 0..maxint;  {number of line overflows}
+    firstoverflow: 0..maxint;  {line where first overflow occured}
+    comoverflows: 0..maxint;  {number of comment overflows}
+    firstcomoverflow: 0..maxint;  {line of first comment overflow}
+
+  external function @cmd: stringp;
+  external procedure initialize;
+
+   {file i/o entry points}
+  external procedure abort(line: integer;
+			   kind: abortkind);
+  external procedure comentoverflow;
+  external procedure finaldata;
+  external procedure flushbuffer;
+  external procedure getchar;
+  external function getfiles: boolean;
+  external procedure lineoverflow;
+  external procedure writea(ch: char);
+
+   {comment entry points}
+  external procedure comentchar;
+  external procedure commanddirectives;
+
+   {parser entry points}
+  external procedure doprogram;
+  external procedure doblock;
+  external procedure statlist;
+
+{$p-----------------*
+ | Output Utilities |
+ *------------------*}
+
+
+  procedure newline(indent: lineindex);
+
+    begin  {start a new line and indent it as specified}
+      {fake a character, then change it}
+      writea(' ');
+      with unwritten[oldest] do
+	begin
+	actionis := beginline;
+	spacing := indent;
+	end;
+      writecol := indent;
+      currentline := currentline + 1;
+    end;  {newline}
+
+
+  procedure printline(indent: integer);
+
+    begin  {print a line for formatting}
+      if formatting then
+	begin
+	if blankline and (currentline > 0) then
+	  newline(0);
+	newline(indent);
+	end;
+      blankline := false;
+      symbolbreak := 0;
+    end;  {printline}
+
+
+  procedure space(n: integer);
+
+    begin  {space n characters}
+      if formatting then
+	begin
+	writea(' ');
+	with unwritten[oldest] do
+	  begin
+	  actionis := spaces;
+	  if n > 0 then
+	    spacing := n
+	  else
+	    spacing := 0;
+	  end;
+	writecol := writecol + n - 1;
+	end;
+    end;  {space}
+
+
+  procedure flushsymbol;
+
+    var
+      p: lineindex;  {induction var}
+
+    begin  {flush any accumulated characters in the buffer}
+      if not symwritten then
+	begin
+	symwritten := true;
+	newline(writecol);
+	for p := 1 to symlen do
+	  writea(symbol[p]);
+	end;
+      flushbuffer;
+      newline(column);
+    end;  {flushsymbol}
+
+{$p--------------------*
+ | Indentation Control |
+ *---------------------*}
+
+
+  procedure indentplus(delta: integer;
+		       line: integer);
+
+    begin  {increment indentation and check for overflow}
+      if indentlevel > maxlinelen then
+	abort(line, nesting);
+      indentlevel := indentlevel + 1;
+      indentstate[indentlevel] := indent;
+      indent := indent + delta;
+      if indent > outlinelen then
+	indent := outlinelen
+      else if indent < 0 then
+	indent := 0;
+    end;  {indentplus}
+
+
+  procedure undent;
+
+    begin  {reset indent to the last value}
+      indent := indentstate[indentlevel];
+      indentlevel := indentlevel - 1;
+    end;  {undent}
+
+{$p-------------------------*
+ | Lexical Scanner, Utility |
+ *--------------------------*}
+  {Place characters of current basic symbol on output TARGET line.
+  Invoke lexical analysis to assemble next basic symbol in WINDOW
+  and determine type. SYM is set equal to symbol type. Comments
+  are transparent to the analysis. }
+
+
+  procedure symbolput(thischar: char);
+
+    begin  {ch to symbol}
+      symlen := symlen + 1;
+      symbol[symlen] := thischar;
+      getchar;
+    end  {symbolput} ;
+
+{*------------*
+ | print char |
+ *------------*}
+
+
+  procedure printchar;
+
+    begin  {print ASCII chars not belonging to Pascal}
+      if writecol >= outlinelen then
+	printline(indent + continuespaces);
+      if formatting then
+	writea(ch);
+      getchar;
+    end  {printchar} ;
+
+{*-------------*
+ | scanblanks  |
+ *-------------*}
+
+
+  procedure scanblanks;
+
+    begin  {scan off blanks in the input}
+      while ((ch = ' ') or (ch = chr(tab))) and not endfile do
+	getchar;
+    end;
+
+{$p----------------*
+ | String Constant |
+ *-----------------*}
+
+
+  procedure stringcnstnt;
+
+    var
+      stringend: boolean;
+
+    begin  {character string to symbol}
+      newinputline := false;
+      symbolfound := true;
+      sym := stringcon;
+      stringend := false;
+      repeat
+	symbolput(ch);
+	if ch = '''' then
+	  begin
+	  symbolput(ch);
+	  stringend := ch <> ''''
+	  end;
+      until newinputline or stringend;
+      if not stringend then
+	abort(linenumber, syntax);
+    end  {stringcnstnt} ;
+
+{$p------------------------*
+ | Test for Reserved Words |
+ *-------------------------*}
+
+
+  procedure testresvwrd;
+
+    var
+      id: wordtype;
+      index: 1..noreswords;
+      p: 1..maxwordlen;
+
+    begin  {$R- test for reserved word}
+      sym := identifier;  {default}
+      if (2 <= symlen) and (symlen <= maxwordlen) then
+	begin  {possible length}
+	for p := 1 to maxwordlen do
+	  if p > symlen then
+	    id[p] := ' '
+	  else
+	    id[p] := lowercase[symbol[p]];
+	with reslen[symlen] do
+	  begin  {length index search}
+	  index := lowindex;
+	  while index <= hiindex do
+	    if resvwrd[index] = id then
+	      begin
+	      sym := ressymbol[index];
+	      exit
+	      end
+	    else
+	      index := index + 1;
+	  end  {length index search} ;
+	end  {possible length}
+    end  { $ R + testresvwrd} ;
+
+{$p----------------------------*
+ | Identifier or Reserved Word |
+ *-----------------------------*}
+
+
+  procedure alphachar;
+
+    var
+      p: lineindex;  {induction var}
+      lastunderscore: boolean;  {true if last char underscore}
+
+    begin  {identifier or reserved word to symbol}
+      newinputline := false;
+      symbolfound := true;
+      lastunderscore := true;
+      while ch in letters + digits do
+	begin
+	if portabilitymode then
+	  begin
+	  if ch = '_' then
+	    begin
+	    lastunderscore := true;
+	    getchar;
+	    end
+	  else if lastunderscore then
+	    begin
+	    lastunderscore := false;
+	    symbolput(uppercase[ch]);
+	    end
+	  else
+	    symbolput(lowercase[ch])
+	  end
+	else
+	  symbolput(ch);
+	end;  {while}
+      testresvwrd;
+      if sym = identifier then
+	begin
+	if not (litcopy or portabilitymode) then
+	  if ucidents then
+	    for p := 1 to symlen do
+	      symbol[p] := uppercase[symbol[p]]
+	  else
+	    for p := 1 to symlen do
+	      symbol[p] := lowercase[symbol[p]]
+	end
+      else  {reserved word}
+	begin
+	if portabilitymode or (not litcopy) then
+	  if ucreswords then
+	    for p := 1 to symlen do
+	      symbol[p] := uppercase[symbol[p]]
+	  else
+	    for p := 1 to symlen do
+	      symbol[p] := lowercase[symbol[p]];
+	end;
+    end  {alpha char} ;
+
+{$p-------*
+ | Number |
+ *--------*}
+
+
+  procedure hexcnstnt;
+
+    begin  {hexadecimal number to symbol}
+      newinputline := false;
+      symbolfound := true;
+      sym := number;
+      symbolput(ch);  { '$' }
+      while ch in ['0'..'9', 'A'..'F', 'a'..'f'] do
+	symbolput(uppercase[ch]);
+    end  {hexcnstnt} ;
+
+
+  procedure numericchar;
+
+    begin  {unsigned number to symbol}
+      newinputline := false;
+      symbolfound := true;
+      sym := number;
+      if ch = '#' then
+	symbolput(ch);
+      while ch in digits do  {integer or fractional portion}
+	symbolput(ch);
+      if ch = '.' then
+	begin
+	symbolput(ch);
+	if ch = '.' then
+	  begin  {actually subrange, must fudge}
+	  symlen := symlen - 1;  {erase period}
+	  doubleperiod := true;
+	  end
+	else
+	  while ch in digits do
+	    symbolput(ch);
+	end;
+      if (ch = 'E') or (ch = 'e') then
+	begin  {exponential portion}
+	symbolput('E');
+	if (ch = '+') or (ch = '-') then  {sign}
+	  symbolput(ch);
+	while ch in digits do  {characteristic}
+	  symbolput(ch);
+	end  {exponential}
+      else if ch = '$' then
+	hexcnstnt;
+    end  {numeric char} ;
+
+{$p------------------*
+ | Special Character |
+ *-------------------*}
+
+
+  procedure specialchar;
+
+    begin  {operators or delimiters to symbol}
+      symbolfound := true;  {untrue only for comments}
+      newinputline := false;
+      case ch of  {special symbols}
+	'+':
+	  begin  {plus}
+	  sym := plus;
+	  symbolput(ch);
+	  end;
+	'-':
+	  begin  {minus}
+	  sym := minus;
+	  symbolput(ch);
+	  end;
+	'*':
+	  begin  {multiply}
+	  sym := mult;
+	  symbolput(ch);
+	  end;
+	'/':
+	  begin  {divide}
+	  sym := divide;
+	  symbolput(ch);
+	  end;
+	'.':
+	  begin  {subrange or period}
+	  sym := period;
+	  symbolput(ch);
+	  if doubleperiod then
+	    begin  {fudge a subrange}
+	    symbol[2] := '.';
+	    symlen := 2;
+	    sym := subrange;
+	    end
+	  else if ch = '.' then
+	    begin  {subrange}
+	    sym := subrange;
+	    symbolput(ch);
+	    end;  {subrange}
+	  doubleperiod := false;
+	  end;
+	',':
+	  begin  {comma}
+	  sym := comma;
+	  symbolput(ch);
+	  end;
+	';':
+	  begin  {semicolon}
+	  sym := semicolon;
+	  symbolput(ch);
+	  end;
+	':':
+	  begin  {becomes, or colon}
+	  sym := colon;
+	  symbolput(ch);
+	  if ch = '=' then
+	    begin  {becomes}
+	    sym := becomes;
+	    symbolput(ch);
+	    end
+	  end;
+	'=':
+	  begin  {equals}
+	  sym := equal;
+	  symbolput(ch);
+	  end;
+	'<':
+	  begin  {less than, less equal, not equal}
+	  sym := lessthan;
+	  symbolput(ch);
+	  if ch = '=' then
+	    begin  {less than or equal}
+	    sym := lessequal;
+	    symbolput(ch);
+	    end
+	  else if ch = '>' then
+	    begin  {not equal}
+	    sym := notequal;
+	    symbolput(ch);
+	    end
+	  end;
+	'>':
+	  begin  {greater equal, greater than}
+	  sym := greatthan;
+	  symbolput(ch);
+	  if ch = '=' then
+	    begin  {greater than or equals}
+	    sym := greatequal;
+	    symbolput(ch);
+	    end
+	  end;
+	'^':
+	  begin  {pointer}
+	  sym := pointer;
+	  symbolput('^');
+	  end;
+	'''':
+	  stringcnstnt;
+	')':
+	  begin  {close parenthesis}
+	  sym := closeparen;
+	  symbolput(ch);
+	  end;
+	'[':
+	  begin  {open bracket}
+	  sym := openbrack;
+	  symbolput(ch);
+	  end;
+	']':
+	  begin  {close bracket}
+	  sym := closebrack;
+	  symbolput(ch);
+	  end;
+	'~', '?':
+	  begin  {bitwise 'not'}
+	  sym := notsy;
+	  symbolput(ch);
+	  end;
+	'!', '|':
+	  begin  {bitwise 'or'}
+	  sym := orsy;
+	  symbolput(ch);
+	  end;
+	'&':
+	  begin  {bitwise 'and'}
+	  sym := andsy;
+	  symbolput(ch);
+	  end;
+	end  {case} ;
+    end  {specialchar} ;
+
+{$p--------------------------*
+ | Get Next Symbol (getsym)  |
+ *---------------------------*}
+
+
+  procedure getsym;
+
+    begin  {extract next basic sym from text}
+      symlen := 0;
+      symbolfound := false;
+      symwritten := false;
+      repeat
+	scanblanks;
+	if endfile then
+	  begin
+	  sym := textend;
+	  symbolfound := true
+	  end
+	else if ((ord(ch) >= 0) and (ord(ch) <= 31)) or (ord(ch) =
+		127) then
+	  getchar
+	else
+	  case ch of  {lexical analysis}
+
+	    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '$', '#':
+	      numericchar;
+
+	    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+	    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+	    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+	    'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+	    'w', 'x', 'y', 'z', '@', '_':
+	      alphachar;
+
+	    ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>',
+	    '[', ']', '^', '''', '~', '?', '!', '|', '&':
+	      specialchar;
+
+	    '(', '{':
+	      comentchar;
+
+	    '%', '\', '`', '}', '"':
+	      printchar;
+	    end  {case}
+      until symbolfound
+    end  {getsym} ;
+
+{$p-------*
+ | Putsym |
+ *--------*}
+
+
+  procedure putsym;
+
+    var
+      before: lineindex;  {spaces before this character}
+      symindent: integer;  {indentation before this symbol}
+      i: lineindex;  {induction var}
+      overflowerror: boolean;  {delays error message till symbol
+				printed}
+
+
+    function spacesbefore(thissym, oldsym: symbols): lineindex;
+
+      var
+	spbefore: lineindex;
+
+      begin  {determine the number of spaces before a symbol}
+	if ((thissym in alphanumerics) and (oldsym in alphanumerics)) or
+	   (thissym in spacebefore) or (oldsym in spaceafter) then
+	  spbefore := 1
+	else
+	  spbefore := 0;
+	spacesbefore := spbefore;
+      end;  {spacesbefore}
+
+    begin  {putsym: put the current symbol to the output, taking care of
+	    spaces before the symbol. This also handles full lines, and
+	    tries to break lines at a convenient place}
+      overflowerror := false;
+      before := spacesbefore(sym, lastsym);
+      if before + symlen + writecol > outlinelen then
+	begin  {must handle an end of line}
+	if formatting and (symbolbreak > 0) and (charcount -
+	   symbolbreak < bufsize) and (before + symlen +
+	   indent + writecol - breakcol <= outlinelen) then
+	  begin
+	  with unwritten[symbolbreak mod bufsize] do
+	    begin
+	    actionis := beginline;
+	    spacing := indent
+	    end;
+	  writecol := writecol - breakcol + indent;
+	  currentline := currentline + 1;
+	  end
+	else
+	  begin  {no good break spot, break it here}
+	  symindent := outlinelen - symlen;
+	  if symindent > indent then
+	    symindent := indent
+	  else if symindent < 0 then
+	    begin
+	    symindent := 0;
+	    overflowerror := true;
+	    end;
+	  printline(symindent);
+	  end;
+	symbolbreak := 0;
+	end;  {if line overflow}
+      if unwritten[oldest].actionis = beginline then
+	before := 0;
+      if before > 0 then
+	if formatting and (symbolbreak = charcount) then
+	  with unwritten[symbolbreak mod bufsize] do
+	    begin
+	    writecol := writecol - spacing + before;
+	    spacing := before;
+	    end
+	else
+	  space(before);
+      if formatting then
+	for i := 1 to symlen do
+	  writea(symbol[i]);
+      lastsym := sym;
+      symwritten := true;
+      if overflowerror then
+	lineoverflow;
+    end;  {putsym}
+
+{$p------------------------*
+ | Parser Utility Routines |
+ *-------------------------*}
+
+{*---------*
+ | nextsym |
+ *---------*}
+
+
+  procedure nextsym;
+
+    begin  {output current sym and input next}
+      if sym <> textend then
+	begin  {symbol}
+	if not symwritten then
+	  putsym;
+	getsym;
+	end  {symbol}
+    end  {nextsym} ;
+
+{*-----------*
+ | Check sym |
+ *-----------*}
+
+
+  procedure checksym(desired: symbols;
+		     line: integer);
+
+    begin
+      if sym = desired then
+	nextsym
+      else
+	abort(line, syntax);
+    end;  {checksym}
+
+{*-----------------*
+ | Next on newline |
+ *-----------------*}
+
+
+  procedure nextonnewline(spacing, delta: integer);
+
+    begin  {space "spacing" lines, indent, put new symbol, and increment
+	    indent by "delta"}
+      if blankline or (currentline = 0) then
+	spacing := spacing - 1;
+      repeat
+	if spacing > 0 then
+	  printline(0)
+	else
+	  printline(indent);
+	spacing := spacing - 1;
+      until spacing < 0;
+      indentplus(delta, linenumber);
+      statindent := indent;
+      nextsym;
+    end;  {nextonnewline}
+
+{*------------------*
+ | Set symbol break |
+ *------------------*}
+
+
+  procedure setsymbolbreak;
+
+    begin  {mark a good spot to break a line}
+      space(0);
+      symbolbreak := charcount;
+      breakcol := writecol;
+    end;  {setsymbolbreak}
+
+{*------------------*
+ | Log symbol start |
+ *------------------*}
+
+
+  procedure logsymbolstart(var log: collog);
+
+    begin  {log the starting loc of the next symbol}
+      with log do
+	begin
+	logchar := charcount + 1;
+	logcol := writecol + 1;
+	logline := currentline;
+	end;
+    end;  {logsymbolstart}
+
+{$p-------------------*
+ | Statement bunching |
+ *--------------------*}
+
+
+  procedure bunch(start: collog;  {start of statement}
+		  var success: boolean);
+
+    begin  {move a statement up to the previous line if it will fit}
+      with start do
+	if formatting and (charcount - logchar < bufsize) and (logline +
+	   1 = currentline) and (writecol - indent + logcol <
+	   outlinelen) then
+	  begin  {move it up, adjusting things as we go}
+	  with unwritten[logchar mod bufsize] do
+	    begin
+	    actionis := spaces;
+	    spacing := 1;
+	    writecol := writecol - indent + logcol + 1;
+	    end;
+	  currentline := currentline - 1;
+	  success := true;
+	  end
+	else
+	  success := false;
+    end;  {bunch}
+
+{*-----------------*
+ | Bunchstatements |
+ *-----------------*}
+
+
+  procedure bunchstatement(start: collog);
+
+    var
+      tabint: integer;  {tab interval}
+      nexttab: integer;  {next tab location}
+
+    begin  {see if we can put multiple statements on a line}
+      if formatting then
+	with start do
+	  begin
+	  tabint := (outlinelen - indent) div statsperline;
+	  if tabint = 0 then
+	    tabint := 1;
+	  if logcol = indent + 1 then
+	    logcol := indent;
+	  {fudge for start}
+	  nexttab := (logcol - indent + tabint - 1) div
+		     tabint * tabint + indent;
+	  if (nexttab > indent) and (logline + 1 = currentline) and
+	     (charcount - logchar < bufsize) and (nexttab +
+	     writecol - indent <= outlinelen) then
+	    begin  {move up to prior line and fiddle pointers}
+	    with unwritten[logchar mod bufsize] do
+	      begin
+	      actionis := spaces;
+	      spacing := nexttab - logcol + 1;
+	      end;
+	    writecol := nexttab + writecol - indent;
+	    currentline := currentline - 1;
+	    end;
+	  end;
+    end;  {bunchstatement}
+
+{$P--------------------------*
+ | PROGRAM LOOP: processtext |
+ *---------------------------*}
+
+
+  procedure processtext;
+
+    begin  {processtext}
+      if sym in progset then
+	doprogram
+      else if sym in blockbegsys then
+	repeat
+	  doblock
+	until sym <> semicolon
+      else if sym in statset then
+	statlist;
+      if sym <> textend then
+	abort(linenumber, syntax);
+      flushbuffer;
+    end  {processtext} ;
+
+{*--------------*
+ | BEGIN PASMAT |
+ *--------------*}
+
+  begin  {pasmat}
+(*  @sfp := @sfp - stacksize;  {more stack space} *)
+    strptr := @cmd;  {get command line}
+    clinearg := strptr^;
+    initialize;
+    commanddirectives;
+    if not silentmode then
+      writeln(titleheader);
+    getchar;  {lead one char}
+    getsym;  {lead one symbol}
+    processtext;
+    finaldata;
+  end  {pasmat} .
+

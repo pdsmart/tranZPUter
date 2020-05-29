@@ -1,0 +1,860 @@
+F83  Users  Manual,  by  the Silicon Valley  Users  FIG  Chapter.      
+Originally in several smaller files.  Can use some more text.       
+
+
+                           F83 Users Manual
+                           ~~~~~~~~~~~~~~~~
+
+
+
+                                  F83
+
+                              Version 2.0
+
+
+                               written by
+
+                             Michael Perry
+
+                                  and
+
+                              Henry Laxen
+
+
+
+
+
+
+
+
+
+
+
+
+                      This manual was compiled by
+
+                             J. G. Modrow
+
+                                for the
+
+                             SVCS FORTH SIG
+
+                               June 1984
+
+
+                               Edited by 
+                            John A. Peters
+                                July 85
+                               Rev. 2.1.x
+
+                                 INDEX
+                                 ~~~~~
+
+
+    1.0  Introduction
+
+    1.1  About F83
+
+    2.0  Using F83
+
+    2.1  Distribution Disks
+
+    2.2  Starting F83
+
+    2.3  Standard System Documentation Requirements
+
+    2.4  Version 2.0 General Information
+
+    2.5  Creating Custom Applications
+
+    2.6  Metacompiling F83
+
+    2.7  Quick Reference
+
+    3.0  Glossary
+
+    4.0  MSDOS services
+
+    5.0  MSDOS Disk File Interface
+
+    6.0  Assembler
+
+    7.0  Source Listings
+
+    8.0  Forth Books
+
+
+1.0 Introduction
+
+    WELCOME TO FORTH
+
+    ********************************************************************
+    *                                                                  *
+    * This  is  a  public domain system, and may be freely distributed *
+    * and  copied,  as  long  as  the  authors are given credit and no *
+    * copyright  notice is placed upon it. If we catch someone selling *
+    * this  system  as  their  own  proprietary  product,  with  their *
+    * copyright  notice  ,  we will do our best to make them regret it *
+    * for the rest of their lives. You have been warned!!              *
+    *                                                                  *
+    ********************************************************************
+    
+
+    Forth  is about ten years old now (1983) but some of the features of
+    F83 are relatively new to the Public Domain Forth Model.
+
+    If  you  are  new  to  Forth  your  best bet is to purchase the book
+    STARTING  FORTH  by LEO BRODIE. It costs about seventeen dollars and
+    is available at most large book stores. On page 84 you will find the
+    commands  for  the  line editor. The F83 model follows both the book
+    and the Forth 83 standard.
+
+    See  Section  8.0  for  addresses  of  places where you can purchase
+    STARTING FORTH and the FORTH 83 Standard.
+
+    The Forth Interest Group ( FIG ) has meetings on the 4th Saturday of
+    each  month,  currently at the Chabot College in Hayward, CA and the
+    DYSAN Auditorium, 5201 Patrick Henry Drive, Santa Clara, CA at 1:00
+    pm.  Call  the FIG hot line if you wish to double check the location
+    phone 415- 962-8653 or the FIG Tree BBS (300 baud) at 415-538-3580.
+
+    Henry Laxen                                  Mike Perry
+    1259 Cornell Avenue                          1125 Bancroft Way
+    Berkeley, CA 94706                           Berkeley, CA 94702
+
+1.1 About F83
+
+    F83 is an 83 standard Forth with several features not found in other
+    FORTH's.  F83  was written and donated to the public domain by Henry
+    Laxen  and  Mike  Perry. There are versions for MSDOS, CP/M-86, CP/M
+    operating systems and other microprocessors. 
+
+    The  distribution  disk is normally a double sided disk with all the
+    source  files  compressed  except  the  file expansion utility. File
+    expansion  takes a long time because the expansion utility is all in
+    high  level  code  so F83 is being distributed by SVCS on two double
+    sided  disks in the expanded form. A Metacompiler and the F83 kernel
+    source  code  is  on one disk and the rest of the files on the other
+    disk.  There  is  only one short text file on one disk that explains
+    the  differences  between  versions  1.0  and  2.0.  The source code
+    contains  the  rest of the system documentation, but more about that
+    later.
+
+    F83  uses  standard operating system files and has the facilities to
+    open, create and close standard files through DOS. No special format
+    FORTH disks are needed. The limit on the number of files that can be
+    open  at  once  is  the  amount of memory you have for file buffers.
+    Separate  input and output file control blocks allow different input
+    and  output  screen files to be open at the same time. The word BDOS
+    uses  Interrupt 33 to provide access to MSDOS functions and make F83
+    usable on other MSDOS machines.
+
+    Several  words are vectored so that their definitions can be changed
+    to   suit   your   application.  The  discussion  of  screen  output
+    redirection to the printer later in this article is one illustration
+    of the utility of this technique.
+
+    The  editor  is  modeled after the one in the book STARTING FORTH by
+    LEO  BRODIE.  On  page 84 you will find the commands for the editor.
+    The  F83  model  follows  both  the  book and the Forth 83 standard.
+    STARTING  FORTH  would be a good book for the beginner and the FORTH
+    83  Standard  would be a good reference for any user. Both books are
+    available  from  many book stores with large computer book sections.
+    If  you  can  not find them try one of the sources listed in Section
+    8.0.
+
+    A  recursive decompiler is provided. It works fine but lists all the
+    words  in  line.  A  super feature that is even more powerful is the
+    ability  to  display  the  source  code of any F83 word. The command
+    'VIEW name' will find the source code screen for the word 'name' and
+    list  the  screen.  Another  command  will  list  the  documentation
+    screen.
+
+    The   implementation   of   "Shadow  Screens"  is  a  very  powerful
+    documentation  and help feature. F83 source code has a shadow screen
+    containing  documentation  associated  with  every  screen of source
+    code. The limitation on this technique is that the source files must
+    be  in  the  default disk drive or they will not be found. The words
+    SHADOW  SHOW  prints  a range of source screens and their associated
+    shadow screens side by side on an EPSON or IBM printer.
+
+    F83  includes all the source code for the system, an Assembler and a
+    Meta Compiler allowing you to customize the system any way you want.
+    These are two very powerful features that are not included with many
+    commercial  versions of FORTH. You can delete unneeded words, change
+    functions  of  words  or  add  functions. You can rewrite the system
+    assembly  language level source code in KERNEL86.BLK and CPU8086.BLK
+    and  change  the  assembler  in the meta compiler to cross compile a
+    system  for  a  different  processor or operating system. The source
+    code for a few words that are different between CP/M-86 and MSDOS is
+    included  for  both  systems  so  that  F83 for either system can be
+    generated. 
+
+2.0 Using F83
+
+    The following sections attempt to assist you in getting started with
+    F83. With this information you should be able to start-up F83, start
+    poking around and experimenting. Happy computing!
+
+
+2.1 Distribution Disks
+
+    The  distribution  disk  for  F83  Version  2.0 comes with the files
+    compressed  so  that  everything  fits on one disk. You will need to
+    expand  the  source  files  so  you  can  list  and  use  them.
+     
+    If  you downloaded your system from a BBS you probably received your 
+    system  in  SQueezed format.   Additionally it may be a  library  of 
+    files  with a .LBR or .LIB extentions.   DELBR.COM will extract  all 
+    the files in a library or you can use NULU.COM to look at the  files 
+    in  a libray without coping them to another disk.   However standard 
+    forth  is  64 columns and the above utilitys usually expect  for  80 
+    columns  making Forth block files look strangly  offset.   Hopefully 
+    some day Forth will include a variable width editor.
+
+    A  set  of files that are SQueezed but not in a library can be  most 
+    easily  UNSQueezed with NSWEEP.COM or S/USQ.COM etc.   Some of  them 
+    have a war to tag a group of files and UNSQueez and copy in mass.
+
+    If  you  received your system in the expanded format it will  be  on 
+    two  DSDD disks or three SSDD disks.  In that case you can skip  the 
+    huffman unsqueezing instructions and go down to section 2.2 Starting 
+    F83.
+
+
+    The list of the system and documentation files follows.
+
+    Compressed: Expanded files: Dsk Description:
+    ----------- --------------- --- ----------------------------------
+    M86.HUF     META86.BLK       2  Metacompiler source code
+    K86.HUF     KERNEL86.BLK     2  F83 kernel, code words
+    HF.HUF      HUFFMAN.BLK      1  Compression utility source
+    E86.HUF     EXTEND86.BLK     1  F83 high level words
+    C86.HUF     CPU8086.BLK      1  Utility code words
+    UT.HUF      UTILITY.BLK      1  Utility high level words
+    CK.HUF      CLOCK.BLK        1  Clock source code
+    FX.HUF      F83-FIXS.TXT     1  V2.0 Update documentation
+                F83.COM          1  Executable F83 system, not comprsd
+                KERNEL.COM       2  Compiled F83 kernel
+
+    The  instructions  for  expanding  the  compressed files follow. The
+    parts  that  you  type  are  underlined.  The <CR> symbol represents
+    carriage  return.  The expansion process takes a lot of time because
+    the  expansion  code  is  all high level code. So start it and go do
+    something else or relax.
+
+    Prepare  two  double  sided  formatted  disks then put your disk with
+    F83.COM  and EXPAND86.BLK in disk drive A: and type the following at
+    the DOS prompt.
+
+    A>F83 EXPAND86.BLK <CR>
+
+    F83  will  load,  at the "ok" prompt type "1 LOAD <CR>" and you will
+    create  an  expansion  program named RUNME.COM. To expand the system
+    now type the following at the DOS prompt.
+
+    A>RUNME <CR>
+
+    You will get the following instructions to follow.
+
+    To expand your system, type XYZZY
+
+    XYZZY <CR>
+
+    This takes a long long long time, and bells will
+    ring when you are needed, so I suggest you get it
+    started and have a long cool drink.
+    To expand your F83 system, make sure this disk
+    is in drive A: and that an empty, formatted disk is
+    in drive B:.  You will need two disks.
+    When ready, press any key to continue. <key stroke>
+    Expanding: M86.HUF into B:META86.BLK
+    Expanding: K86.HUF into B:KERNEL86.BLK
+
+    [ bells ring ]
+
+    Your disk is now full, please
+    remove it and insert another empty, formatted disk
+    in drive B: and press any key to continue.  <key stroke>
+    Expanding: E86.HUF into B:EXTEND86.BLK
+    Expanding: C86.HUF into B:CPU8086.BLK
+    Expanding: UT.HUF into B:UTILITY.BLK
+    Expanding: HF.HUF into B:HUFFMAN.BLK
+    Expanding: CK.HUF into B:CLOCK.BLK
+    Expanding: FX.HUF into B:F83-FIXS.TXT
+
+    [ bells ring ]
+
+    Congratulations, you have a full
+    F83 system.  May the Forth be with you. ok
+
+2.2 Starting F83
+
+    By  now you may have looked at some of the files with the TYPE
+    command.  You  can  have  a  printout of these instructions by using
+    <Control  PrtSc>  in MSDOS or Controll P in CP/M and  entering  TYPE 
+    F83.DOC or TYPE F83-FIXS.TXT.
+
+        In  the following text,  the <CR> symbol represents the carriage 
+    return  key.   First make a new system disk with COMMAND.COM on  it. 
+    Copy  the files from the disk with F83.COM on it except HUFFMAN.BLK, 
+    CLOCK.BLK and EXPAND86.BLK  to  the  new  disk.   We will call  this 
+    disk  1.  Make  a working  system  disk from the other  distribution 
+    disk. Copy F83.COM to this disk. We will call this disk 2.
+
+    F83  does  not  have  or  need  a  default  source file name as some
+    commercial  versions  of  FORTH  do.  No default file extensions are
+    provided either so file names and extensions must be entered.
+
+    Now  to enter Forth from DOS, insert the disk 1 into drive A of your
+    computer, boot it and type at the DOS prompt,
+
+    A>F83<CR>      or    A>F83 sourcefile.ext<CR>
+
+    Forth will reply with:
+
+    8086 Forth 83 Model 2.1.0
+    Modified 01Apr84
+
+    Now  try  out  the  following  words  to see how they work and get a
+    feeling for F83.
+
+
+    WORDS   and   A L
+
+    To  see  a  list of the words that are in the dictionary type WORDS.
+    You  will  see lots of words. Each word is a command in FORTH. FORTH
+    has  different  vocabularies  so  that functions or utilities can be
+    separated   without   word  definitions  clashing.  Three  of  these
+    vocabularies  are  HIDDEN, EDITOR and SHADOW. To list the vocabulary
+    type  the  vocabulary  name  then  WORDS.  To  return  to  the  main
+    vocabulary type FORTH <CR>.
+
+
+    SEE word
+
+    There  is a decompiler present which reverses the compiling process,
+    producing  source code from object code. The user interface to it is
+    the  word  SEE  <name>  where <name> is the name of a Forth word you
+    wish  to  decompile.  While  the information SEE gives you is not as
+    complete  as that given by VIEW, a least it is always available, and
+    not dependent upon whether or not the correct file is present on the
+    currently   logged   in  disk  drive.  For  a  real  experience  try
+    decompiling  the  words  STATUS,  which  is a DEFERred word, ie. and
+    execution  vector.  SEE  calls  itself  recursively in this case and
+    tracks down the definition. This can be quite handy.
+
+    However  SEE is not a full decompiler.   A definition with a literal 
+    number like for example 64 in it,  will decompile to  LIT 64 and the 
+    conditionals like DO, LOOP, IF, ESLE, THEN, BEGIN, WHILE, UNTILL and
+    REPEAT  will  appear something like   (0branch) 4  or   (branch)  3.  
+    The number is the number of words foreward or back in the definition 
+    that  the (branch) is spliting to.   (or is it the number  of  words 
+    divided by two).  Instead of counting, it is usually easier and more 
+    acurate  to  LOCate the word and turn to yur print out or  find  the 
+    disk with the source file and VIEW the word.
+
+    VIEW word
+
+        The   VIEW  command is one of the best  features  of  F83.  VIEW 
+    <word>  <CR>  will  find the screen that contains the code  for  the 
+    <word>,  provided  that  the  file containing <word>  is  on  the 
+    currently logged disk drive.  If you can fit all of the source  code 
+    on a single drive,  VIEW works great,  and takes care of opening the 
+    file and displaying the screen for you.  If not when View can't find 
+    the  proper file on line it atleast tells you the name of the  files 
+    it  is  looking for along with the screen number.
+
+      Each word is a command and each can be VIEWed.  Let's look at  the 
+    word  SHOW by typing VIEW SHOW.  Assuming all is well you will see a 
+    Forth  screen   containing the definition of SHOW  along  with  some 
+    other words. 
+
+
+    Type this: EDITOR VIEW JOIN<CR>
+
+
+    A L
+
+        Type   A  L <CR> and you will be rewarded with the Shadow screen 
+    that goes  with the word (command)  L.  A L <CR> will Alternate List 
+    you back to the original screen of code. Look at it and when you see 
+    a word that doesn't seem fully  self  evident,   VIEW  it  and  read 
+    the shadow screen. You are looking  at a screen of editing commands. 
+    Lets  go to the shadow with the  A  L command and do some exploring. 
+    While  we are in the shadows lets  look  at  the  next  five or  six 
+    shadow screens that should be editor words. Use N L.
+
+
+    N L   and   B L   and   N ED
+
+    Now  for  some  more  commands.  N is next screen and L is list. N L
+    lists  the next screen and B L lists the next screen back. N ED will
+    edit the next screen etc.
+
+
+    SHADOW   and   SHOW word   ( COPY, CONVEY )
+
+    We  have  also  tried  to  make  extensive  use of the shadow screen
+    concept.  In  this  regard,  the  A  word moves you from the current
+    screen  to  its  associated  shadow  screen.  The  SHADOW vocabulary
+    contains  a  bunch  of  words that are helpful in maintaining shadow
+    screens.  COPY  allows  you  to copy not only a screen, but also its
+    associated shadow. SHOW allows you to list each source screen across
+    from  its  shadow when you want to print them. Finally CONVEY allows
+    you  to  move groups of screens and their associated shadows. To see
+    what  words  are  in  the SHADOW vocabulary simply type SHADOW WORDS
+    <CR>.  To  view the SHOW word type VIEW SHOW <CR>. The word SHOW and
+    it's source code that we have been viewing, is a command that prints
+    out three source screens along with three shadows for a total of six
+    screens per page. There are two versions of SHOW. The vocabulary you
+    are  in determines how SHOW will print out. If you are in the SHADOW
+    vocabulary,   three screens of code and three of shadows will print. 
+    If  you  are  in FORTH you will get six screens  of  code  with  out 
+    shadows.   This  is  how yu do it when there are no shadows  in  the 
+    file.  If you have a printer you may print the editor screens now as 
+    follows.  Type  VIEW  WIPE  for example.  If wipe is the first of  6 
+    screens  of  editor  words remember   the   screen  number.  If  for 
+    instance it was 80 then type 80 85 SHADOW SHOW <CR>
+
+
+    FILE?   and   DEFAULT
+
+    FILE?  prints  the  filespec of the current output file and DEFAULT?
+    prints the default disk drive number.
+
+    FILES?  prints the names of both the OPEN and the FROM files.  It is 
+    defined in TOOLS.BLK
+
+
+    FROM filespec
+
+    FROM  d:filename.ext  makes "filename" the current input screen file
+    so that you can have different input and output screen files.
+
+
+    OPEN filespec
+
+    OPEN  d:filename.ext  makes  "filename.ext"  the  current  input and
+    output screen file.
+
+
+    A:   B:   and   n SELECT
+
+    You  can  select  the  default  disk drive from F83 by typing A: for
+    drive A and B: for drive B. 0 SELECT <CR> does the same as A: <CR>.
+
+    If  you want to make drive C the default drive type 2 SELECT. Create
+    the word C: by typing the following definition.
+
+    : C:   2 SELECT ; <CR>
+
+    PRINTING ON   and   PRINTING OFF
+
+    PRINTING  ON  turns  on  the  printer enable directing output to the
+    screen  and  the  printer.  PRINTING  OFF  turns  printer output off
+    directing all output to the screen.
+
+
+    ' (PRINT) IS EMIT  and  ' (EMIT) IS EMIT  and  ' (CONSOLE) IS EMIT
+
+    '  (PRINT)  IS  EMIT redirects screen output to the printer. Nothing
+    will  print  on  the  screen,  regardless  of  the state of PR-IN. '
+    (CONSOLE)  IS  EMIT directs output to the screen only, regardless of
+    the  state  of  PRINTING  ON or OFF. ' (EMIT) IS EMIT directs output
+    back  to  the  screen.  Now  PRINTING  ON  and  OFF will function as
+    explained above.
+
+
+    Backspace
+
+    By now you may have noticed that if you make a mistake typing a word
+    the  only way to correct it is to type backspace. Backspace backs up
+    the  cursor  on the screen but does not erase the characters already
+    there.  These  characters  are  erased  from  the  input  buffer  so
+    backspacing  and  retyping  the  correct word does work correctly. I
+    find  it  confusing  to  have  this extra garbage on the screen. The
+    source  code to change the backspace to a backspace and delete is in
+    KERNEL86.BLK screens 47 and 48.
+
+    Type the following to fix F83.COM.
+
+    HEX 41 112A C! DECIMAL <CR>
+
+    If  you wish to save this change, type SAVE-SYSTEM F83.COM <CR>. The
+    current system image will be saved on the current disk as F83.COM.
+
+    To fix the source code edit KERNEL86.BLK screen 48 and remetacompile
+    the system. Put disk 2 in drive B: and type B: VIEW CC-FORTH <CR> to
+    view  the  screen  you  need  to change. You need to change the word
+    BS-IN  to  (DEL-IN)  in  the definition of CC-FORTH. You can do this
+    with  the  editor.  Now  follow  the steps explained in Section 2.6,
+    Metacompiling F83, to generate a new F83 with this change.
+
+
+    CAPS ON   and   CAPS OFF
+
+    The  default  condition  for  F83  words is that both upper case and
+    lower  case  are  considered the same. For example WORD and word are
+    the  same.  If you prefer to treat upper case letters and lower case
+    letters  as  different,  set  CAPS to false by typing CAPS OFF <CR>.
+    CAPS ON <CR> will switch back to the original condition.
+
+
+2.3 Standard System Documentation Requirement
+
+    1.   The  system  dictionary  space  is  CPU  dependent  and  can be
+         determined by typing HERE U. <CR>
+
+    2.   The  application  dictionary space is also CPU dependent and is
+         the  difference  between  the  top  of  the  dictionary and the
+         beginning of the parameter stack. The location of the parameter
+         machine.  The application dictionary space can be determined by
+         typing SP@ HERE - U. <CR>
+
+    3.   The data stack space is the same as the dictionary space.
+
+    4.   The return stack space was arbitrarily set at 256 bytes. It can
+         be altered by remeta-compiling the system.
+
+    5.   No  mass storage block ranges are reserved by the system, other
+         than the contents of the files that are distributed.
+
+    6.   The  user  has  available to him blocks 0 thru 65534. Note that
+         block  0  may  not  be  used for loading. Block number 65535 is
+         reserved to indicate the buffer is missing.
+
+    7.   Any  ASCII  terminal  should work with this system. If the user
+         has  a  cursor  addressable  terminal, the editor can be easily
+         modified to take advantage of the terminal's characteristics.
+
+         System action taken upon error conditions:
+
+         ' <name> ['] <name>  not found results in ? error message
+
+         */ */MOD / /MOD MOD UM/MOD all division by 0 errors result in a
+         0 quotient
+
+         : in the case of an error, a ? error message will be printed
+
+         DO  if  a  nesting error occurs, the system will crash. (if you
+         are lucky)
+
+2.4 Version 2.0 General Information
+
+    This  Section  describes most of the changes to F83 between versions
+    1.0 and 2.0.
+
+    It  is always difficult to follow a moving target. In the six months
+    since  we  released  version  1.0  we  have  received  so  many good
+    suggestions  that  the temptation to use some of them was impossible
+    to  resist.  To all of you who contributed, thank you again. We will
+    try  to  avoid  any  further  changes until 1985 at the earliest. If
+    there are bugs, we will report them separately. Updating the various
+    versions  is a lot of work even without offering any support, and we
+    are  tired.  It is time to move on to applications, and do something
+    useful for a change.
+
+
+    The changes were as follows:
+
+    General:
+
+    * Removed the superfluous NOOP from all self-defining words.
+    * Changed all instances of C; to END-CODE ( by request).
+    * Partitioned   META   into  META.BLK  (  the  meta-compiler  )  and
+      KERNEL.BLK ( the source for the kernel ).
+
+
+    META:
+
+    * Fixed .SYMBOLS
+
+
+    KERNEL:
+
+    * Removed  null  from  the  system.  Sealed  search orders no longer
+      require the old magic null word.
+    * Fixed  PARSE  and  PARSE-WORD. They used to increment >IN past the
+      end of source text.
+    * Changed CP/M to DOS.
+    * Moved kernel DOS words into DOS vocabulary.
+    * Added USER VARIABLE IN-FILE. All file operations read from IN-FILE
+      and  write  to  FILE.  This  allowed  removing the confusing FILES
+      vocabulary.  User interface is unchanged: FROM <file> makes <file>
+      the  IN-FILE.  OPEN <file> makes both the same. LOAD uses IN-FILE,
+      then resets it to FILE. This is probably appropriate.
+    * FBLOCK and FBUFFER take an fcb address and a block nuber.
+    * SWITCH exchanges FILE and IN-FILE.
+    * ?UPPERCASE  conditionally  forces  a string to upper case. Used by
+      DEFINED and FORGET.
+    * EMIT  primitives renamed: (CONSOLE) is console only, (EMIT) is for
+      console and maybe also printer, depending on PRINTING.
+    * Fixed CONTROL.
+    * Made  default  (PRINT)  not  use  LISTST, because it hangs on many
+      systems. Optionally use LISTST if available for faster spooling.
+    * Renamed FORTH control character table from CC1 to CC-FORTH.
+    * Changed DO to ?DO in -TRAILING.
+    * Deleted HEADER from CREATE, made CREATE do it all.
+    * Changed ,VIEW to make file 0 if BLK is 0.
+    * Added \S for comment to end of screen.
+    * Added better error handling for disk reads and writes.
+    * Accessing  a  BLOCK  which  is  Out  of Range no longer leaves the
+      buffer assigned to the non-existent block.
+    * Changed DISCARD to mark discarded buffer as empty.
+    * .FILE and FILE? added to display file names.
+
+
+    EXTEND:
+
+    * Split ONLY into the ONLY operator and the ROOT vocabulary.
+    * Removed OPEN-FILE from FILE: and added it to VIEW.
+    * Added VIEWS which installs files into VIEW-FILES table.
+    * Moved  SET-DRIVE  into  EXTEND,  changed  it  to  use  the BIOS to
+      determine whether a drive is legal, and renamed it SELECT.
+    * DRIVE? prints the current drive.
+    * Added A: and B: which select drive A or B.
+    * Added error control into MAKE, CLOSE, READ, and WRITE.
+
+
+    CPU:
+
+    * Added three words for decompiling DOES> words.
+    * Renamed FIX to UNBUG.
+
+
+    UTILITY:
+         FORTH:
+
+    * Added :: for immediate compilation.
+    * VIEW  is now wordier. It prints the file name and screen number of
+      the  source  code  for  a  word, then OPENs the file and LISTs the
+      code.
+    * Made  SEARCH  much  faster  when  CASE is significant ( false), by
+      SCANning for the first character. Turn CAPS OFF for speed.
+    * Added .SCR which prints current screen number and file name. It is
+      used by LIST and EDITOR .ALL.
+    * Changed N and B to include DISK-ERROR OFF.
+
+
+    EDITOR:
+
+    * Changed  ?TEXT  to use PARSE instead of WORD. This allows commands
+      like "F ^" to use the contents of the buffers.
+    * Modified  auto  display updating to work correctly with both smart
+      and dumb terminals.
+    * Added FIX which VIEWs and EDITs.
+    * Renamed JUST to J. I use it a LOT.
+    * Made ED smarter: it does not change context if already editing.
+    * ID field defaults to blanks, not nulls.
+    * GET-ID  waits for an extra character to allow you to read what you
+      typed before hitting return.
+
+
+    Showing:
+
+    * SHOW  now  uses (SEMIT) which outputs to either the console or the
+      printer,  but  not  both, depending on PRINTING, which is reset by
+      (ABORT").
+    * SHOW  works  for small files: PR replaces out-of-range blocks with
+      LOGO.
+    * FOOTING is vectored.
+    * PAGE  defaults  to  linefeeds.  Many people did not have form-feed
+      capability.
+
+
+    Multitasker:
+
+    * Renamed  BACKGROUND  to  BACKGROUND:  because  it compiles until a
+      semi-colon.
+
+
+    NEW FILES:
+
+    * HUFFMAN.BLK  contains  the source for the Huffman encoding used on
+      the files as shipped.
+    * CLOCK.BLK  shows  how to use a clock/calendar to automatically set
+      the  editor  date  stamp when you boot. The code is for a CompuPro
+      System Support 1, but should give you some hints.
+    * HUNT.BLK  has  source  for  HUNT. HUNT <sub> lists all words whose
+      name contains the given substring.
+
+
+2.5 Creating custom applications
+
+F83 allows precompilation of FORTH applications.  Redirection of BOOT to
+the top level word then saving the executable image will generate a
+custom application.  The following sequence will create a custom
+application.  Using this technique you can generate a sealed application
+blocking the user from access to Forth.
+
+
+Test and debug your application the type the following.
+
+DECIMAL nn LOAD <CR>         ( nn is your load screen number )
+' MY-PROGRAM IS BOOT <CR>    ( execution starts with MY-PROGRAM on cold
+                               start )
+SAVE-SYSTEM MY-FILE.COM <CR> ( saves the executable program, as
+                               MY-FILE.COM )
+
+
+2.6 Metacompiling F83
+
+    Metacompiling  allows you to change word definitions or to eliminate
+    unnecessary  words  from your application. You could even change the
+    assembler  definitions  to  cross  compile  a new FORTH system for a
+    different processor or system.
+
+    META86.BLK  screens  25  through 45 provide the documentation on the
+    Metacompiler  source. The source code proves some information on how
+    to  use  this  facility. The following sequence will recompile a new
+    F83.COM file.
+
+    Put disk 2 in drive A and type the following.
+
+    A>F83 META86.BLK <CR>
+
+    When F83 boots type.
+
+    1 LOAD <CR>
+
+    The Metacompiler will be compiled then KERNEL86.BLK will be compiled
+    and  you  will get a string of screen numbers and two messages. When
+    the  kernel  has  completed  compilation  a  summary  of  of  system
+    statistics will be printed on the screen. Instructions on what to do
+    next follows the summary.
+
+
+    Unresolved references:
+
+         Statistics:
+    Last Host Address:          35890
+    First Target Code Address:  38694
+    Last Target Code Address:   50216
+
+    Now return to the DOS and type:
+    KERNEL EXTEND86.BLK <CR>
+    OK <CR>
+
+    Type BYE <CR> to exit to DOS.
+
+    Copy  KERNEL.COM  to  disk  1,  put  disk  1 in drive A and type the
+    following.
+
+    A>KERNEL EXTEND86.BLK <CR>
+    OK <CR>
+
+    You  will  get  a progress message as compilation of each functional
+    area starts to compile. The last two messages are.
+
+    System has been loaded, Size = 26337
+    System saved as F83.COM  ok
+
+    Now type BYE <CR> to exit to DOS.
+    Type F83 <CR> and test your new F83.
+
+
+2.7 Quick Reference
+
+    To be added later.
+
+
+4.0 MSDOS services
+
+    To be added later.
+
+
+    Using  DOS  calls  through BDOS you can use system functions or even
+    run  other programs from Forth. The assembler allows you to speed up
+    any  function  that  is  too  slow  or  to  call  assembly  language
+    subroutines.
+
+
+
+7.0 Source Listings
+
+    The  source  listings  for  the files listed below can be printed by
+    entering  F83  then using SHOW in the SHADOW vocabulary. The list of
+    source  files  then the steps to list them follow. You need an Epson
+    or  IBM  printer  to get the source plus documentation screens on an
+    8 1/2 " X 11 " page.
+
+    META86.BLK     KERNEL86.BLK   EXTEND86.BLK   CPU8086.BLK
+    UTILITY.BLK    HUFFMAN.BLK    EXPAND86.BLK   (CLOCK.BLK)
+
+    Put your working disk with F83.COM and META86.BLK in drive A:.
+    Put your other working disk in drive B:.
+    Turn on your printer then type the following lines as shown.
+
+    A>F83 META86.BLK <CR>
+    0 21 SHADOW SHOW <CR>
+
+    OPEN B:KERNEL86.BLK <CR>
+    0 92 SHOW <CR>
+
+    B:
+    OPEN EXTEND86.BLK <CR>
+    0 13 SHOW <CR>
+
+    OPEN CPU8086.BLK <CR>
+    0 25 SHOW <CR>
+
+    OPEN UTILITY.BLK <CR>
+    0 54 SHOW <CR>
+
+    Put  the  master  disk with HUFFMAN.BLK and EXPAND86.BLK in drive B:
+    and type the following.
+
+    OPEN HUFFMAN.BLK <CR>
+    0 21 SHOW <CR>
+
+    OPEN EXPAND86.BLK <CR>
+    Set your printer to top of form.
+    PRINTING ON <CR>
+    0 2 TRIAD <CR>
+    Set printer to top of form.
+    3 5 TRIAD <CR>
+    PRINTING OFF <CR>
+
+Later:   In the traditon of Forth,  one programmer can make the whole thing 
+    much easier by codng an easy to use word.  The word in this case is the 
+    command  LISTING.   LISTING  lists  the whole file to  the  printer  by 
+    starting at screen zero and going to the CAPACITY of the file.  Neat! 
+
+
+8.0 Forth Books
+
+    The FORTH 83 Standard and other books on Forth can be purchased from
+    several places three of which are listed below.
+
+    FORTH Interest Group
+    P. O. Box 1105
+    San Carlos, CA 94070
+
+    Phone: 415-962-8653
+
+
+    Mountain View Press
+    P. O. Box 4656
+    Mountain View, CA 94040
+
+    Phone: 415-961-4103
+
+
+    Computer Literacy Book Store
+    530 Lawrence Expressway
+    Santa Clara, CA 94086
+
+    Phone: 408-730-9955
+
+
+    Many  other  book  stores carry the books recommended here and other
+    books on Forth. Check with your favorite local book store.
+
+    The F83 imp lementation follows the book STARTING FORTH by Leo  Brodie. 
+    THINKING FORTH also by Leo Brodie is good too.
+
+    INSIDE  F83  by C.H.Ting is good reference book.   It is  published  by 
+    Offete Enterprises, 1306 So. B. St, San Mateo, CA 94402
+name and screen number of
+      the  source  code  for  a  word, then OPENs the file and 

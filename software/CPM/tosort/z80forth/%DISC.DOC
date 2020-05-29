@@ -1,0 +1,27 @@
+ Size  Recs  Bytes  Ext Acc
+    0     0     0k    1 R/W E:%DISC.DOC
+   17    17     3k    1 R/O E:CONPRTIO.FTH
+   38    38     5k    1 R/O E:DISCIO.FTH
+   18    18     3k    1 R/O E:EDITOR.DOC
+ 1441   537    58k    6 R/O E:SCREENS.FRT
+   64    64     8k    1 R/O E:STARTUP.FRT
+   52    52     7k    1 R/O E:Z80FORTH.COM
+   16    16     2k    1 R/O E:Z80FORTH.UPD
+  425   425    54k    4 R/O E:Z80FORTH.Z80
+
+
+
+%DISC   .DOC	this text
+CONPRTIO.FTH	Z80 fig-FORTH console driver   (*include file)
+DISCIO  .FTH	Z80 fig-FORTH  disc   driver   (*include file)
+EDITOR  .DOC	fig-FORTH editor commands
+SCREENS .FRT	misc. screens, EDITOR from SCR #7. ASSEMBLER from SCR #13.
+		MODEM7 from SCR # 18.
+		Random access file, copy to empty disc prior to use.
+STARTUP .FRT	more screens
+Z80FORTH.COM	Z80 fig-FORTH 1.1g
+Z80FORTH.UPD	Deviations from Installation Manual
+Z80FORTH.Z80	Source, *include-s CONPRTIO.FTH & DISCIO.FTH
+
+Invoke the desired screens file at CCP level, e.g. A>Z80FORTH B:SCREENS.FRT
+

@@ -1,0 +1,27 @@
+(* define also:
+TYPE
+  dir   = (up,down,left,right);  {direction of the 3 line crossing}
+*)
+
+EXTERNAL PROCEDURE GotoXY(x,y:INTEGER);          (* position cursor         *)
+EXTERNAL PROCEDURE ClrScr;                       (* clear whole screen      *)
+EXTERNAL PROCEDURE ClrEOS;                       (* clear to end of screen  *)
+EXTERNAL PROCEDURE ClrEOL;                       (* clear to end of line    *)
+EXTERNAL PROCEDURE EraScr;                       (* erase whole screen      *)
+EXTERNAL PROCEDURE EraEOS;                       (* erase to end of screen  *)
+EXTERNAL PROCEDURE EraEOL;                       (* erase to end of line    *)
+EXTERNAL PROCEDURE EraEOF;                       (* erase to end of field   *)
+EXTERNAL PROCEDURE Hline(y,xStart,xEnd:INTEGER); (* draw horizontal line    *)
+EXTERNAL PROCEDURE Vline(x,yStart,yEnd:INTEGER); (* draw vertical line      *)
+EXTERNAL PROCEDURE TriAt(x,y:INTEGER; where:dir);(* print 3 line crossing   *)
+EXTERNAL PROCEDURE EdgeAt(x,y,x2,y2: INTEGER);   (* make frame- end points  *)
+EXTERNAL PROCEDURE CrossAt(x,y:INTEGER);         (* print 4 line crossing   *)
+EXTERNAL PROCEDURE Mask;                         (* draw standard mask      *)
+EXTERNAL PROCEDURE Grafix;                       (* switch to graphics mode *)
+EXTERNAL PROCEDURE EndGra;                       (* switch to normal mode   *)
+EXTERNAL PROCEDURE BakGnd;                       (* switch to background    *)
+EXTERNAL PROCEDURE ForGnd;                       (* switch to foreground    *)
+EXTERNAL PROCEDURE PrintAt(x,y: INTEGER; someText: string);
+
+
+;

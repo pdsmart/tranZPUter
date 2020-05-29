@@ -1,0 +1,149 @@
+	.xlist
+; --------------------------------------------------------------------------- *
+di	macro	m
+ ifb	<m>
+	db	0f3h
+ else
+	db	0edh,77h,m & 7fh
+ endif
+endm
+; --------------------------------------------------------------------------- *
+ei	macro	m
+ ifb	<m>
+	db	0fbh
+ else
+	db	0edh,7fh,m & 7fh
+ endif
+endm
+; --------------------------------------------------------------------------- *
+exts	macro	r
+ ifidn	<r>,<a>
+	dw	64edh
+ exitm
+ endif
+ ifidn	<r>,<hl>
+	dw	6cedh
+ exitm
+ endif
+endm
+; --------------------------------------------------------------------------- *
+im	macro	p
+ ifidn	<p>,<0>
+	dw	46edh
+ exitm
+ endif
+ ifidn	<p>,<1>
+	dw	56edh
+ exitm
+ endif
+ ifidn	<p>,<2>
+	dw	5eedh
+ exitm
+ endif
+ ifidn	<p>,<3>
+	dw	4eedh
+ exitm
+ endif
+endm
+; --------------------------------------------------------------------------- *
+inw	macro	d,s
+ifidn	<d>,<hl>
+ ifidn	<s>,<(c)>
+	dw	0b7edh
+ endif
+endif
+endm
+; --------------------------------------------------------------------------- *
+ldctl	macro	d,s
+ifidn	<d>,<(c)>
+ ifidn	<s>,<hl>
+	dw	6eedh			;; ldctl   (c),hl
+ exitm
+ endif
+ ifidn	<s>,<ix>
+	db	0ddh,0edh,6eh		;; ldctl   (c),ix
+ exitm
+ endif
+ ifidn	<s>,<iy>
+	db	0fdh,0edh,6eh		;; ldctl   (c),iy
+ exitm
+ endif
+endif
+ifidn	<s>,<(c)>
+ ifidn	<d>,<hl>
+	dw	66edh			;; ldctl   hl,(c)
+ exitm
+ endif
+ ifidn	<d>,<ix>
+	db	0ddh,0edh,66h		;; ldctl   ix,(c)
+ exitm
+ endif
+ ifidn	<d>,<iy>
+	db	0fdh,0edh,66h		;; ldctl   iy,(c)
+ exitm
+ endif
+endif
+ifidn	<s>,<usp>
+ ifidn	<d>,<hl>
+	dw	87edh			;; ldctl   hl,usp
+ exitm
+ endif
+ ifidn	<d>,<ix>
+	db	0ddh,0edh,87h		;; ldctl   ix,usp
+ exitm
+ endif
+ ifidn	<d>,<iy>
+	db	0fdh,0edh,87h		;; ldctl   iy,usp
+ exitm
+ endif
+endif
+ifidn	<d>,<usp>
+ ifidn	<s>,<hl>
+	dw	8fedh			;; ldctl   usp,hl
+ exitm
+ endif
+ ifidn	<s>,<ix>
+	db	0ddh,0edh,8fh		;; ldctl   usp,ix
+ exitm
+ endif
+ ifidn	<s>,<iy>
+	db	0fdh,0edh,8fh		;; ldctl   usp,iy
+ exitm
+ endif
+endif
+endm
+
+; --------------------------------------------------------------------------- *
+neg	macro	r
+ ifidn	<r>,<a>
+	dw	44edh
+ exitm
+ endif
+ ifidn	<r>,<hl>
+	dw	4cedh
+ exitm
+ endif
+endm
+; --------------------------------------------------------------------------- *
+outw	macro	d,s
+ifidn	<d>,<(c)>
+ ifidn	<s>,<hl>
+	dw	0bfedh			;; outw (c),hl
+ endif
+endif
+endm
+; --------------------------------------------------------------------------- *
+pcache	macro
+	dw	65edh
+endm
+; --------------------------------------------------------------------------- *
+retil	macro
+	dw	55edh
+endm
+; --------------------------------------------------------------------------- *
+sc	macro	n
+	dw	71edh,n
+endm
+; --------------------------------------------------------------------------- *
+	.list
+

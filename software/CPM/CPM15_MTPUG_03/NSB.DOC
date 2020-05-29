@@ -1,0 +1,13 @@
+This version of NSB is for use with the Zenith Z-19/Heath H-19 terminals.
+The SB_GETCH function has been modified to intercept the Escape sequence
+commands so that the 18 keypad & special function keys can be used. All
+original commands still function as before, except that the ERASE key is
+now the escape (ESC) key. The ESC key still functions but must be pushed
+twice in succession to obtain an escape.
+
+	Ron Finger
+	Ficomp, Inc.
+	3017 Talking Rock Dr.
+	Fairfax, VA 22031
+	(703)280-1394
+ in succe

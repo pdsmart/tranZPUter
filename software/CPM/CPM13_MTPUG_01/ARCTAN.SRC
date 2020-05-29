@@ -1,0 +1,85 @@
+MODULE  ARCTAN5;  { Copyright (c) by  T. W. Lougheed  24 April 1981 }
+
+
+{ Proposed replacement for current arctangent function.  It everywhere
+meets the accuracy of the  Pascal MT+  to within a factor of  2, often
+exceeds it in accuracy by a factor of 10 (especially for tangents of
+angles near +PI/2 or -PI/2),  and correctly produces angles confined
+to the inteval -PI/2 to PI/2,  which the installed routine does not. }
+
+{ First version   5 February 1981
+
+  By    T. W. Lougheed
+        Dept. T. & A. Mechanics
+        Thurston Hall, Cornell U.
+        Ithaca,  NY  14853
+
+  Last version  23 February 1981
+
+  This software is in the public domain, and may not be sold by any
+  person or corperation without permission of the author.  }
+
+
+{ This code is intended for floating-point arithmatic with an accuracy
+of 8 digits or less. }
+
+function  ARCTAN( z :real) :real;
+
+                       {   |  truncation. }
+   const  HALF_PI = 1.570796326;
+          PI      = 3.141592654;
+
+   var  AZ :real;
+
+
+      { From the HANDBOOK OF MATHEMATICAL FUNCTIONS by Abramowicz and
+      Stegun, 10-th printing.  Formula 4.4.49 -- abs of error is less than
+      or equal to  2E-8*X  for   0 < X < 1,  ignoring arithmatic error
+      in the floating-point software. }
+
+      function TCHEBYSHEV( X :real) :real;
+
+      { Coefficients for a Tchebychev polinomial balanced for
+      the inteval  0 < X < 1. } 
+
+                        {   |  truncation. }
+      const  A2  = -0.3333314528;
+             A4  =  0.1999355085;
+             A6  = -0.1420889944;
+             A8  =  0.1065626393;
+                          {   |  truncation. }
+             A10 = -0.0752896400;
+             A12 =  0.0429096138;
+             A14 = -0.0161657368;
+                           {   |  truncation. }
+             A16 =  0.0028662257;
+      
+      var  S  :real;
+
+      begin
+      S := sqr( X );
+      TCHEBYSHEV := ((((((((A16*S + A14)*S + A12)*S
+       + A10)*S + A8)*S + A6)*S + A4)*S + A2)*S + 1)*X;
+      end;
+
+
+   begin
+
+   if      Z < -1 then  AZ :=  HALF_PI - TCHEBYSHEV( 1/Z )
+   else if Z = -1 then  AZ := -HALF_PI/2
+   else if Z <  1 then  AZ :=  TCHEBYSHEV( Z )
+   else if Z =  1 then  AZ :=  HALF_PI/2
+   else                 AZ :=  HALF_PI - TCHEBYSHEV( 1/Z );
+
+   { Note that the tangent is periodic with period  PI, rather
+   than period  2*PI  as are the sine and the cosine. }
+   while AZ >  HALF_PI do AZ := AZ - PI;
+   while AZ < -HALF_PI do AZ := AZ + PI;
+   ARCTAN := AZ;
+
+   end;
+
+
+modend
+.
+

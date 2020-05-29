@@ -1,0 +1,429 @@
+; CP/M DISC INTERFACE
+;
+; Last update:
+;
+; 881212 - EXTEND now writes blanks to screens it creates
+; 860120 - EXTEND's R/W address now at HERE, was Osborne video ram
+; 850511 - saved BC' in 'BDOS'
+; 850227 - saved index regs. in 'BDOS'
+; 840812 - added EXTEND
+; 840731 - installed BDOS calls
+;
+;
+; CP/M BDOS CALLS USED (as per Albert van der Horst, HCCH)
+;
+; R/W  reads or writes a sector in the file specified when invoking
+; Z280 fig-FORTH (A>280FORTH d:filename.ext), using the default FCB.
+; More than one disc may be accessed by temporary use of a user de-
+; fined FCB.
+;
+;
+;
+deffcb		equ	005ch		; default FCB
+;
+;	CP/M FUNCTIONS
+;
+opnfil		equ	0fh		; open file
+clsfil		equ	10h		; close file
+setdma		equ	1ah		; set DMA address
+wrtrnd		equ	22h		; write random
+;
+;
+	;.z280					
+	; PRE280 V1.11b 20-Nov-90  Copyright (c) 1990 by A.Zinser (fifi@veeble.north.de)
+	.Z80
+;
+;
+;
+;	FORTH variables & constants used in disc interface
+;
+	defb	83h			; FCB (current FCB address)
+	defc	'FCB'			
+	defw	ptsto-5			
+fcb:					
+	defw	docon			
+	defw	deffcb			
+;
+;
+	defb	84h			; REC# (returns addr. of random rec.#)
+	defc	'REC#'			
+	defw	fcb-6			
+recadr:					
+	defw	docol			
+	defw	fcb			
+	defw	lit			
+	defw	21h			
+	defw	plus			
+	defw	semis			
+;
+;
+	defb	83h			; USE
+	defc	'USE'			
+	defw	recadr-7		
+use:					
+	defw	dovar			
+	defw	0			;/ initialised by CLD
+;
+;
+	defb	84h			; PREV
+	defc	'PREV'			
+	defw	use-6			
+prev:					
+	defw	dovar			
+	defw	0			;/ initialised by CLD
+;
+;
+	defb	85h			; #BUFF
+	defc	'#BUFF'			
+	defw	prev-07h		
+nobuf:					
+	defw	docon			
+	defw	nbuf			
+;
+;
+	defb	8ah			; DISK-ERROR
+	defc	'DISK-ERROR'		
+	defw	nobuf-08h		
+dskerr:					
+	defw	dovar			
+	defw	0			
+;
+;
+;	DISC INTERFACE HIGH LEVEL ROUTINES
+;
+	defb	84h			; +BUF
+	defc	'+BUF'			
+	defw	dskerr-0dh		
+pbuf:					
+	defw	docol			
+	defw	lit,co			
+	defw	plus			
+	defw	dup			
+	defw	limit			
+	defw	equal			
+	defw	zbran			
+	defw	pbuf1-$			
+	defw	drop			
+	defw	first			
+pbuf1:					
+	defw	dup			
+	defw	prev			
+	defw	at			
+	defw	subb			
+	defw	semis			
+;
+;
+	defb	86h			; UPDATE
+	defc	'UPDATE'		
+	defw	pbuf-07h		
+updat:					
+	defw	docol			
+	defw	prev			
+	defw	at			
+	defw	at			
+	defw	lit			
+	defw	8000h			
+	defw	orr			
+	defw	prev			
+	defw	at			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	8dh			; EMPTY-BUFFERS
+	defc	'EMPTY-BUFFERS'		
+	defw	updat-9			
+mtbuf:					
+	defw	docol			
+	defw	first			
+	defw	limit			
+	defw	over			
+	defw	subb			
+	defw	erasee			
+	defw	semis			
+;
+;
+	defb	83h			; DR0
+	defc	'DR0'			
+	defw	mtbuf-10h		
+drzer:					
+	defw	docol			
+	defw	zero			
+	defw	ofset			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	83h			; DR1
+	defc	'DR1'			
+	defw	drzer-6			
+drone:					
+	defw	docol			
+	defw	lit			
+	defw	1600			; Osborne DD
+dron2:					
+	defw	ofset			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	86h			; BUFFER
+	defc	'BUFFER'		
+	defw	drone-6			
+buffe:					
+	defw	docol			
+	defw	use			
+	defw	at			
+	defw	dup			
+	defw	tor			
+buff1:					
+	defw	pbuf			; won't work if single buffer
+	defw	zbran			
+	defw	buff1-$			
+	defw	use			
+	defw	store			
+	defw	rr			
+	defw	at			
+	defw	zless			
+	defw	zbran			
+	defw	buff2-$			
+	defw	rr			
+	defw	twop			
+	defw	rr			
+	defw	at			
+	defw	lit			
+	defw	7fffh			
+	defw	andd			
+	defw	zero			
+	defw	rslw			
+buff2:					
+	defw	rr			
+	defw	store			
+	defw	rr			
+	defw	prev			
+	defw	store			
+	defw	fromr			
+	defw	twop			
+	defw	semis			
+;
+;
+	defb	85h			; BLOCK
+	defc	'BLOCK'			
+	defw	buffe-9			
+block:					
+	defw	docol			
+	defw	ofset			
+	defw	at			
+	defw	plus			
+	defw	tor			
+	defw	prev			
+	defw	at			
+	defw	dup			
+	defw	at			
+	defw	rr			
+	defw	subb			
+	defw	dup			
+	defw	plus			
+	defw	zbran			
+	defw	bloc1-$			
+bloc2:					
+	defw	pbuf			
+	defw	zequ			
+	defw	zbran			
+	defw	bloc3-$			
+	defw	drop			
+	defw	rr			
+	defw	buffe			
+	defw	dup			
+	defw	rr			
+	defw	one			
+	defw	rslw			
+	defw	twomin			;/
+bloc3:					
+	defw	dup			
+	defw	at			
+	defw	rr			
+	defw	subb			
+	defw	dup			
+	defw	plus			
+	defw	zequ			
+	defw	zbran			
+	defw	bloc2-$			
+	defw	dup			
+	defw	prev			
+	defw	store			
+BLOC1:					
+	defw	fromr			
+	defw	drop			
+	defw	twop			
+	defw	semis			
+;
+;
+	defb	84h			; BDOS  (CP/M function call)
+	defc	'BDOS'			
+	defw	block-8			
+bdos:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			; c <-- s1.lb = BDOS function code
+	pop	de			; de <-- s2)  = parameter
+	push	ix			
+	push	iy			
+	exx				
+	push	bc			; some BIOS use alternate registers
+	exx				
+	call	bdoss			; return value in a
+	exx				
+	pop	bc			;/ bc <-- ip
+	pop	iy			
+	pop	ix			
+	ld	l,a			
+	ld	h,00h			
+	jhpush				; s1 <-- hl = returned value
+;
+;
+	defb	83h			; R/W
+	defc	'R/W'			
+	defw	bdos-07h		
+rslw:					
+	defw	docol			
+	defw	tor			; store R/W flag
+	defw	recadr			
+	defw	store			
+	defw	zero			
+	defw	recadr			; set record #
+	defw	twop			
+	defw	cstor			
+	defw	lit			
+	defw	setdma			
+	defw	bdos			
+	defw	drop			; set DMA address
+	defw	lit			
+	defw	wrtrnd			
+	defw	fromr			
+	defw	subb			; select READ or WRITE
+	defw	fcb			
+	defw	swap			
+	defw	bdos			; do it
+	defw	dskerr			
+	defw	store			; store return code
+	defw	semis			
+;
+;
+	defb	85h			; FLUSH
+	defc	'FLUSH'			
+	defw	rslw-6			
+flush:					
+	defw	docol			
+	defw	nobuf			
+	defw	onep			
+	defw	zero			
+	defw	xdo			
+flus1:					
+	defw	zero			
+	defw	buffe			
+	defw	drop			
+	defw	xloop			
+	defw	flus1-$			
+	defw	semis			
+;
+;
+	defb	86h			;/ EXTEND
+	defc	'EXTEND'		;/
+	defw	flush-08h		;/
+extend:					
+	defw	docol			;/
+	defw	here			;/ fill with b/buf blanks
+	defw	bbuf			
+	defw	blank			
+	defw	lit			;/
+	defw	0008h			;/
+	defw	star			;/
+	defw	zero			;/
+extnd1:					
+	defw	onep			;/ begin
+	defw	here			;/ was lit,f000h (Osborne video ram)
+	defw	over			;/
+	defw	one			;/
+	defw	rslw			;/
+	defw	dskerr			;/
+	defw	at			;/
+	defw	zbran			;/
+	defw	extnd1-$		;/ until
+	defw	swap			;/
+	defw	over			;/
+	defw	plus			;/
+	defw	swap			;/
+	defw	xdo			;/ do
+extnd2:					
+	defw	here			;/ was lit,f000h (Osborne video ram)
+	defw	ido			;/
+	defw	zero			;/
+	defw	rslw			;/
+	defw	xloop			;/
+	defw	extnd2-$		;/ loop
+	defw	fcb			;/
+	defw	lit			;/
+	defw	clsfil			;/
+	defw	bdos			;/ close file
+	defw	drop			;/
+	defw	fcb			;/
+	defw	lit			;/
+	defw	opnfil			;/
+	defw	bdos			;/ & re-open
+	defw	drop			;/
+	defw	semis			;/
+;
+;
+	defb	84h			; LOAD
+	defc	'LOAD'			
+	defw	extend-09h		
+load:					
+	defw	docol			
+	defw	blk			
+	defw	at			
+	defw	tor			
+	defw	inn			
+	defw	at			
+	defw	tor			
+	defw	zero			
+	defw	inn			
+	defw	store			
+	defw	bscr			
+	defw	star			
+	defw	blk			
+	defw	store			; BLK <-- SCR * B/SCR
+	defw	inter			; interpret from other screen
+	defw	fromr			
+	defw	inn			
+	defw	store			
+	defw	fromr			
+	defw	blk			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	0c3h			; -->
+	defc	'-->'			
+	defw	load-7			
+arrow:					
+	defw	docol			
+	defw	qload			
+	defw	zero			
+	defw	inn			
+	defw	store			
+	defw	bscr			
+	defw	blk			
+	defw	at			
+	defw	over			
+	defw	modd			
+	defw	subb			
+	defw	blk			
+	defw	pstor			
+	defw	semis			
+;
+;
+	
+	defw	blk			
+	defw	at			
+	def

@@ -1,0 +1,506 @@
+PROGRAM XREF;
+
+CONST 
+      P  = 749;                 (*SIZE OF HASHTABLE*)
+      NK =  50;                 (*NO. OF KEYWORDS*)
+      ALFALEN  =  8;
+      REFSPERLINE = 10;         (* for 80 column line *)
+      REFSPERITEM =  5;         (* controls node size of linked list *)
+
+
+TYPE 
+     ALFA = PACKED ARRAY[1..ALFALEN] OF CHAR;
+     INDEX = 0..P;
+     ITEMPTR = ^ITEM;
+     WORD = RECORD
+              KEY: ALFA;
+              FIRST, LAST: ITEMPTR;
+              FOL: INDEX
+            END;
+     NUMREFS = 1..REFSPERITEM;
+     REFTYPE = (COUNT, PTR);
+     buffer1 = string;
+     buffer2 = string[80];
+     ITEM = RECORD
+              REF: ARRAY[NUMREFS] OF INTEGER;
+              CASE REFTYPE OF
+                COUNT: (REFNUM: NUMREFS);
+                PTR: (NEXT: ITEMPTR)
+            END;
+     BUFFER = STRING[132];
+     IDENTCHARS = SET OF CHAR;
+
+VAR 
+    TOP: INDEX; (*TOP OF CHAIN LINKING ALL ENTRIES IN T*)
+    I,
+    LINECOUNT: INTEGER;           (*CURRENT LINE NUMBER*)
+    CH: CHAR;                     (*CURRENT CHAR SCANNED *)
+    BUF: BUFFER;                  (*OUTPUT LINE*)
+    T: ARRAY [INDEX] OF WORD;     (*HASH TABLE*)
+    KEY: ARRAY [1..NK] OF ALFA;   (*RESERVED KEYWORD TABLE *)
+    ALLDONE,                      (*ALLDONE OR ERROR FLAG *)
+    LISTING: BOOLEAN;             (*LISTING OPTION *)
+    INFILE: TEXT;                 (*INPUT FILE*)
+    LST : TEXT;                   (*OUTPUT FILE*)
+    LSTFILENAME : STRING;
+    INPUT_LINE : BUFFER;
+    INLINEP : INTEGER;	          (*PTR TO CURRENT CHAR IN INPUT_LINE*)
+    TOCONSOLE : BOOLEAN;          (*WHERE LISTING GOES *)
+    IDENTSET : IDENTCHARS;        (*LEGAL CHARS IN IDENTIFIER*)
+
+{$P}
+PROCEDURE INITIALIZE;
+VAR 
+    I : INTEGER;
+
+  PROCEDURE FIRSTHALF;
+  BEGIN {[s=2]}
+    KEY[ 1] := 'ABSOLUTE';
+    KEY[ 2] := 'AND     ';
+    KEY[ 3] := 'ARRAY   ';
+    KEY[ 4] := 'BEGIN   ';
+    KEY[ 5] := 'BOOLEAN ';
+    KEY[ 6] := 'CASE    ';
+    KEY[ 7] := 'CHAR    ';
+    KEY[ 8] := 'CONST   ';
+    KEY[ 9] := 'DIV     ';
+    KEY[10] := 'DO      ';
+    KEY[11] := 'DOWNTO  ';
+    KEY[12] := 'ELSE    ';
+    KEY[13] := 'END     ';
+    KEY[14] := 'EXIT    ';
+    KEY[15] := 'EXTERNAL';
+    KEY[16] := 'FILE    ';
+    KEY[17] := 'FOR     ';
+    KEY[18] := 'FUNCTION';
+    KEY[19] := 'GOTO    ';
+    KEY[20] := 'IF      ';
+    KEY[21] := 'IN      ';
+    KEY[22] := 'INTEGER ';
+    KEY[23] := 'LABEL   ';
+    KEY[24] := 'MOD     ';
+    KEY[25] := 'MODEND  ';
+    KEY[26] := 'MODULE  ';
+    KEY[27] := 'NIL     ';
+  END; {[s=1]}
+
+  PROCEDURE SECONDHALF;
+  BEGIN {[s=2]}
+    KEY[28] := 'NOT     ';
+    KEY[29] := 'OF      ';
+    KEY[30] := 'OR      ';
+    KEY[31] := 'PACKED  ';
+    KEY[32] := 'PROCEDUR';
+    KEY[33] := 'PROGRAM ';
+    KEY[34] := 'READ    ';
+    KEY[35] := 'READLN  ';
+    KEY[36] := 'REAL    ';
+    KEY[37] := 'RECORD  ';
+    KEY[38] := 'REPEAT  ';
+    KEY[39] := 'SET     ';
+    KEY[40] := 'STRING  ';
+    KEY[41] := 'TEXT    ';
+    KEY[42] := 'THEN    ';
+    KEY[43] := 'TO      ';
+    KEY[44] := 'TYPE    ';
+    KEY[45] := 'UNTIL   ';
+    KEY[46] := 'VAR     ';
+    KEY[47] := 'WHILE   ';
+    KEY[48] := 'WITH    ';
+    KEY[49] := 'WRITE   ';
+    KEY[50] := 'WRITELN ';
+  END; {[s=1]}
+
+BEGIN (* INITIALIZE *)
+  WRITELN;
+  WRITELN(
+    'Pascal/MT+ Program Xref Utility, Release 5.2, updated 26 July 82');
+  WRITELN('This program is public domain');
+  ALLDONE := FALSE;
+  FOR I := 0 TO P DO
+    T[I].KEY := '        ';
+  FIRSTHALF;
+  SECONDHALF;
+  IDENTSET := [ 'A'..'Z', 'a'..'z', '@', '_' ];
+  TOP := P;
+  CH  := ' '
+END; (* INITIALIZE *)
+
+{$P}
+PROCEDURE OPENFILES;
+VAR 
+    NUMBLOCKS: INTEGER;
+    OPENOK: BOOLEAN;
+    OPENERRNUM : INTEGER;
+    LISTOPTION: CHAR;
+    FILENAME: STRING;
+
+BEGIN (* OPEN *)
+  REPEAT
+    WRITELN;
+    WRITE( 'Input file ? ' );
+    READLN( FILENAME );
+    IF LENGTH(FILENAME) > 0 THEN
+      BEGIN
+        ASSIGN(INFILE, FILENAME );
+        RESET(INFILE)
+      END;
+    OPENERRNUM := IORESULT;
+    OPENOK := ( OPENERRNUM <> 255 );
+    IF NOT OPENOK THEN
+      WRITELN( '*** INPUT OPEN ERROR # ', OPENERRNUM );
+  UNTIL OPENOK;
+
+  WRITE('Output file name? ');
+  READLN(LSTFILENAME);
+  TOCONSOLE := (LSTFILENAME = 'CON:');
+  ASSIGN(LST,LSTFILENAME);
+  REWRITE(LST);
+
+  WRITE( 'Do you want a listing (Y/N)? ' );
+  READ( LISTOPTION );
+  LISTING := (LISTOPTION <> 'N') AND (LISTOPTION <> 'n');
+  IF LISTING THEN
+    PUTNUMBER(0);
+  READLN(INFILE,INPUT_LINE);
+  LINECOUNT := 0;
+  INLINEP := 1;
+  WRITELN;
+END; (* OPENFILES *)
+
+{$P}
+PROCEDURE LPWRITELN;
+VAR 
+    I : INTEGER;
+    CH : CHAR;
+BEGIN
+  WRITELN(LST,BUF);
+  BUF[0] := CHR(0);
+  LINECOUNT := LINECOUNT+1;
+  IF (LINECOUNT MOD 60) = 0 THEN
+    PAGE(LST);
+END;
+
+{$P}
+PROCEDURE PUTALFA(S:ALFA);
+BEGIN
+  MOVELEFT(S[1], BUF[ORD(BUF[0])+1], 8);
+  BUF[0] := CHR(ORD(BUF[0]) + 8);
+END;
+
+
+
+PROCEDURE PUTNUMBER(NUM: INTEGER);
+VAR I,IPOT: INTEGER;
+    A: ALFA;
+    CH: CHAR;
+    ZAP: BOOLEAN;
+
+BEGIN
+  ZAP := TRUE;
+  IPOT := 10000;
+  A[1] := ' ';
+  FOR I := 2 TO 6 DO
+    BEGIN
+      CH := CHR(NUM DIV IPOT + ORD('0'));
+      IF I <> 6 THEN
+        IF ZAP THEN
+          IF CH = '0' THEN
+            CH := ' '
+      ELSE
+        ZAP := FALSE;
+      A[I] := CH;
+      NUM := NUM MOD IPOT;
+      IPOT := IPOT DIV 10;
+    END;
+  A[7] := ' ';
+  MOVELEFT(A, BUF[ORD(BUF[0])+1], 7);
+  BUF[0] := CHR(ORD(BUF[0]) + 7);
+END;
+
+{$P}
+PROCEDURE GETNEXTCHAR;
+BEGIN
+
+  IF INLINEP = LENGTH(INPUT_LINE)+1 THEN
+    BEGIN
+      CH := ' ';                {DUMMY EOL CHARACTER}
+      INLINEP := INLINEP + 1;   {NEXT TIME THRU WILL READ NEW LINE}
+      EXIT
+    END;
+
+  IF INLINEP > LENGTH(INPUT_LINE) THEN
+    BEGIN
+      READLN(INFILE,INPUT_LINE);
+      INLINEP := 2;
+      LINECOUNT := LINECOUNT + 1;
+      IF LENGTH(INPUT_LINE) > 0 THEN
+        CH := INPUT_LINE[1]
+      ELSE
+        BEGIN
+          CH := ' ';
+          IF EOF(INFILE) THEN
+            ALLDONE := TRUE;
+        END;
+      IF LISTING THEN
+        BEGIN
+          IF NOT TOCONSOLE THEN
+            WRITE('.');
+          WRITELN(LST,BUF);
+          BUF[0] := CHR(0);
+          PUTNUMBER(LINECOUNT);
+        END
+      ELSE
+	WRITE('.');
+      IF (LINECOUNT MOD 60) = 0 THEN
+        BEGIN
+          IF LISTING THEN
+            PAGE(LST);
+          WRITELN('< ',LINECOUNT:4,', ',MEMAVAIL:5,' >');
+        END
+    END
+
+  ELSE
+    BEGIN
+      CH := INPUT_LINE[INLINEP];
+      INLINEP := INLINEP + 1;
+    END;
+
+  IF LISTING THEN
+    BEGIN
+      BUF[0] := CHR(ORD(BUF[0]) + 1);
+      BUF[BUF[0]] := CH;
+    END;
+
+END; (* GETNEXTCHAR *)
+
+{$P}
+
+PROCEDURE SEARCH( ID: ALFA ); 
+(*MODULO P HASH SEARCH*) (*GLOBAL: T, TOP*)
+VAR 
+    I,J,H,D  : INTEGER;
+    X    : ITEMPTR;
+    F    : BOOLEAN;
+
+BEGIN
+  J := 0;
+  FOR I := 1 TO ALFALEN DO
+    J := J*10+ORD(ID[I]);
+  H := ABS(J) MOD P;
+  F := FALSE;
+  D := 1;
+  REPEAT
+    IF T[H].KEY = ID THEN
+      BEGIN (*FOUND*)
+        F := TRUE;
+        IF T[H].LAST^.REFNUM = REFSPERITEM THEN
+          BEGIN
+            NEW(X);
+            X^.REFNUM := 1;
+            X^.REF[1] := LINECOUNT;
+            T[H].LAST^.NEXT := X;
+            T[H].LAST       := X;
+          END
+        ELSE
+          WITH T[H].LAST^ DO
+            BEGIN
+              REFNUM      := REFNUM + 1;
+              REF[REFNUM] := LINECOUNT
+            END
+      END
+    ELSE
+      IF T[H].KEY = '        ' THEN
+        BEGIN (*NEW ENTRY*)
+          F  := TRUE;
+          NEW(X);
+          X^.REFNUM := 1;
+          X^.REF[1] := LINECOUNT;
+          T[H].KEY   := ID;
+          T[H].FIRST := X;
+          T[H].LAST  := X;
+          T[H].FOL   := TOP;
+          TOP := H
+	END
+      ELSE
+        BEGIN (*COLLISION*)
+          H := H+D;
+          D := D+2;
+          IF H >= P THEN
+            H := H - P;
+          IF D = P THEN
+            BEGIN
+              WRITELN('ITEM TABLE OVERFLOW');
+              ALLDONE := TRUE
+            END;
+        END
+  UNTIL F OR ALLDONE
+END (*SEARCH*) ;
+
+{$P}
+
+PROCEDURE PRINTWORD(W: WORD);
+VAR 
+    L: INTEGER;
+    X: ITEMPTR;
+    NEXTREF : INTEGER;
+    THISREF: NUMREFS;
+BEGIN
+  PUTALFA(W.KEY);
+  X := W.FIRST;
+  L := 0;
+  REPEAT
+    IF L = REFSPERLINE 
+      THEN
+      BEGIN
+        L := 0;
+        LPWRITELN;
+        PUTALFA('        ');
+      END ;
+    L := L+1;
+    THISREF := (L-1) MOD REFSPERITEM + 1;
+    NEXTREF := X^.REF[THISREF];
+    IF THISREF = X^.REFNUM THEN
+      X := NIL
+    ELSE
+      IF THISREF = REFSPERITEM THEN
+        X := X^.NEXT;
+    PUTNUMBER(NEXTREF);
+  UNTIL X = NIL;
+  LPWRITELN;
+END (*PRINTWORD*) ;
+
+{$P}
+PROCEDURE PRINTTABLE;
+
+VAR 
+    I,J,M: INDEX;
+
+BEGIN
+  LINECOUNT := 0;
+  BUF[0] := CHR(0);
+  I := TOP;
+  WHILE I <> P DO
+    BEGIN             (*FIND MINIMAL WORD*)
+      M := I;
+      J := T[I].FOL;
+      WHILE J <> P DO
+        BEGIN
+          IF T[J].KEY < T[M].KEY THEN
+            M := J;
+          J := T[J].FOL
+        END ;
+      PRINTWORD(T[M]);
+      IF M <> I THEN
+        BEGIN
+          T[M].KEY := T[I].KEY;
+          T[M].FIRST := T[I].FIRST;
+          T[M].LAST := T[I].LAST
+        END;
+      I := T[I].FOL
+    END
+END (*PRINTTABLE*) ;
+
+{$P}
+PROCEDURE GETIDENTIFIER;
+VAR 
+    J,K,I: INTEGER;
+    ID: ALFA;
+    MATCH: BOOLEAN;
+
+BEGIN (* GETIDENTIFIER *)
+  I := 0;
+  ID := '        ';
+
+  REPEAT
+    IF I < ALFALEN THEN
+      BEGIN
+        I := I+1;
+        IF ('a' <= CH) AND (CH <= 'z') THEN
+          ID[I] := CHR( ORD(CH) - ORD('a') + ORD('A') )
+        ELSE
+          IF CH = '_' THEN
+            I := I-1              {DISCARD UNDERSCORE}
+        ELSE
+          ID[I] := CH
+      END;
+    GETNEXTCHAR
+  UNTIL NOT (CH IN IDENTSET);
+
+  I := 1;
+  J := NK;
+
+  REPEAT
+    K := (I+J) DIV 2;      (*BINARY SEARCH*)
+    IF KEY[K] <= ID THEN
+      I := K+1;
+    IF KEY[K] >= ID THEN
+      J := K-1;
+  UNTIL (I > J);
+
+  IF KEY[K] <> ID THEN
+    SEARCH(ID);
+
+END; (* GETIDENTIFIER *)
+
+{$P}
+BEGIN (* CROSSREF *)
+
+  INITIALIZE;
+  OPENFILES;
+
+  REPEAT
+
+    IF CH IN IDENTSET THEN
+      GETIDENTIFIER
+
+    ELSE
+      IF (CH = '''') THEN          {SCAN OFF LITERAL STRING}
+        BEGIN
+          REPEAT
+            GETNEXTCHAR;
+          UNTIL (CH = '''') OR ALLDONE;
+          GETNEXTCHAR;
+        END
+
+    ELSE
+      IF CH = '(' THEN             {SCAN OFF (*...*) COMMENT}
+        BEGIN			   {FAILS ON (*)...*) }
+          GETNEXTCHAR;
+          IF CH = '*' THEN
+            BEGIN
+              GETNEXTCHAR;
+              WHILE (CH <> ')') AND (NOT ALLDONE) DO
+                BEGIN
+                  WHILE (CH <> '*') AND (NOT ALLDONE) DO
+                    GETNEXTCHAR;
+                  GETNEXTCHAR;
+                END;
+              GETNEXTCHAR;
+            END;
+        END
+
+    ELSE
+      IF CH = '{' THEN             (* SCAN OFF {...} COMMENT *)
+	BEGIN
+          REPEAT
+	    GETNEXTCHAR
+	  UNTIL (CH = '}') OR ALLDONE;
+          GETNEXTCHAR;
+        END
+
+    ELSE
+      GETNEXTCHAR;
+
+  UNTIL ALLDONE;
+
+  PAGE(LST);
+  PRINTTABLE;
+  PAGE(LST);
+  CLOSE(LST,I);
+  IF I = 255 THEN
+    WRITELN('Error closing output file');
+
+END.
+
+

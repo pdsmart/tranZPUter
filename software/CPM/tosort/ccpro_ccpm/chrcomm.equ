@@ -1,0 +1,25 @@
+
+
+;************************************************
+;*	Common equates for the serial system	*
+;*	File name: CHRCOMM.EQU			*
+;*	Last Update: 04/10/83			*
+;************************************************
+
+cr		equ	0dh	;carriage return
+lf		equ	0ah	;line feed
+esc		equ	01bh	;escape
+
+; These equates are for the control characters
+
+ctrla		equ	001h
+ctrlc		equ	003h
+ctrld		equ	004h
+ctrlq		equ	011h
+ctrls		equ	013h
+
+XOFF		EQU	CTRLS
+XON		EQU	CTRLQ
+
+
+

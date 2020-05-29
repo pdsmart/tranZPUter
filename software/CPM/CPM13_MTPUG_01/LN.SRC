@@ -1,0 +1,108 @@
+MODULE  LOG3;   { Copyright (c) by  T. W. Lougheed   24 April 1981 }
+
+{ This function returns the natural logarithm of the given
+number with accuracy limited by machine precision.  It is much
+more efficient than the algorithm used in PASCAL/MT 5.2  and just
+as accurate, but could be improved, particularly in its Tchebyshev
+polinimial.  For likely algorithms, see  COMPUTER APPROXIMATIONS
+by John Hart & friends, 1978 by Krieger Pub. Co., Huntington NY. }
+
+{ First version   5 February 1981
+
+  By    T. W. Lougheed
+        Dept. T. & A. Mechanics
+        Thurston Hall, Cornell U.
+        Ithaca,  NY  14853
+
+  Last version  23 February 1981
+
+  This software is in the public domain, and may not be sold by any
+  person or corperation without permission of the author.  }
+
+
+FUNCTION  LN( Z :REAL ) :REAL;
+
+CONST   { If the input is zero or negative, the output is
+        - maxreal. }
+
+        MAXREAL = 9.9999E17;
+
+VAR     LOGARITHM : REAL;
+
+
+{ This procedure reduces the exponent of Z to 1 and
+sets  LOGARITHM  to the value of the removed part.
+  Note that this must be re-written for every new
+internal representation of the reals. }
+
+
+PROCEDURE  MANGLE_Z;
+
+   CONST   { The following are used for the conversion of the
+           exponential part of  Z  directly to a logarithm. }
+
+           LOG_2 = 0.6931471805994531;
+
+           EXPT_MASK = $7F;  { Exponent is a power of  2  stored in bits
+                             six through zero in two-s complement format. }
+
+           EXPT_SIGN_BIT = 6;  { Bit to test to get sign of exponent. }
+
+   VAR  EXPONENT :BYTE;
+
+   BEGIN
+
+
+   MOVE( Z, EXPONENT, 1 );
+
+   { The exponent is in a two's compement form:  all negative
+   numbers are of the form  128 - V  where  V  is the absolute
+   value of the negative part, hence subtract 128 to get negative
+   number.  Bit 7 is the sign of the characteristic. }
+   IF TSTBIT( EXPONENT, EXPT_SIGN_BIT )
+      THEN LOGARITHM := LOG_2*(ORD( EXPONENT&EXPT_MASK ) - 129)
+      ELSE LOGARITHM := LOG_2*(ORD( EXPONENT&EXPT_MASK ) - 1);
+
+   { Make the number  Z  to be between  1  and  2. }
+   EXPONENT := CHR( 1 );
+   MOVE( EXPONENT, Z, 1 );
+   END;
+
+
+
+   { This function is a Tchebyshev polinomial for the natural
+   logarithm of one plus its argument.  The formula is from
+   THE HANDBOOK OF MATHEMATICAL FUNCTIONS  (10-th printing)
+   by Abramowicz and Stegun, formula  4.1.44.  The error is
+   less than  3E-8  for argument  X  between  0 and 1 inclusive. }
+
+   FUNCTION  TCHEBYSHEV( X :REAL) :REAL;
+
+   CONST  A1 =  0.9999964239;
+          A2 = -0.4998741238;
+          A3 =  0.3317990258;
+          A4 = -0.2407338048;
+          A5 =  0.1676540711;
+          A6 = -0.0953293879;
+          A7 =  0.0360884937;
+          A8 = -0.0064535442;
+
+   BEGIN
+   TCHEBYSHEV := (((((((A8*X + A7)*X + A6)*X + A5)*X + A4)*X +
+    A3)*X + A2)*X + A1)*X;
+   { TCHEBYSHEV = LN( 1 + X ). }
+   END;
+
+
+
+BEGIN
+IF Z <= 0 THEN LN := - MAXREAL
+   ELSE BEGIN
+   MANGLE_Z;
+   LN := LOGARITHM + TCHEBYSHEV( Z - 1 );
+   END;
+END;
+
+MODEND
+.
+

@@ -1,0 +1,140 @@
+	This set of program packages was the result of a concerted effort
+to produce a PORTABLE set of graphic procedures which could be easily
+transported from one machine to another. It was produced by myself and
+a colleague .. Jack Gilmer.
+
+	The problem originated because we had access to a number of
+computers ranging from a large mainframe where we work ( at a university)
+through several minis to the micros we have at home. There are many
+different graphical packages available to us but it was all too
+confusing to keep straight - life is just too short to become adept in
+such a variety of programs. Secondly, most graphical packages are very
+generalized and really are not well adapted to the type of work we do.
+As physical scientists, we mostly wanted procedures which were well
+suited to plotting line graphs - we essentially NEVER use bar plots,
+pie plots etc.
+
+	So, we designed a number of procedures which would fulfill our
+requirements. The philosophy was to write the desired user oriented
+procedures in terms of simpler procedures which ultimately call a very few
+very primitive procedures which can be modified easily for any particular
+combination of computer and plotter.
+
+	The first set of these was written by me using Apple UCSD Pascal
+with its 'Turtlegraphics' procedures for CRT graphics and a Houston
+Instruments 'HIPLOT' plotter. Later, Jack adapted the packages to an LSI-11
+using Whitesmith's Pascal. This was done for two plotting systems; one of
+these was an ADM3+ CRT plus a Digital Engineering 'Graphx' hard copy unit.
+The other was for a HP 7225A pen plotter.
+
+	The packages on this diskette are the latter two which have been
+copied from the DEC diskettes using a program on the MTPUG program disk #1.
+That program has, incidentally, been a godsend.
+
+	If you want to use these procedures, you will have to adapt the
+package to your machine/plotter combination by rewriting the serial I/O
+outines and the primitive procedures called;
+
+	PENUP
+	PENDOWN
+	DRAWTO
+
+I have modified the ADM3 package slightly so that it will at least compile
+under Pascal MT+. The other one, called GRHP.SRC is just as it was on the
+LSI-11. You will have to modify it a bit more extensively since Whitesmith's
+Pascal does not have the UCSD string data type we have in MT+ but uses ZERO
+terminated strings instead.
+
+	Incidentally, since these procedures were all originally written
+using UCSD Pascal, the more primitive procedures could all be hidden from
+the user and so I used procedure names which were fairly descriptive. In
+Pascal MT+, you may want to change the names to something more unusual for
+these procedures in order not to give other procedures in your program the
+same name.
+
+	The plotted data is specified by a number of pre-defined data types
+which are listed below. All plots were to be in absolute coordinates with
+values given in MILLIMETERS.
+
+	The data types are:
+
+    astringtype = STRING[132];      
+
+    aendtype = (noend, point, square, triangle, cross, ecks, diamond,
+                circle);
+
+    alinetype = (noline, solid, dotted, dashed, dotdashed, 
+                 dotdotdashed);
+
+    apointtype =  RECORD	(* absolute position in millimeters *)
+                    x,
+		    y:  REAL;
+		  END;
+
+	You can see that we were primarily concerned with scientific type
+plots since we wanted to be able to specify the type of line plotted and the
+type of end to that line. For example, to plot a number of data points as
+triangles, you use a particular procedure to set the type of line to 'noline'
+and the type of endpoint to 'triangle'. Then you just call the plotting
+procedure with the x,y positions of the points.
+
+	The procedures and functions which you will use in your program are:
+
+	AINIT - this initializes the plotter ( if it needs it ) to the
+		lower left corner.
+
+	AWINDOW - this sets the plotting window. Lines which are called to
+		be plotted and which extend outside this window are cut off
+		at the boundaries by the software.
+
+	ADEFAULT - sets the default parameters such as the pattern size for
+		patterned lines (dotted, dashed etc), the endpoint sizes etc.
+
+	ABADCALL - a function to determine whether or not the called for point
+		is so far outside the plotting window that serious arithmetic
+		round off errors will cause plotting errors. This function
+		has not been implemented in any of the packages we've written.
+		This probably means that it is not necessary.
+
+	AMAKECOPY - sets the hard copy unit into motion if it is different
+		from the CRT display.
+
+	ASETWINDOW - sets up the window limits.
+
+	ASETPLOT - sets up the plotting parameters. These are the type of
+		line, the type of endpoint etc.
+
+	APLOT - plots a line to the point specified. The characteristics of
+		the line and its end are what has last been set with
+		ASETPLOT.
+
+	ASETSTR - sets up the characteristics of the text plotting. These
+		are the character size, character orientation, character
+		spacing, string orientation and character width. For many
+		plotters like the ADM3+ plus Graphx combination, this
+		procedure does nothing since the text characteristics are
+		fixed.
+
+	ASTR - writes a string starting in the current pen location.
+
+	ATEXT - switches back from graphical to text mode ( needed for
+		all types of CRT monitors).
+
+	AGRAPH - switches to graph mode
+
+	AWHERE - returns the current pen position.
+
+
+	Good luck... I would be interested in hearing from anyone who uses
+these packages for another computer/plotter combination. I would be glad to
+help out anyone who is having difficulty in transporting these procedures
+to another system - just please don't expect me to rewrite the whole thing.
+Jack and I would also be interested in hearing from anyone who has construct-
+ive comments about the utility of the procedures and suggestions for
+improvements.
+
+	J.A. Koehler
+	2 Sullivan St.
+	Saskatoon, SK, S7H-3G8              28 October, 1982
+
+

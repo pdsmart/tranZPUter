@@ -1,0 +1,157 @@
+;---------------------------------------------------------
+; TD Patch offsets                              15 Dec 88
+
+USEUR	EQU	15		;  0 = Print Dates in US (MM/DD/YY) form
+				; FF = Print Eurpean (DD.MM.YY) form
+
+;---------------------------------------------------------
+
+;   DATA FOR CNFG PROGRAM LINKAGE
+; function definitions - ** needed for CASE Table entries **
+
+SWITCH	EQU	0	;toggle bit n in a byte (n is specified)
+TEXT	EQU	1	;replace a text string of specified length
+DUSPEC	EQU	2	;replace a ZCPR style DU specification (NOT DIR:!)
+HEXRAD	EQU	3	; Edit byte/word using HEX radix
+DECRAD	EQU	4	; Edit byte/word using DECIMAL radix
+TEXTLC	EQU	5	; Same as function TEXT, but lower case is Ok
+FILESP	EQU	6	; Change all or part of a filespec DU:FN.FT
+TOGL3	EQU	7	;toggle to one of three options: 001B, 010B, 100B
+TOGLTF	EQU	8	;toggle a byte between 0FFH and 0
+
+;   ASCII definitions
+; these are convenient, but only required if you wish
+; to use them in text or data fields (including HELP)
+
+CTLC	EQU	3
+BS	EQU	8		; Backspace
+HT	EQU	9		; Horizontal Tab
+LF	EQU	10		; Line Feed
+CR	EQU	13		; Carriage Return
+SPC	EQU	32		; Space Character
+
+;=========================================================
+;	MACRO DEFINITIONS
+; You don't HAVE to use the macros. But it does make it
+; easier to fill in the tables!
+
+; This macro is used for creating a CASE table
+; entry which specifies toggling or setting a
+; single bit (0..7) in a configuration data byte.
+; It is useful when the 'switch' function is named.
+
+BITMAP	 MACRO	A,SUB,OFF,BIT,SCR,DAT
+	DEFB	'&A'
+	DEFW	SUB, OFF
+	DEFB	1 SHL BIT	;;make a mask byte
+	DEFW	SCR, DAT
+	 ENDM
+
+;=========================================================
+
+; MACRO parameter definitions
+;	A   = the character used in the screen for a menu item
+;	OFF = byte offset in config block
+;	SUB = subroutine for translation to screen
+;	SCR = screen location
+;	DAT = extra data word if required. Normally 0
+; produces a record which is 8 bytes long
+
+;=========================================================
+; This macro is used to create a case table entry
+; which contains a byte of data required by the function
+; to be performed. (see table of function definitions above)
+
+VECTOR	 MACRO	A,SUB,OFF,BYTE,SCR,DAT
+	DEFB	'&A'
+	DEFW	SUB, OFF
+	DEFB	BYTE		;;a byte of data
+	DEFW	SCR, DAT
+	 ENDM
+
+;************************************************************
+;	S T A R T    O F    O V E R L A Y    C O D E
+;************************************************************
+; The next 13 bytes MUST remain in this location.
+
+	RST	0		; For safety - file won't execute
+	DEFW	AMENU		; for relocation of addresses, this
+				; points to the NEXT location.
+
+; The first MENU list must be here. All names are local.
+
+AMENU:	DEFW	AMENU, AMENU, ASCRN, ACASE, AHELP	; Menu A
+
+;=========================================================
+; The case table used for TD, only one menu & screen.
+;=========================================================
+
+ACASE:	DEFB	(ACASEX-ACASE1) / (ACASE2-ACASE1)    ; Number of cases
+	DEFB	ACASE2-ACASE1			     ; length of each record
+
+;	macro	.single char menu selector
+;	|	|	.function (see above)
+;	|	|	|	.offset in cnfg block
+;	|	|	|	|	.function dependant data
+;	|	|	|	|	|	.screen location
+;	|	|	|	|	|	|
+;acse1:	bitmap	0,	switch,	obyte0,	crtflg,	ascrl0,	yndata
+;							|
+;	    address of data structure used by function._|
+;
+; The first two entries in the case table must be labeled to
+; provide data for the calculation at ACASE:. Subsequent
+; entries (one for each menu selection) need not be labeled.
+
+ACASE1:	VECTOR	D,	TOGLTF,	USEUR,	1,  DSCR,	DMSG
+ACASE2:
+
+; The next entry is a label which terminates the list.
+; It is required for use in the calculation at ACASE:
+
+ACASEX:			; label used to calc number of entries
+
+;=========================================================
+
+ASCRN:				; Screen image for first screen
+	DB CR,LF	; Ensure clean top of screen
+	DB LF,HT,HT,HT,'    TD Configuration',CR,LF
+	DB LF			; Blank lines for screen format
+
+	DB	HT,HT,'D)  '
+DSCR:	DB	'                                   '
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+	DB	CR,LF,LF
+
+;scroll to top of screen (not needed if only one screen)
+
+	DB	CR,LF
+	DB	0		;terminator
+
+;-----------------------------------
+;	SCREEN DATA LIST
+
+; Data pair for representing bit values in screen image
+
+DMSG:	DEFB	'Display Dates in European (DD.MM.YY)    ',0
+	DEFB	'Display Dates in US Format (MM/DD/YY)   ',0
+
+;=========================================================
+
+AHELP:			;help screen for menu A
+ DB CR,LF,LF		;ensure clean top of screen
+ DB 'The only configurable option in TD is a toggle to alternate between',CR,LF
+ DB 'displaying the Date in US (Mon DD, YYYY) and European (DD Mon YYYY)',CR,LF
+ DB 'form.',CR,LF
+
+	DB	0
+
+;=========================================================
+

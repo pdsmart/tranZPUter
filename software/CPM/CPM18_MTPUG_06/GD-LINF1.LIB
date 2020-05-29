@@ -1,0 +1,77 @@
+
+{ -> 216 }
+procedure get_data(var t	: ary;		{ independedt variable }
+		   var cp	: ary;		{ dependent variable }
+		   var nrow	: integer);	{ length of vectors }
+var	i	: integer;
+
+begin
+  nrow:=10;
+  for i:=1 to nrow do
+    t[i]:=(i+2)*100;
+  cp[1]:=7.02;	cp[2]:=7.2;
+  cp[3]:=7.43;	cp[4]:=7.67;
+  cp[5]:=7.88;	cp[6]:=8.06;
+  cp[7]:=8.21;	cp[8]:=8.34;
+  cp[9]:=8.44;	cp[10]:=8.53
+end;		{ procedure get_data }
+
+
+{ -> 217 }
+procedure linfit(X,	{ independent variable }
+		 y	: ary;	{ dependent variable }
+	var y_calc	: ary;	{ calculated dep. variable }
+	var resid	: ary;	{ array of residuals }
+	var coef	: arys;	{ coefficients }
+	var sig		: arys;	{ error on coefficients }
+		nrow	: integer;	{ length of ary }
+	var ncol	: integer);	{ number of terms }
+
+{ least-squares fit to nrow sets of x and y pairs of points }
+{ Seperate  procedure needed:
+	SQUARE -> form square coefficient matrix
+	GAUSSJ -> Gauus-Jordan elimination }
+
+var	xmatr		: ary2;		{ data matrix }
+	a		: ary2s;	{ coefficient matrix }
+	g		: arys;		{ constant vector }
+	error		: boolean;
+	i,j,nm		: integer;
+	xi,yi,yc,srs,see,
+	sum_y,sum_y2	: real;
+
+begin		{ procedure linfit }
+  ncol:=3;	{ number of terms }
+  for i:=1 to nrow do
+    begin	{ setup x matrix }
+	xi:=x[i];
+	xmatr[i,1]:=1.0;	{ first column }
+	xmatr[i,2]:=xi;		{ second column }
+	xmatr[i,3]:=1.0/sqr(xi)	{ third column }
+    end;
+  square(xmatr,y,a,g,nrow,ncol);
+  gaussj(a,g,coef,ncol,error);
+  sum_y:=0.0;
+  sum_y2:=0.0;
+  srs:=0.0;
+  for i:=1 to nrow do
+    begin
+      yi:=y[i];
+      yc:=0.0;
+      for j:=1 to ncol do
+	yc:=yc+coef[j]*xmatr[i,j];
+      y_calc[i]:=yc;
+      resid[i]:=yc-yi;
+      srs:=srs+sqr(resid[i]);
+      sum_y:=sum_y+yi;
+      sum_y2:=sum_y2+yi*yi
+    end;
+  correl_coef:=sqrt(1.0-srs/(sum_y2-sqr(sum_y)/nrow));
+  if nrow=ncol then nm:=1
+  else nm:=nrow-ncol;
+  see:=sqrt(srs/nm);
+  for i:=1 to ncol do		{ errors on solution }
+    sig[i]:=see*sqrt(a[i,i])
+end;		{ LINFIT }
+
+

@@ -1,0 +1,270 @@
+(*  VERSION 0024 *)
+
+(*.......................................................................*)
+(*                           HIDELINE                                    *)
+(*  Hideline is a three-dimensional graphics program. The program        *)
+(* was written by Franklin C Crow and published as 'Three-Dimensional    *)
+(* Computer Graphics', BYTE, March/April 1981. The program was adapted   *)
+(* to run with a MicroAngelo graphics terminal by Ray Hopkins, 8         *)
+(* Chestnut Hill CT., Cinnaminson N.J. (609) 829-4686.                   *)
+(* Hl3.src builds the data files used by hl.src,the main display routine *)
+(* Hl1.src and Hl2 are support modules. Note that Hl1.src must have      *)
+(* recursion turned on. Hl.cmd is the linker command file                *)
+(*.......................................................................*)
+
+(*Z*)
+{$K1}
+{$K2}
+{$K3}
+{$K6}
+{$K7}
+{$K12}
+{$K13}
+{$K14}
+{$K15}
+
+MODULE HIDELINE2;
+
+CONST Dotsacross = 511;
+      Dotsdown = 479;
+      Maxpts = 200;
+      Maxpols = 200;
+      Maxvtx = 800;
+      Maxsides =14;
+      Move = $84;
+      Plot = $91;
+      Split = $B8;
+      Clear = $88;
+
+TYPE  Counter = 0..Maxvtx;
+      Point = RECORD
+                X,Y,Z : REAL
+              END;
+      Vertex = 0..Maxpts;
+      Polygon = RECORD
+                  Numvtx : Vertex;
+                  START : Counter;
+                END;
+      Onepoly = ARRAY [1..Maxsides] OF Point;
+      Matrix = ARRAY [1..4,1..4] OF REAL;
+
+VAR   Polygons : EXTERNAL  ARRAY [1..Maxpols] OF Polygon;
+      Vertices : EXTERNAL  ARRAY [1..Maxvtx] OF Vertex;
+      Points : EXTERNAL  ARRAY [1..Maxpts] OF Point;
+      Outpolys : EXTERNAL  ARRAY [1..Maxpols] OF Polygon;
+      Outvtces : EXTERNAL  ARRAY [1..Maxvtx] OF Point;
+      Eyespace : EXTERNAL  Matrix;
+      Window : EXTERNAL  Onepoly;
+      Eyept , Cntrint : EXTERNAL  Point;
+      Screenscale, Screenctr : EXTERNAL  Point;
+      ScreenX, SCREENY : EXTERNAL  REAL;
+      Numpols, Numvtces,  Windowsize, I : EXTERNAL  Counter;
+      Numpts : EXTERNAL  Counter;
+      Nptsr : EXTERNAL  REAL;
+      NUMDISPLAY, NumvtxOUT : EXTERNAL  Counter;
+      CMDCHAR : EXTERNAL  CHAR;
+      Filename : EXTERNAL  STRING;
+      DONE : EXTERNAL  BOOLEAN;
+
+
+procedure outp(B:byte);
+
+begin
+  inline("IN/$E1/
+         "ANI/1/
+         "JNZ/*-4);
+   out[$E0]:=B;
+end;
+
+procedure micro2(mode:byte;X,Y:real);
+
+var MX,MY:integer;
+
+begin
+MX:=trunc(X);
+MY:=trunc(Y);
+outp(mode);
+outp(HI(MX));
+outp(LO(MX));
+outp(HI(MY));
+outp(LO(MY));
+end;
+
+PROCEDURE GETPLANES(VAR Poly:Onepoly; Numpts:Counter);
+
+VAR I,LstI : Counter;
+    Tmpoly : Onepoly;
+
+BEGIN
+  LstI := Numpts;
+  FOR I:=1 TO Numpts DO
+    BEGIN
+      WITH Poly[I] DO
+        BEGIN
+          Tmpoly[I].X := Y*Poly[LstI].Z-Z*Poly[LstI].Y;
+          Tmpoly[I].Y := Z*Poly[LstI].X-X*Poly[LstI].Z;
+          Tmpoly[I].Z := X*Poly[LstI].Y-Y*Poly[LstI].X;
+        END;
+      LstI := I;
+    END;
+  FOR I:=1 TO Numpts DO
+    BEGIN
+      WITH Tmpoly[I] DO
+        BEGIN
+          Poly[I].X := X;
+          Poly[I].Y := Y;
+          Poly[I].Z := Z;
+        END;
+    END;
+END;
+
+PROCEDURE GETScreenscale;
+
+VAR I : Counter;
+    MAXX,MAXY,MINX,MINY : REAL;
+
+BEGIN
+  MAXX := 0.0;
+  MAXY := 0.0;
+  MINX := 0.0;
+  MINY := 0.0;
+  FOR I:=1 TO Windowsize DO
+    BEGIN
+      WITH Window[I] DO
+        BEGIN
+          IF X/Z > MAXX THEN
+            MAXX := X/Z;
+          IF X/Z < MINX THEN
+            MINX := X/Z;
+          IF Y/Z > MAXY THEN
+            MAXY := Y/Z;
+          IF Y/Z < MINY THEN
+            MINY := Y/Z;
+        END;
+    END;
+  MAXX := MAXX-MINX;
+  MAXY := MAXY-MINY;
+  IF MAXY > (0.75*MAXX) 
+    THEN
+    Screenscale.Z := MAXY*(4/3)
+  ELSE
+    Screenscale.Z := MAXX;
+  Screenscale.X := Dotsacross/Screenscale.Z;
+  Screenscale.Y := (Dotsdown*4/3)/Screenscale.Z
+END;
+
+PROCEDURE INITIALIZE;
+
+BEGIN
+  DONE := FALSE;
+  Numpols := 0;
+  NUMDISPLAY := 0;
+  Numvtces := 0;
+  Numpts := 0;
+  WITH Eyept DO
+    BEGIN
+      X := -5;
+      Y := -5;
+      Z := 3;
+    END;
+  WITH Cntrint DO
+    BEGIN
+      X := 0;
+      Y := 0;
+-Ðp`ppv~:= 0;
+    END;
+  Windowsize := 4;
+  WITH Window[1] DO
+    BEGIN
+      X := -4;
+      Y := -3;
+      Z := 16;
+    END;
+  WITH Window[2] DO
+    BEGIN
+      X := -4;
+      Y := 3;
+      Z := 16;
+    END;
+  WITH Window[3] DO
+    BEGIN
+      X := 4;
+      Y := 3;
+      Z := 16;
+    END;
+  WITH Window[4] DO
+    BEGIN
+      X := 4;
+      Y := -3;
+      Z := 16;
+    END;
+  GETScreenscale;
+  GETPLANES(Window,Windowsize);
+  WITH SCREENCTR DO
+    BEGIN
+      X := Dotsacross/2;
+      Y := Dotsdown/2;
+    END;
+  OUTP(Clear);
+  OUTP(Split);
+  OUTP($01);
+END;
+
+PROCEDURE START;
+
+VAR I,J : Counter;
+
+BEGIN
+  OUTP(Clear);
+END;
+
+
+PROCEDURE READOBJECT(Filename:STRING);
+
+VAR PTSOBJ,POLSOBJ,PTSPOL,I,J: Counter;
+    XPOS,YPOS,ZPOS: REAL;
+    OBJFILE: TEXT;
+
+BEGIN
+  WRITE('POSITION FOR ',Filename,' X,Y,Z: ');
+  READLN(XPOS,YPOS,ZPOS);
+  ASSIGN(OBJFILE,Filename);
+  RESET(OBJFILE);
+  IF IORESULT = 255 THEN
+    BEGIN
+      WRITELN(Filename,' not found');
+      EXIT;
+    END;
+  READLN(OBJFILE,PTSOBJ,POLSOBJ);
+   FOR I:=1 TO PTSOBJ DO
+     BEGIN
+       WITH Points[I+Numpts] DO
+        BEGIN
+          READLN(OBJFILE,J,X,Y,Z);
+          X := X+XPOS;
+          Y := Y+YPOS;
+          Z := Z+ZPOS;
+        END;
+     END;
+  FOR I:=1 TO POLSOBJ DO
+    BEGIN
+      READ(OBJFILE,PTSPOL);
+      FOR J:=1 TO PTSPOL DO
+        BEGIN
+          READ(OBJFILE,Vertices[J+Numvtces]);
+          Vertices[J+Numvtces] := Vertices[J+Numvtces]+Numpts;
+        END;
+      WITH Polygons[I+Numpols] DO
+        BEGIN
+          START := Numvtces;
+          Numvtx := PTSPOL;
+        END;
+      Numvtces := Numvtces+PTSPOL;
+    END;
+  Numpts := Numpts+PTSOBJ;
+  Numpols := Numpols+POLSOBJ;
+END;
+
+MODEND.
+
+D

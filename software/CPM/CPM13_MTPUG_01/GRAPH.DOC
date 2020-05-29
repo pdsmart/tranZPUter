@@ -1,0 +1,17 @@
+
+  The files
+
+       GRAPH.PAS      PLOT.MOD     and    F.PAS
+
+  form a graphing procedure.  GRAPH is the driving procedure for
+  the procedure PLOT,  GRAPH  chats with the user at the console
+  while plot does all the work.   F  supplies the function to be
+  plotted.
+
+  The procedure PLOT uses escape-codes valid for an IMSAI VIO board,
+  hence is not likely to work on any other machine without change.
+  The form of the procedure is modular and I hope well commented, it
+  should be easilly modified for other machines.
+
+
+

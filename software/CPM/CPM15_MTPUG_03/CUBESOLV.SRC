@@ -1,0 +1,583 @@
+PROGRAM CUBESOLV;
+
+{Adapted from the book
+ The Simple Solution to Rubik's Cube, by James G. Nourse.}
+
+TYPE
+
+  ROW = STRING[7];
+  FACE =
+    RECORD
+      A : ROW;
+      B : ROW;
+      C : ROW
+    END;
+    
+VAR
+
+  U : ABSOLUTE [$7000] FACE;
+  D : ABSOLUTE [$7020] FACE;
+  F : ABSOLUTE [$7040] FACE;
+  B : ABSOLUTE [$7060] FACE;
+  L : ABSOLUTE [$7080] FACE;
+  R : ABSOLUTE [$70A0] FACE;
+  S : FACE;
+  OPTN, HOME, GO : CHAR;
+  MOVES : STRING[255];
+  TEST, EDGE, CORN : STRING[3];
+  ERS : STRING[2];
+  DOWNERS : ARRAY [0 .. 8] OF STRING[12];
+  COUNT : INTEGER;
+
+{$I B:CUBEUTIL}   {Include the text of file CUBEUTIL.}
+
+FUNCTION MATCH (S1, S2 : STRING) : BOOLEAN;
+
+{True if S1 and S2 contain the same elements in any order.}
+
+VAR  L1, I : INTEGER;
+  
+BEGIN
+
+  L1 := LENGTH (S1);
+  IF L1 = LENGTH (S2) THEN
+    BEGIN
+      MATCH := TRUE;
+      FOR I := 1 TO L1 DO
+        IF POS (S1[I], S2) = 0 THEN
+          BEGIN
+            MATCH := FALSE;
+            EXIT
+          END
+    END
+  ELSE
+    MATCH := FALSE
+
+END;
+{
+\NP
+}
+PROCEDURE FLIP;
+
+VAR  XPOS, YPOS : INTEGER;
+
+{Make a quarter-turn move for each character in the MOVES string.
+ See Program Cube for list of legitimate moves.}
+
+BEGIN
+
+  XPOS := (COUNT MOD 80) +  1;
+  YPOS := (COUNT DIV 80) + 21;
+  GOTOXY (XPOS, YPOS);
+  WRITE (MOVES);
+  COUNT := COUNT + LENGTH (MOVES);
+  WHILE MOVES <> '' DO
+    BEGIN
+      OPTN := MOVES[1];
+      DELETE (MOVES, 1, 1);
+      CASE OPTN OF
+
+'R' : BEGIN  CW (R);   VUP (7)      END;
+'r' : BEGIN  CCW (R);  VDOWN (7)    END;
+'L' : BEGIN  CW (L);   VDOWN (1)    END;
+'l' : BEGIN  CCW (L);  VUP (1)      END;
+'U' : BEGIN  CW (U);   HLEFT (1)    END;
+'u' : BEGIN  CCW (U);  HRIGHT (1)   END;
+'D' : BEGIN  CW (D);   HRIGHT (3)   END;
+'d' : BEGIN  CCW (D);  HLEFT (3)    END;
+'F' : BEGIN  CW (F);   ICW (1)      END;
+'f' : BEGIN  CCW (F);  ICCW (1)     END;
+'B' : BEGIN  CW (B);   ICCW (3)     END;
+'b' : BEGIN  CCW (B);  ICW (3)      END;
+'V' : BEGIN            VUP (4)      END;
+'v' : BEGIN            VDOWN (4)    END;
+'H' : BEGIN            HRIGHT (2)   END;
+'h' : BEGIN            HLEFT (2)    END;
+'I' : BEGIN            ICW (2)      END;
+'i' : BEGIN            ICCW (2)     END;
+'X' : BEGIN  CW (R);   VUP (1);     VUP (4);     VUP (7);     CCW (L)  END;
+'x' : BEGIN  CCW (R);  VDOWN (1);   VDOWN (4);   VDOWN (7);   CW (L)   END;
+'Y' : BEGIN  CW (F);   ICW (1);     ICW (2);     ICW (3);     CCW (B)  END;
+'y' : BEGIN  CCW (F);  ICCW (1);    ICCW (2);    ICCW (3);    CW (B)   END;
+'Z' : BEGIN  CCW (U);  HRIGHT (1);  HRIGHT (2);  HRIGHT (3);  CW (D)   END;
+'z' : BEGIN  CW (U);   HLEFT (1);   HLEFT (2);   HLEFT (3);   CCW (D)  END;
+
+      END
+    END
+
+END;
+{
+\NP
+}
+PROCEDURE UP_EDG;
+
+VAR
+
+  K, I : INTEGER;
+
+BEGIN
+
+  FOR I := 1 TO 4 DO
+    BEGIN
+
+{Move up edges up to correct positions.}
+
+      EDGE := CONCAT (U.B[4], F.B[4]);
+{FU}  IF MATCH (CONCAT (U.C[4], F.A[4]), EDGE) THEN
+        MOVES := ''
+      ELSE
+{RU}    IF MATCH (CONCAT (R.A[4], U.B[7]), EDGE) THEN
+          MOVES := 'rf'
+        ELSE
+{BU}      IF MATCH (CONCAT (U.A[4], B.A[4]), EDGE) THEN
+            MOVES := 'Uruf'
+          ELSE
+{LU}        IF MATCH (CONCAT (L.A[4], U.B[1]), EDGE) THEN
+              MOVES := 'LF'
+            ELSE
+{FR}          IF MATCH (CONCAT (F.B[7], R.B[1]), EDGE) THEN
+                MOVES := 'f'
+              ELSE
+{BR}            IF MATCH (CONCAT (R.B[7], B.B[1]), EDGE) THEN
+                  MOVES := 'rrfrr'
+                ELSE
+{BL}              IF MATCH (CONCAT (B.B[7], L.B[1]), EDGE) THEN
+                    MOVES := 'LLFLL'
+                  ELSE
+{FL}                IF MATCH (CONCAT (F.B[1], L.B[7]), EDGE) THEN
+                      MOVES := 'F'
+                    ELSE
+{DF}                  IF MATCH (CONCAT (F.C[4], D.A[4]), EDGE) THEN
+                        MOVES := 'FF'
+                      ELSE
+{DR}                    IF MATCH (CONCAT (R.C[4], D.B[7]), EDGE) THEN
+                          MOVES := 'dff'
+                        ELSE
+{DB}                      IF MATCH (CONCAT (D.C[4], B.C[4]), EDGE) THEN
+                            MOVES := 'DDFF'
+                          ELSE
+{DL}                        IF MATCH (CONCAT (D.B[1], L.C[4]), EDGE) THEN
+                              MOVES := 'DFF'
+                            ELSE
+                              BEGIN
+                                DISPLAY; GOTOXY (40, 1);
+                                WRITE (ERS, 'Up edge positioning error.');
+                                READ (GO)
+                              END;
+      FLIP;
+
+{Orient up edges properly and rotate cube to next position.}
+
+      IF      ((U.C[4] = U.B[4]) AND (F.A[4] = F.B[4])) THEN
+        MOVES := 'Z'
+      ELSE IF ((U.C[4] = F.B[4]) AND (F.A[4] = U.B[4])) THEN
+        MOVES := 'fUluZ'
+      ELSE
+        BEGIN
+          DISPLAY; GOTOXY (40, 1);
+          WRITE (ERS, 'Up edge orientation error.'); READ (GO)
+        END;
+      FLIP
+    END;
+  IF GO = ' ' THEN DISPLAY; GOTOXY (35, 15);
+  WRITE ('Up edges finished in ', COUNT, ' moves.');
+  IF GO = ' ' THEN READ (GO);
+
+END;
+{
+\NP
+}
+PROCEDURE UP_CRN;
+
+VAR
+
+  I, J, K : INTEGER;
+
+BEGIN
+
+  FOR I := 1 TO 4 DO
+    BEGIN
+
+{Position up corners.}
+
+      CORN := CONCAT (U.B[4], F.B[4], R.B[4]);
+  {Look on the down face first for desired cublet.}
+      J := 1;  K := 0;
+      WHILE (K = 0) AND (J < 5) DO
+        BEGIN
+          J := J + 1;
+          TEST := CONCAT (F.C[7], D.A[7], R.C[1]);
+          IF MATCH (TEST, CORN) THEN
+            BEGIN
+              K := 9;
+    {Move it up, orienting it at the same time.}
+              IF R.C[1] = U.B[4] THEN
+                MOVES := 'rdRZ'
+              ELSE IF F.C[7] = U.B[4] THEN
+                MOVES := 'FDfZ'
+              ELSE
+                MOVES := 'rDRFDDfZ'
+            END
+          ELSE
+            MOVES := 'D';
+          FLIP
+        END;
+  {If it wasn't on the down face, look on the up face.}
+      IF K <> 9 THEN
+        BEGIN
+          J := 1;
+          WHILE (K = 0) AND (J < 5) DO
+            BEGIN
+              TEST := CONCAT (U.C[7], F.A[7], R.A[1]);
+              IF MATCH (TEST, CORN) THEN
+                K := J
+              ELSE
+                BEGIN
+                  J := J + 1;
+                  MOVES := 'u';  FLIP
+                END
+            END;
+      {If positioned correctly, orient it correctly.}
+          IF K = 1 THEN
+            BEGIN
+              IF F.A[7] = U.B[4] THEN
+                MOVES := 'FDDfrDDRZ'
+              ELSE IF R.A[1] = U.B[4] THEN
+                MOVES := 'rddRFddfZ'
+              ELSE
+                MOVES := 'Z';
+            END
+          ELSE IF K = 0 THEN
+            BEGIN
+              DISPLAY; GOTOXY (40, 1);
+              WRITE (ERS, 'Up corner positioning error.'); READ (GO)
+            END
+      {Wrong up corner.  Move it down, then under desired position, then up.}
+          ELSE
+            BEGIN
+              MOVES := 'rdRD';
+              FOR K := 2 TO J DO
+                MOVES := CONCAT (MOVES, 'U');
+              FLIP;
+              IF R.C[1] = U.B[4] THEN
+                MOVES := 'rdRZ'
+              ELSE IF F.C[7] = U.B[4] THEN
+                MOVES := 'FDfZ'
+              ELSE
+                MOVES := 'rDRFDDfZ';
+            END;
+          FLIP
+        END
+    END;
+  IF GO = ' ' THEN DISPLAY; GOTOXY (35, 16);
+  WRITE ('Up corners finished in ', COUNT, ' moves.');
+  IF GO = ' ' THEN READ (GO);
+  
+END;
+{
+\NP
+}
+PROCEDURE VRT_EDG;
+
+{Position and orient vertical edges.}
+
+VAR
+
+  I, J, K : INTEGER;
+  
+BEGIN
+
+  FOR I := 1 TO 4 DO
+    BEGIN
+      EDGE := CONCAT (F.B[4], R.B[4]);
+      TEST := CONCAT (F.B[7], R.B[1]);
+      IF MATCH (EDGE, TEST) THEN
+  {Right position.}
+        BEGIN
+          IF F.B[7] = F.B[4] THEN
+            MOVES := 'Z'                 {Correct}
+          ELSE
+            MOVES := 'rDRDFdfDrDRDFdfZ'  {Backward}
+        END
+      ELSE
+  {Move it to the bottom if necessary.}
+        BEGIN
+          FOR J := 1 TO 3 DO
+            BEGIN
+              MOVES := 'Z';  FLIP;
+              TEST := CONCAT (F.B[7], R.B[1]);
+              IF MATCH (TEST, EDGE) THEN
+                BEGIN
+                  MOVES := 'rDRDFdf';  FLIP
+                END
+            END;
+          MOVES := 'Z';  FLIP;
+  {Move it to the front.}
+          J := 0;
+          TEST := CONCAT (F.C[4], D.A[4]);
+          WHILE (NOT MATCH (TEST, EDGE)) AND (J < 4) DO
+            BEGIN
+              J := J + 1;
+              MOVES := 'D'; FLIP;
+              TEST := CONCAT (F.C[4], D.A[4]);
+            END;
+  {Move it into position, oriented correctly.}
+          IF      (F.C[4] = F.B[4]) AND (D.A[4] = R.B[4]) THEN
+            MOVES :=  'drDRDFdfZ'
+          ELSE IF (F.C[4] = R.B[4]) AND (D.A[4] = F.B[4]) THEN
+            MOVES := 'ddFdfdrDRZ'
+          ELSE
+            BEGIN
+              DISPLAY; GOTOXY (40, 1);
+              WRITE (ERS, 'Vertical edge positioning error.'); READ (GO)
+            END;
+        END;
+      FLIP
+    END;
+  IF GO = ' ' THEN DISPLAY; GOTOXY (35, 17);
+  WRITE ('Vertical edges finished in ', COUNT, ' moves.');
+  IF GO = ' ' THEN READ (GO);
+
+END;
+{
+\NP
+}
+PROCEDURE DOWN_CRN;
+
+{Position down corners.}
+
+VAR
+
+  I, J, K, M, RIGHT : INTEGER;
+  DFR, DBL : BOOLEAN;
+  DTEST : STRING[12];
+  
+BEGIN
+
+  RIGHT := 0;
+  {Twist and turn until two cubelets are found properly positioned.}
+  WHILE RIGHT < 2 DO
+    BEGIN
+      MOVES := 'D';  FLIP;
+      RIGHT := 0;
+      J := 0;
+      WHILE (RIGHT < 2) AND (J < 4) DO
+        BEGIN
+          J := J + 1;
+          MOVES := 'Z';  FLIP;
+          CORN := CONCAT (L.B[4], F.B[4], D.B[4]);
+          TEST := CONCAT (L.C[7], F.C[1], D.A[1]);
+          IF MATCH (CORN, TEST) THEN
+            RIGHT := RIGHT + 1
+        END
+    END;
+  CORN := CONCAT (R.B[4], F.B[4], D.B[4]);
+  TEST := CONCAT (R.C[1], F.C[7], D.A[7]);
+  DFR  := MATCH (CORN, TEST);
+  CORN := CONCAT (L.B[4], B.B[4], D.B[4]);
+  TEST := CONCAT (L.C[1], B.C[7], D.C[1]);
+  DBL  := MATCH (CORN, TEST);
+  IF           DFR  AND (NOT DBL) THEN   {Two incorrect cubelets at back.}
+    MOVES := 'zzrdRFDfrDRDD'
+  ELSE IF (NOT DFR) AND      DBL  THEN   {Two incorrect cubelets at right.}
+    MOVES := 'zrdRFDfrDRDD'
+  ELSE IF (NOT DFR) AND (NOT DBL) THEN   {Two incorrect cubelets diagonally.}
+    MOVES := 'zrdRFDDfrDRD';
+  FLIP;
+
+{Orient down corners.}
+
+  J := 0;
+  M := 0;
+  REPEAT
+  {Generate a string of everywhere a down
+   color on a down corner cubelet could be.}
+    DTEST := CONCAT (D.A[1], D.A[7], D.C[1], D.C[7], L.C[1], L.C[7],
+                     F.C[1], F.C[7], R.C[1], R.C[7], B.C[1], B.C[7]);
+    FOR I := 1 TO 12 DO
+      IF DTEST[I] <> 'D' THEN DTEST[I] := ' ';
+    DOWNERS[8] := DTEST;
+  K := 0;
+  {Check it out against the "pictures" from the book.}
+    WHILE DTEST <> DOWNERS[K] DO
+      K := K + 1;
+    IF K = 0 THEN
+    {It is now correct.}
+      J := 0
+    ELSE IF K = 8 THEN
+  {Not this orientation.  Rotate cube and try again.}
+      BEGIN
+        MOVES := 'Z';  FLIP
+      END
+    ELSE
+  {Found it!  Run the orientation sequence and iterate.}
+      BEGIN
+        J := 0;
+        M := M + 1;
+        MOVES := 'rdRdrddRdd';  FLIP
+      END;
+    J := J + 1;
+  UNTIL (K = 0) OR (J > 8) OR (M > 3);
+  IF (J > 8) OR (M > 3) THEN
+    BEGIN
+GOTOXY (40, 2); WRITE ('K, J, M:', K:3, J:3, M:3);
+      DISPLAY; GOTOXY (40, 1);
+      WRITE (ERS, 'Down corner orientation errror.'); READ (GO);
+    END;
+  {Put front face in front, just for a little class.}
+  WHILE F.B[4] <> 'F' DO
+    BEGIN
+      MOVES := 'Z';  FLIP
+    END;
+  IF GO = ' ' THEN DISPLAY; GOTOXY (35, 18);
+  WRITE (ERS, 'Down corners finished in ', COUNT, ' moves.');
+  IF GO = ' ' THEN READ (GO);
+
+END;
+{
+\NP
+}
+PROCEDURE DOWN_EDG;
+
+LABEL 100, 110;
+
+VAR  I, J : INTEGER;
+
+BEGIN
+
+100:
+  REPEAT
+    J := 0;
+  {Find number of properly positioned edges.}
+    FOR I := 1 TO 4 DO
+      BEGIN
+        EDGE := CONCAT (F.B[4], D.B[4]);
+        TEST := CONCAT (F.C[4], D.A[4]);
+        IF MATCH (EDGE, TEST) THEN
+          BEGIN
+            J := J + 1;
+            IF J < I THEN GOTO 110  {There's only one, and this is it.}
+          END;
+        MOVES := 'Z';  FLIP
+      END;
+110:
+    IF J < 4 THEN
+  {If there is one, it's in front.  If not, it doesn't matter which is front.}
+      BEGIN
+        MOVES := 'vDVDDvDV';  FLIP;
+      END;
+  UNTIL J = 4;
+  {All in position, now orient them.}
+  J := 0;
+  FOR I := 1 TO 4 DO
+    BEGIN
+      IF F.C[4] = F.B[4] THEN J := J + 1;
+      MOVES := 'Z';  FLIP
+    END;
+  IF J = 4 THEN
+  {Done!  How lucky can you get?}
+    BEGIN  END
+  ELSE IF J = 0 THEN
+  {Seldom happens, but worth considering.}
+    BEGIN
+      MOVES := 'vDDVDDvDVDDvDDVd';  FLIP   {Done!}
+    END
+  ELSE
+  {OK, where are they?}
+    BEGIN
+      J := 0;
+      WHILE D.C[4] = 'D' DO
+    {Put a bad one at the back.}
+        BEGIN
+          MOVES := 'z';  FLIP;
+          J := J + 1;
+          IF J > 4 THEN
+            BEGIN
+              DISPLAY; GOTOXY (40, 1);
+              WRITE (ERS, 'Down edge error, try again.'); READ (GO);
+              GOTO 100
+            END
+        END;
+    {Make sure there's a good one on the right.}
+      IF R.C[4] = 'D' THEN
+        BEGIN
+          MOVES := 'Z';  FLIP
+        END;
+      IF F.C[4] = 'D' THEN
+    {Bad ones front and back, whip out the longest sequence used.}
+        BEGIN
+          MOVES := 'vDVDvDVDvDDVDvDVDvDVDD';  FLIP   {Done (whew).}
+        END
+      ELSE
+    {Bad ones back and left.  Make some progress, rotate, and re-position.}
+        BEGIN
+          MOVES := 'vDVdvdVdvDDVzvDVDDvDV';  FLIP;
+        END
+    END;
+  GOTOXY (35, 19);
+  WRITE ('Down edges finished in ', COUNT, ' moves.');
+    
+END;
+{
+\NP
+}
+BEGIN   {CUBESOLV}
+
+  HOME := CHR ($1E);               {Top left corner.}
+  WRITE (HOME, CHR ($1B), 'Y');    {Go to home and clear screen.}
+  ERS := CONCAT (CHR ($1B), 'T');  {Erase to end of line.}
+  COUNT := 0;
+  DISPLAY;
+  GOTOXY (1, 21);
+  WRITELN ('Initial position.  Press any key to continue.');
+  WRITE ('(Press blank to pause after each step.)');
+  READ (GO);
+  WRITE (HOME, CHR ($1B), 'Y');
+
+{Test strings for orienting the down corners.  One through seven
+ correspond to the numbered pictures in the book.}
+  DOWNERS[0] := 'DDDD        ';  {Correct}
+
+  DOWNERS[1] := 'D      D D D';  {One down color on down face; that one at}
+  DOWNERS[2] := 'D   D   D D ';  {front left.}
+
+  DOWNERS[3] := '     D  D DD';  {No down colors on down face; down colors}
+  DOWNERS[7] := '    DD  DD  ';  {on left and right at front.}
+
+  DOWNERS[4] := ' D D  D    D';  {Two down colors on down face; down color}
+  DOWNERS[5] := '  DD  DD    ';  {on front at left}
+  DOWNERS[6] := ' DD   D  D  ';
+
+  DOWNERS[8] := '            ';  {This is a trick to make sure there is alway
+s}
+                                 {one that matches.  It gets filled in later.}
+
+{Put 'U' on up face and 'F' on front face, just to add a little class.}
+  IF      F.B[4] = 'U' THEN MOVES := 'X'
+  ELSE IF D.B[4] = 'U' THEN MOVES := 'XX'
+  ELSE IF B.B[4] = 'U' THEN MOVES := 'x'
+  ELSE IF L.B[4] = 'U' THEN MOVES := 'Y'
+  ELSE IF R.B[4] = 'U' THEN MOVES := 'y'
+  ELSE                      MOVES := '';  FLIP;
+  WHILE F.B[4] <> 'F' DO
+    BEGIN
+      MOVES := 'Z';  FLIP
+    END;
+
+  UP_EDG;    {Do the up edges first.}
+  UP_CRN;    {Then the up corners.}
+  VRT_EDG;   {Then the vertical edges.}
+  DOWN_CRN;  {Penultimately, the bottom corners.}
+  DOWN_EDG;  {Last but not least, the bottom edges.}
+
+{Last class.}
+  WHILE F.B[4] <> 'F' DO
+    BEGIN
+      MOVES := 'Z';  FLIP
+    END;
+
+  DISPLAY;
+  GOTOXY (1, 1);
+
+END.
+

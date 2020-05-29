@@ -1,0 +1,47 @@
+TITLE NEPOU
+;
+; 9/22/82      Sue Arnold
+;
+; This is an assembly program that will create a file that may later be
+; opened in UNLOCK mode.
+;
+; CALLING PROCEDURE=
+;
+;        MAKE (VAR FCB.addr: file_descriptor;  (ptr to the file FIB)
+;               VAR result:   INTEGER);         (ptr to err code variable)
+;
+; This routine uses XDOS function number 16h.
+;
+
+	PAGE
+	.Z80
+;
+BDOSJP	EQU 5		; Use this to call XDOS
+;
+;
+	PAGE
+	PUBLIC UOPEN
+	CSEG
+;
+;
+UOPEN:
+	POP HL		; HL = Pascal Return Address 
+        POP DE          ; DE = The addr of the error code variable
+        EX (SP), HL     ; HL = The addr of the file descriptor
+                        ; (top of stack now has the Pascal rtn addr)
+        EX DE, HL       ; DE = The addr of the descriptor
+                        ; HL = The addr of the err code variable
+        LD C,0FH	; OPEN function number
+        PUSH DE         ; Save the addr of the descriptor
+        PUSH HL         ; Save the error code addr
+	LD HL, 11H      ; Add 17 to the address
+	ADD HL,DE	; To get the addr of the FCB within
+	EX DE,HL	; The file descriptor block
+        CALL BDOSJP     ; Open the file
+        POP HL          ; Restore error code addr
+        POP DE          ; Restore file descriptor address
+        LD (HL), A      ; Put error code in err code variable
+        RET             ; Else, Return to calling routine
+;
+	END UOPEN
+

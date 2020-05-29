@@ -1,0 +1,458 @@
+title	 zsvstmp.z80 for ZSDOS systems
+;
+; Name: 	ZSVSTAMP
+; Author:	Howard Goldstein
+; Date: 	9/2/88
+; Version:	0.1
+; Derivation:	Savstamp v0.4 by Bridger Mitchell & Bruce Morgen
+; Requirements: ZSDOS and ZCPR3 with external FCB, MCL and message buffer
+;
+; This utility saves the ZSDOS create datestamp of
+; the specified file and (later) replaces the create datestamp
+; of a specified file with the saved stamp.  It can be used
+; to maintain the original create date for a file that is
+; repeatedly modified.
+;
+; ZSVSTAMP uses the last 5 bytes of the user area of the
+; ZCPR3 message buffer.
+;
+; Patterned after Carson Wilson's similar utility for
+; z80dos v. 1 style timestamps.
+;
+; ZSVSTAMP also does command line buffer handling, that is,
+; "ZSVSTAMP LZED filename.type" will save the create date
+; to safe memory, execute the "LZED filename.typ" part of
+; the command tail, and restore the original create date
+; on exit from LZED, automagically.;
+;
+;
+version	equ	01
+;
+z3env	equ	0fe00h
+useroff	equ	40h		; Offset in z3msg to user bytes
+;
+cr	equ	0dh
+lf	equ	0ah
+space	equ	20h
+
+bdos	equ	5
+fcb1	equ	5ch
+fcb2	equ	6ch
+tbuf	equ	80h
+;
+	public	cout
+	extrn	whrenv,f$exist,z3init,getmsg,getefcb,putcl
+	extrn	moveb,hmovb,cline,sknsp,sksp,issp,epstr,eprint,crlf,bout
+	extrn	getud,putud,z3log
+	extrn	testzs		; ZSLIB routine
+
+	cseg
+
+; TYPE 3 HEADER
+
+; Code modified as suggested by Charles Irvine to function correctly with
+; interrupts enabled.  Program will abort with an error message when not
+; loaded to the correct address (attempt to run it under CP/M or Z30).
+
+entry:
+	jr	start0		; Must use relative jump
+	nop			; Filler
+	db	'Z3ENV',3	; Type-3 environment
+z3eadr:
+	dw	z3env		; Filled in by Z33
+	dw	entry		; Intended load address
+
+; CONFIGURATION AREA
+
+; The byte following each of the following label strings determines
+; whether or not a specific warning message can be printed.  If the
+; byte is non-zero then the message will print; a zero value suppresses
+; the message.  These flags only affect printing of messages in "automatic"
+; mode.  The messages are always enabled in "manual" /GET or /PUT mode.
+
+	db	'NOSTMP'
+nostmp:	db	0ffh		; "Disk has no stamps" message
+
+	db	'NOFILE'
+nofile:	db	0ffh		; "file not found" message
+
+	db	'readerr'
+readerr:db	0ffh	; "can't read stamp" message
+
+	db	'UPDTERR'
+updterr:db	0ffh		; "can't update stamp" message
+
+; The REPLALWS flag determines what ZSVSTAMP does when there is more
+; than one parameter following the application program name.  If set to
+; 0, ZSVSTAMP simply aborts to the appication program in this situation.
+; If nonzero, the create date of the file name following the application name 
+; is always saved and restored.
+;
+	db	'REPLALWS'
+replalws:
+	db	0
+;
+start0:
+	ld	hl,0		; Point to warmboot entry
+	ld	a,(hl)		; Save the byte there
+	di			; Protect against interrupts
+	ld	(hl),0c9h	; Replace warmboot with a return opcode
+	rst	0		; Call address 0, pushing RETADDR
+				; Onto stack
+retaddr:
+	ld	(hl),a		; Restore byte at 0
+	dec	sp		; Get stack pointer to point
+	dec	sp		; To the value of RETADDR
+	pop	hl		; Get it into HL and restore stack
+	ei			; We can allow interrupts again
+	ld	de,retaddr	; This is where we should be
+	xor	a		; Clear carry flag
+	push	hl		; Save address again
+	sbc	hl,de		; Subtract -- we should have 0 now
+	pop	hl		; Restore value of RETADDR
+	jr	z,start		; If addresses matched, begin real code
+
+	ld	de,notz33msg-retaddr ; Offset to message
+	add	hl,de
+	ex	de,hl		; Switch pointer to message into DE
+	ld	c,9
+	jp	0005h		; Return via BDOS print string function
+notz33msg:
+	db	'Not Z33+$'	; Abort message if not Z33-compatible
+
+start:	ld	(stack),sp
+	ld	sp,stack
+	call	putud		; Save current drive/user
+;
+start1:	ld	hl,(z3eadr)	; Is this a z system?
+	call	whrenv
+	jp	z,noenv		; No
+	call	z3init
+	call	getefcb		; We require a Z3 EFCB
+	jp	z,efcber
+	ld	(efcb),hl
+	call	testzs		; Is this a ZSDOS system?
+	jp	nz,nozs		; No
+	ld	a,(fcb1+1)
+	cp	SPACE
+	jp	z,help
+	cp	'/'
+	jp	z,help
+start2:	ld	hl,tbuf		; Move command tail to safe area
+	ld	a,(hl)		; get command tail length
+	ld	(tlen),a	; ..and save
+	call	cline
+	inc	hl		; Bump pointer
+	ld	(bufbuf),hl	; Stow
+;
+startok:
+	ld	hl,fcb2+1	; Second argument?
+	ld	a,(hl)
+	cp	SPACE
+	jp	z,appxit		; No, just exit and run application
+
+cslash:	sub	'/'
+	ld	(rerun),a
+	ld	(autoflg),a
+	jr	nz,ckrepl	; No
+	inc	hl
+	ld	a,(hl)
+	ld	de,fcb1
+	cp	'S'
+	jr	z,doget1
+	cp	'G'
+	jr	z,doget1
+	cp	'R'
+	jr	z,doset
+	cp	'P'
+	jr	z,doset
+	cp	7FH 		; Auto mode set indicator
+	ld	(autoflg),a	; Set flag nonzero for auto mode
+	jp	nz,help		; Illegal option; show help
+;
+; Set File's Datestamp from saved stamp
+;
+doset:	call	findfl
+	ld	c,102		; ZSDOS get stamp function
+	call	bdos		; Get file's stamp in tbuf
+	dec	a
+	jp	nz,tderr
+	call	getbuf		; Set hl-> hi-ram buffer
+	ld	de,tbuf		; Retrieve original create date
+	ld	b,5		; Into buffer
+	call	moveb
+	ex	de,hl		; -> 15-byte buffer
+	ld	de,fcb1
+	ld	c,103		; ZSDOS set date function
+	call	bdos		; Set datestamp with orig. create date
+	dec	a
+	jp	nz,settderr
+	jr	xit
+;
+; Test REPLALWS flag.  If zero, check for more than one parameter
+; following approg name and abort to approg without saving stamp if
+; present.
+;
+ckrepl:	ld	a,(replalws)
+	or	a
+	jr	nz,doget
+	call	skip2		; Pt to second token
+	call	sknsp		; Pt past it
+	ld	a,(hl)
+	or	a
+	jr	z,doget		; End of line
+	call	sksp		; Check for trailing spaces
+	ld	a,(hl)
+	or	a
+	jr	z,doget
+	jp	nz,appxit
+;
+; Get file's Datestamp.
+;
+doget:
+	ld	de,fcb2
+doget1:	call	findfl
+	ld	c,102		; ZSDOS get stamp function
+	call	bdos
+	dec	a
+	jp	nz,tderr
+	call	getbuf		; Get ptr to hi ram buffer to hold
+	ex	de,hl		; The create datestamp
+	ld	hl,tbuf		; Move it to secure storage
+	ld	b,5
+	call	moveb
+	ld	a,(autoflg)
+	or	a
+	call	nz,docl
+;
+xit:	call	getud		; Restore original drive/user
+	ld	sp,(stack)
+	ret
+;
+; return hl = addr of 5-byte buffer in protected memory
+;
+getbuf:
+	call	getmsg
+	jp	z,nobuf
+	ld	de,useroff+10h-5 ; Use last 5 bytes of user area
+	add	hl,de
+	ret
+
+;
+; Log into requested file's d/u.  If disk not set up for date stamping,
+; jump to appropiate error routine.
+;
+findfl:	push	de
+	call	z3log
+	ld	de,dirsec	; Wildcard fcb
+	call	f$exist		; Get first dir sector from disk
+	jp	z,notfnd	; Give file not found error if disk empty
+	ld	de,tbuf		; 1st dir entry
+	ld	hl,timdat	; Name of datestamper time/date file
+	ld	b,12		; length for compare
+;
+dsloop:	ld	a,(de)		; Check 1st dir entry for datestamper file
+	and	7fh		; Clear any attributes
+	cp	(hl)
+	jr	nz,chkp2d
+	inc	hl
+	inc	de
+	djnz	dsloop
+	jr	z,findfl1	; It's a datestamper disk
+;
+chkp2d:	ld	a,(tbuf+96)	; 4th entry in dir sector
+	cp	'!'		; P2d signature
+	jp	nz,notdst
+
+findfl1:
+	pop	de
+	call	f$exist
+	jr	z,notfnd	; No
+	ret
+;
+; Command line handler
+;
+docl:	ld	hl,(bufbuf)
+	ld	de,scratch
+	ld	a,(tlen)
+	ld	b,a
+	call	hmovb
+	ld	a,(rerun)	; Do we want to rerun ZSVSTAMP after application?
+	or	a
+	jr	z,docl4		; No,
+;
+docl2:	ld	hl,(efcb)
+	ld	b,8
+	ex	de,hl
+	dec	hl		; Back up over trailing null
+	ld	(hl),';'	; Delimit application command with ";"
+	ex	de,hl
+clloop:	inc	hl
+	inc	de
+	ld	a,(hl)
+	and	7fh
+	cp	SPACE
+	jr	z,docl2a
+	ld	(de),a
+	djnz	clloop
+	inc	de
+	ld	a,SPACE
+docl2a:	ld	(de),a
+	inc	de
+	call	skip2		; Pt hl to second token of command tail
+fcloop:	ld	a,(hl)
+	ld	(de),a
+	inc	de
+	inc	hl
+	call	issp
+	jr	nz,fcloop
+
+	dec	de
+	ld	hl,suffix
+	ld	b,suflen
+	call	moveb
+
+docl4:	ld	hl,scratch
+	call	putcl
+	jr	z,cler
+	ret
+
+skip2:	ld	hl,(bufbuf)
+	call	sksp		; Find 2nd token
+	call	sknsp
+	call	sksp
+	ret
+;
+comnam: ld	hl,(efcb)
+	ld	b,8
+cnmlp:	inc	hl
+	ld	a,(hl)
+	and	7fh
+	cp	SPACE
+	call	nz,bout
+	djnz	cnmlp
+	ret
+
+noenv:	ld	hl,msg0
+	jr	errxit
+;
+nozs:	ld	hl,msg1
+	jr	errxit
+;
+notfnd:	ld	hl,msg2
+	call	ckauto		; Print msg and abort if not in auto mode
+	push	af
+	ld	a,(nofile)	; do we want to print this message?
+	jr	tderr1
+;
+notdst:	ld	hl,msg3
+	call	ckauto		; Print msg and abort if not in auto mode
+	push	af
+	ld	a,(nostmp)	; do we want to print this message?
+	jr	tderr1
+;
+tderr:	ld	hl,msg4
+	call	ckauto		; Print msg and abort if not in auto mode
+	push	af
+	ld	a,(readerr)	; Do we want to print warning?
+tderr1:	or	a
+	jr	z,tderr2
+	call	crlf
+	call	epstr
+tderr2:	pop	af		; Get autoflg back
+	cp	7fh		; are we in auto-generated set mode?
+	jp	z,xit		; yes, exit without messing with MCL
+;
+; Exit to application with no further stamp processing
+
+appxit:	xor	a
+	ld	(rerun),a	; Indicate no rerun of ZSVSTAMP
+	call	docl		; Build mcl (application only)
+	jp	xit
+
+settderr:
+	ld	hl,msg5
+	call	ckauto		; Print msg and abort if not in auto mode
+	ld	a,(updterr)	; Print the message?
+	jp	z,xit		; No, abort without printing
+	jr	errxit
+;
+nobuf:	ld	hl,msg6
+	jr	errxit
+;
+efcber:	ld	hl,msg7
+	jr	errxit
+
+cler:	ld	hl,msg8
+;
+errxit:	call	crlf
+	call	epstr
+	jp	xit
+;
+ckauto:	ld	a,(autoflg)	; In auto mode?
+	or	a
+	jr	z,errxit		; No, print message and abort
+	ret
+;
+msg0:	db	'Not ZCPR3',0
+msg1:	db	'Not ZSDOS',0
+msg2:	db	'File not found',0
+msg3:	db	'Disk has no time/date stamps',0
+msg4:	db	'Can''t read time/date stamp',0
+msg5:	db	'Can''t update time/date stamp',0
+msg6:	db	'No z3msg buffer',0
+msg7:	db	'No z3 external fcb',0
+msg8:	db	'Command line insertion error',0
+;
+help:	call	eprint
+ db CR,LF
+ db 'ZSVSTAMP Version '
+ db (VERSION/10) + '0','.',(VERSION MOD 10) + '0'
+ db ' (ZSDOS/ZCPR3 tool)'
+ db CR,LF
+ db 'Syntax:'
+ db CR,LF
+ db ' ',0
+	call	comnam
+	call	eprint
+ db ' approg [dir:]filename.typ -- save/restore create stamp'
+ db CR,LF
+ db ' ',0
+	call	comnam
+	call	eprint
+ db ' [dir:]filename.typ /S or /G -- save create stamp'
+ db CR,LF
+ db ' ',0
+	call	comnam
+	call	eprint
+ db ' [dir:]filename.typ /R or /P -- set create date from saved stamp'
+ db CR,LF
+ db '("approg" is the actual application program'
+ db CR,LF
+ db 'to be run on "[dir:]filename.type".)',0
+
+	jp	xit
+
+cout:	jp	bout
+
+suffix:	db	' /',7fh,0
+suflen	equ	$-suffix
+timdat:
+	db	0,'!!!TIME&DAT'
+dirsec:	db	'????????????'
+	db	0,0,0,0
+
+	dseg
+
+	ds	48
+stack:	ds	2
+bufbuf:	ds	2
+efcb:	ds	2
+autoflg:	ds	1
+rerun:	ds	1
+tlen:	ds	1
+scratch:
+	ds	256
+
+	end
+                                                          

@@ -1,0 +1,1316 @@
+	TITLE	"Change ZSDOS/ZDDOS Configuration Settings"
+;************************************************************************
+;*  Z S C O N F I G							*
+;* Set the user-configurable parameters in a running ZSDOS/ZDDOS system	*
+;*----------------------------------------------------------------------*
+;*  Copyright (C) 1988  by Harold F. Bower and Cameron W. Cotrill	*
+;*			All Rights Reserved				*
+;*----------------------------------------------------------------------*
+;* Revisions:								*
+;*   1.0 - Initial Release				18 Sep 88	*
+;*----------------------------------------------------------------------*
+;* LINK with Version 4 libraries: VLIB, Z3LIB, SYSLIB			*
+;*	as:  A>ZLINK ZSCONFIG,VLIB/,Z3LIB/,SYSLIB/			*
+;************************************************************************
+
+VER	EQU	10		; Version number
+
+CTRLC	EQU	03H		; Control-C character
+BELL	EQU	07H		; Bell character
+BS	EQU	08H		; Backspace character
+TAB	EQU	09H		; Tab character
+LF	EQU	0AH		; Line Feed character
+CR	EQU	0DH		; carriage return character
+
+BUFF	EQU	0080H		; Default CP/M buffer
+
+; Establish offsets for various parameters
+
+PTHOFF	EQU	0011H		; PATH Addr offset from base of ZSDOS
+WHLOFF	EQU	0013H		; WHEEL Addr offset from base
+FLGOFF	EQU	0015H		; FLAG byte offset from base
+TIMOFF	EQU	0016H		; Time Vector group offset
+LSTOFF	EQU	0018H		; Stamp Last Accessed routine addr
+CREOFF	EQU	001AH		; Stamp Create Time routine addr
+MODOFF	EQU	001CH		; Stamp Modify Time routine addr
+GSTOFF	EQU	001EH		; Get Stamp routine addr
+SSTOFF	EQU	0020H		; Set Stamp routine addr
+UNLOAD	EQU	0024H		; Address of Time Stamp Remove routine
+IPATH	EQU	0DF1H		; Offset of Internal Path (Ver 1.0T)
+
+;  From VLIB Get..
+
+	EXT	Z3VINIT, EREOL, CLS, GOTOXY, GXYMSG
+	EXT	VPRINT, STNDOUT, STNDEND, AT
+
+;  From Z3LIB Get..
+
+	EXT	WHRENV, GETQUIET
+
+;  From SYSLIB Get..
+
+	EXT	CIN, COUT, CAPS, PA2HC, PHL4HC, BDOS, @B2HH, @B2HL
+	EXT	CRLF		; used for Non-ZCPR3 formatting
+
+	CSEG
+
+ZSCONFIG: JP	START		; Bypass header
+
+	DEFB	'Z3ENV'		; This is a ZCPR3 Utility
+	DEFB	1		; Show external environment
+ENVPTR:	DEFW	8000H		; Environment storage location
+				; ..assume non-zero value to start
+
+START:	LD	(STACK),SP	; Save CCP stack..
+	LD	SP,STACK	; .. and set local stack
+	LD	HL,BDOSPG	; Initialize local variables
+	LD	B,CHAR-BDOSPG+1
+ZEROST:	LD	(HL),0
+	INC	HL
+	DJNZ	ZEROST
+	LD	A,0FFH		; Set mask to all 1s
+	LD	(MASK),A
+
+	LD	HL,(ENVPTR)	; Set candidate Environment address
+	CALL	WHRENV		; Locate and confirm
+	LD	(ENVPTR),HL	; ..save the result
+	CALL	Z3VINIT		; Now establish ENV in the libraries
+
+	LD	C,12		; Is this CP/M 2.2 compatible?
+	CALL	BDOS
+	CP	22H		; Must be this if so..
+	JP	NZ,NOTZS	; ..jump if wrong OS
+
+	LD	C,48
+	CALL	BDOS		; Check if ZSDOS
+	LD	(DOSVER),HL	; Save DOS type and version #
+
+	LD	HL,BUFF		; See if this is a HELP request
+	LD	B,(HL)		; Put Char count in B
+	INC	HL
+	CALL	GTNOSP		; Scan past White space
+	JP	Z,START0	; ..jump interactive if no args
+	CP	'/'		; Is it a slash?
+	LD	(CCFLG),A	; ..store a non-zero to show args
+	JP	NZ,START0	; ...jump if not possible help
+	INC	HL
+	LD	A,(HL)		; Else get first char
+	CP	'/'		; Two Slashes is for HELP
+	JP	NZ,START0	; ..jump if Not help request
+	CALL	VPRINT
+	DEFB	CR,LF,LF
+	DEFB	1,'ZSCONFIG',2,' Ver ',VER/10+'0','.',VER MOD 10+'0'
+	DEFB	' - Examine/Set ZSDOS/ZDDOS parameters',CR,LF,LF
+	DEFB	'  Syntax:',CR,LF,LF
+	DEFB	'     ZSCONFIG                - Interactive',CR,LF
+	DEFB	'     ZSCONFIG o[p],[o[p]],.. - Expert Mode',CR,LF,LF
+	DEFB	'  Options [parameters]:',CR,LF,LF
+	DEFB	'     P [-] Public Files        R [-] Read/Only sustain',CR,LF
+	DEFB	'     ! [-] Disk Change Alert   F [-] Fast Relog',CR,LF,0
+
+	CALL	CKZS		; Is this ZSDOS?
+	JR	NZ,HELP0	; ..jump to bypass if not
+	CALL	VPRINT
+	DEFB	'     W [-] Public/Path Write   S [-] Path w/o SYStem',0
+	JR	HELP0A
+
+HELP0:	CALL	VPRINT
+	DEFB	'     W [-] Public Write',0
+HELP0A:	CALL	VPRINT
+	DEFB	CR,LF,LF
+	DEFB	'     C [ - or Hex value ]        Clock address',CR,LF
+	DEFB	'     * [ -, Z, or Hex value ]    Wheel write protect',CR,LF,0
+
+	CALL	CKZS		; Is this ZSDOS?
+	JP	NZ,HELP1	; ..jump to bypass if not
+	CALL	VPRINT
+	DEFB	'     > [ -, Z, I, or Hex value ] DOS Search Path'
+	DEFB	CR,LF,LF
+	DEFB	'     + [ A, C, M, G, or S ][ - or Hex value ] Time Stamp'
+	DEFB	CR,LF
+	DEFB	'            Access, Create, Modify, Get or Set addresses'
+	DEFB	CR,LF,0
+	JR	HELP2
+
+HELP1:	CALL	VPRINT
+	DEFB	CR,LF
+	DEFB	'       + [ A, M ][ - ]  Access or Modify Time Stamp',CR,LF,0
+
+HELP2:	CALL	VPRINT
+	DEFB	LF,'[more]..',0
+
+	CALL	CIN
+	CP	CTRLC		; Is it an abort request?
+	JP	Z,EXIT0		; ..jump to exit if so
+	LD	A,CR
+	CALL	COUT
+	CALL	EREOL
+
+	CALL	VPRINT
+	DEFB	'  Examples:',CR,LF,LF
+	DEFB	'       ZSCONFIG *Z,P,!-',CR,LF
+	DEFB	'    (ZCPR3 Wheel, Public ON, Warning OFF)'
+	DEFB	CR,LF,LF
+	DEFB	'       ZSCONFIG CE800 F R',CR,LF
+	DEFB	'    (Clock Routine=E800H, Fast Relog ON, R/O Sustain ON)'
+	DEFB	CR,LF,LF,0
+
+	CALL	CKZS		; Is this ZSDOS?
+	JR	NZ,HELP3	; ..jump to bypass if Not
+	CALL	VPRINT
+	DEFB	'       ZSCONFIG C50,+GE96C,+SEA47,>I',CR,LF
+	DEFB	'    (Clock=0050H, Get Stamp=E96CH, Set Stamp=EA47H, Int Path)'
+	DEFB	CR,LF,LF,0
+	JR	HELP4
+
+HELP3:	CALL	VPRINT
+	DEFB	'       ZSCONFIG C50,+A-,+M',CR,LF
+	DEFB	'    (Clock at 0050H, Last Access stamp off, Modify stamp on)'
+	DEFB	CR,LF,LF,0
+
+HELP4:	CALL	VPRINT
+	DEFB	'  Note:',CR,LF
+	DEFB	'       Delimiters are : TAB, SPACE and Comma',CR,LF,LF,0
+	JP	EXIT0
+
+START0:	CALL	VPRINT
+	DEFB	CR,LF,1,'ZSCONFIG',2,' V',VER/10+'0','.',VER MOD 10 +'0'
+	DEFB	'   Copyright (C) 1988   Harold F. Bower/Cameron W. Cotrill'
+	DEFB	CR,LF,LF,0
+	LD	A,(CCFLG)	; If this is interactive..
+	OR	A
+	CALL	Z,CLS		; ..then Clear the screen
+
+	LD	A,(DOSTYP)	; Get DOS type
+	CP	'S'
+	JR	Z,STRT2		; If it's ZSDOS, proceed
+	CP	'D'		; Is it ZDDOS?
+	JP	NZ,NOTZS	; ..jump to error exit if not
+
+	LD	A,(DOSVER)	; Get version #
+	PUSH	AF		; Else save version # and announce pgm
+	CALL	VPRINT
+	DEFB	'  ...Configuring ZDDOS Ver ',0
+	JR	STRT3		
+
+STRT2:	LD	A,(DOSVER)	; Get version #
+	PUSH	AF		; Else save version # and announce pgm
+	CALL	VPRINT
+	DEFB	'  ...Configuring ZSDOS Ver ',0
+
+STRT3:	POP	AF
+	PUSH	AF
+	CALL	@B2HH
+	CALL	COUT
+	LD	A,'.'
+	CALL	COUT
+	POP	AF
+	CALL	@B2HL
+	CALL	COUT
+	CALL	CRLF
+
+;  If we have a ZCPR3 Environment, Show the parameters.
+
+	LD	A,(CCFLG)	; Are we interactive?
+	OR	A
+	JR	NZ,II0		; ..jump if Not
+
+	LD	HL,(ENVPTR)	; Get the pointer
+	LD	A,H
+	OR	L
+	JR	NZ,DSKOK	; Jump if valid Environment
+	CALL	VPRINT
+	DEFB	CR,LF,'No Z3 Environment Found',CR,LF,0
+	JP	DSKOK0		; ..and continue
+
+DSKOK:	CALL	GXYMSG
+	DEFB	1,40,'Z3 Environment at  : ',0
+	LD	HL,(ENVPTR)
+	CALL	PRHEX
+
+	CALL	PRNL		; CRLF then print
+	DEFB	2,40,'ZCPR Path Address  : ',0
+II0:	LD	DE,0009H	; Offset to Path
+	LD	HL,(ENVPTR)
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	LD	(PATH),HL
+	LD	A,(CCFLG)	; Are we interactive?
+	OR	A
+	JR	NZ,II1		; ..jump if Not
+	CALL	PRHEX
+
+	CALL	PRNL		; CRLF then print
+	DEFB	3,45,'Wheel Byte at : ',0
+II1:	LD	DE,0029H	; Offset to Wheel Byte
+	LD	HL,(ENVPTR)
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	LD	(WHEEL),HL
+	LD	A,(CCFLG)	; Are we interactive?
+	OR	A
+	JR	NZ,DSKOK0	; ..Jump if Not
+	CALL	PRHEX
+	CALL	CRLF
+
+; Now Let's Discover where BDOS is in this System
+
+DSKOK0:	LD	A,(0002H)	; Get BIOS page
+	SUB	0EH		; Subtract BDOS Length
+	LD	H,A
+	LD	L,0		; Make 16-bit address
+	LD	(BDOSPG),HL	; And save it
+	PUSH	HL
+	POP	IX		; Move to IX
+
+	LD	DE,FLGOFF	; Set offset to FLAG byte in IX
+	ADD	IX,DE
+	LD	(IXVAL),IX	; Save IX value in memory
+
+	LD	E,(IX+13)	; Get disabling address for checks
+	LD	D,(IX+14)
+	LD	(DISABL),DE	; ..and save
+
+	LD	A,(CCFLG)	; Are we Interactive?
+	OR	A
+	JP	NZ,START1	; ..Jump to "Expert" start if Not
+
+DSKDAT:	CALL	CRLF
+	CALL	AT
+	DEFB	22,1
+	CALL	EREOL		; Clear line 17 in case it was used
+	LD	HL,501H		; Position at Column 1 on line 5
+	CALL	GOTOXY
+	CALL	VPRINT
+	DEFB	'       1 - Public Files           : ',0
+	LD	IX,(IXVAL)
+	BIT	0,(IX+0)
+	CALL	PRYN
+
+	CALL	CKZS		; Alter prompt depending on DOS type
+	JR	NZ,DSKDA2	; ..jump if ZDDOS
+	CALL	VPRINT
+	DEFB	CR,LF,'       2 - Pub/Path Write Enable  : ',0
+	JR	DSKDA3		; Rejoin code
+
+DSKDA2:	CALL	VPRINT
+	DEFB	CR,LF,'       2 - Public Write Enable    : ',0
+DSKDA3:	LD	IX,(IXVAL)
+	BIT	1,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       3 - Read-Only Vector       : ',0
+	LD	IX,(IXVAL)
+	BIT	2,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       4 - Fast Fixed Disk Log    : ',0
+	LD	IX,(IXVAL)
+	BIT	3,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       5 - Disk Change Warning    : ',0
+	LD	IX,(IXVAL)
+	BIT	4,(IX+0)
+	CALL	PRYN
+
+	CALL	CKZS		; Is this ZDDOS?
+	JP	NZ,DSKOK2	; ..if so skip PATH stuff
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       6 - Path w/o System Attr   : ',0
+	LD	IX,(IXVAL)
+	BIT	6,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       7 - DOS Search Path        : ',0
+	LD	IX,(IXVAL)
+	BIT	5,(IX+0)
+	JR	Z,NOPATH	; Go below if No path
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,0
+	LD	HL,(BDOSPG)	; Is it set for the Internal Path?
+	LD	DE,IPATH
+	ADD	HL,DE
+	EX	DE,HL		; Put Int Path addr in DE
+	LD	IX,(IXVAL)	; Get Vector setting to HL
+	LD	L,(IX-4)
+	LD	H,(IX-3)
+	OR	A
+	SBC	HL,DE		; Compare the two
+	JR	NZ,NOTINT	; Jump to show value if Not Internal
+	CALL	VPRINT
+	DEFB	' - Internal',0	; ..else say it is set to Internal
+	JR	NOPAT1
+
+NOTINT:	CALL	VPRINT
+	DEFB	'  Addr = ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX-4)
+	LD	H,(IX-3)
+	CALL	PRTADD		; Print the Address
+	JR	NOPAT1
+
+NOPATH:	CALL	VPRINT
+	DEFB	1,'Disabled',2,0
+NOPAT1:	CALL	EREOL
+
+DSKOK2:	CALL	VPRINT
+	DEFB	CR,LF,'       8 - Wheel Byte Protect     : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX-2)
+	LD	H,(IX-1)
+	LD	A,H
+	OR	L
+	JR	Z,NOWHL
+	PUSH	HL
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,'  Addr = ',0
+	POP	HL
+	CALL	PRTADD		; Print the Address
+	CALL	EREOL
+	JR	DSKOK3
+
+NOWHL:	CALL	VPRINT
+	DEFB	1,'Disabled',2,'..Assumed ON',0
+	CALL	EREOL
+
+DSKOK3:	CALL	VPRINT
+	DEFB	CR,LF,'       T - Time Routine (Clock)   : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+1)	; Get Time Routine for display
+	LD	H,(IX+2)
+	CALL	PRSTAT		; Print the current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       A - Stamp Last Access Time : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+3)	; Get routine address
+	LD	H,(IX+4)
+	CALL	CKZS		; Is this ZDDOS?
+	JR	Z,NOZDD0	; ..jump if not
+	CALL	PRCOND		; Print ZDDOS Status
+	JR	NOZDD1		; ..and then jump to Modify
+
+NOZDD0:	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       C - Stamp Create Time      : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+5)	; Get routine address
+	LD	H,(IX+6)
+	CALL	PRSTAT		; Print current status of this vector
+
+NOZDD1:	CALL	VPRINT
+	DEFB	CR,LF,'       M - Stamp Modify Time      : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+7)	; Get routine address
+	LD	H,(IX+8)
+	CALL	CKZS		; Is this ZDDOS?
+	JR	Z,NOZDD2	; ..jump if not
+	CALL	PRCOND		; Print ZDDOS Status
+	JR	DSKOK4		; ..and bypass other stuff
+
+NOZDD2:	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       G - Get Date/Time Stamp    : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+9)	; Get routine address
+	LD	H,(IX+10)
+	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       S - Set Date/Time Stamp    : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+11)	; Get routine address
+	LD	H,(IX+12)
+	CALL	PRSTAT		; Print current status of this vector
+
+DSKOK4:	CALL	CRLF
+	LD	HL,21*256+1	; Go to 21st row
+	CALL	GOTOXY
+	CALL	EREOL		; Zero in case it was used
+	CALL	GXYMSG
+	DEFB	20,1,'Entry to Change ("X" to EXIT) : ',0
+	CALL	EREOL
+ERRENT:	CALL	CIN
+	CALL	CAPS
+	CP	' '		; Is it a control character?
+	JR	C,ERRENT	; ..get another if so
+	CALL	COUT		; Else echo it and continue
+	CP	'X'		; Is it an Exit request?
+	JP	Z,EXIT
+	LD	B,00000001B
+	CP	'1'		; Public Files on/off?
+	JP	Z,DSKOKX	; Exit if Public Files
+	LD	B,00000010B
+	CP	'2'
+	JP	Z,DSKOKX	; Exit if Public/Path Write Enable
+	LD	B,00000100B
+	CP	'3'
+	JP	Z,DSKOKX	; Exit if R/O Vectors
+	LD	B,00001000B
+	CP	'4'
+	JP	Z,DSKOKX	; Exit if Fast Fixed Disk Log
+	LD	B,00010000B
+	CP	'5'
+	JP	Z,DSKOKX	; Exit if Disk Relog Warning
+
+	CALL	CKZS		; Is this ZDDOS?
+	JP	NZ,DSKOK5	; ..if so, skip PATH stuff
+
+	LD	B,01000000B
+	CP	'6'
+	JP	Z,DSKOKX	; Exit if Path w/o System Attribute
+	CP	'7'
+	JP	NZ,DSKOK5	; Jump if not Search Path
+
+	CALL	PRNL		; Else ask for path address
+	DEFB	21,16,'DOS Path [(',1,'D',2,')isable, (',1,'S',2,')et, '
+	DEFB	'(',1,'I',2,')nternal',0
+	LD	HL,(ENVPTR)	; Is there an Environment?
+	LD	A,H
+	OR	L
+	JR	Z,DSKO4A	; ..bypass rest if No ENV
+	CALL	VPRINT
+	DEFB	', (',1,'Z',2,')CPR3',0
+DSKO4A:	CALL	VPRINT		; Now print rest of prompt
+	DEFB	'] : ',0
+DSKO4C:	CALL	GETCH
+	CP	'D'
+	JR	Z,DSKO4B	; Jump to disable path if "D"
+	CP	'Z'
+	JR	Z,DFLTP		; Jump to Set ZCPR3 path if "Z"
+	CALL	CKZS		; Is this ZSDOS?
+	JR	NZ,DSK04D	; ..jump if Not
+	CP	'I'
+	JR	NZ,DSK04D	; Jump to next if Not Internal Path
+	LD	DE,IPATH	; Else calculate Internal address
+	LD	HL,(BDOSPG)
+	ADD	HL,DE
+	JR	DFLTP0		; ..and jump to set
+
+DSK04D:	CP	'S'
+	JR	NZ,DSKO4C	; Jump if not "S"
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter PATH Address : ',0
+	LD	HL,0
+	CALL	GETADR		; ..else get a HEX address
+	JR	DFLTP0		; Jump to set it
+
+DSKO4B:	LD	IX,(IXVAL)
+	RES	5,(IX+0)	; ..else clear PATH bit to disable
+	JP	DSKDAT		; ..and return for more
+
+DFLTP:	LD	HL,(ENVPTR)	; Are we operating from ZCPR3 Environment?
+	LD	A,H
+	OR	L
+	JP	Z,DSKDAT	; ..jump to loop without effect if Not
+	LD	HL,(PATH)	; Get the ZCPR3 Path
+DFLTP0:	LD	IX,(IXVAL)
+	SET	5,(IX+0)	; Set Path Active bit
+	LD	(IX-3),H	; ..and save in ZSDOS
+	LD	(IX-4),L
+	JP	DSKDAT
+
+DSKOK5:	CP	'8'		; Is it a Wheel change?
+	JP	NZ,DSKOK6	; ..jump if not
+
+	CALL	PRNL		; Get the wheel address
+	DEFB	21,20,'WHEEL Addr [(',1,'D',2,')isable, (',1,'S',2,')et',0
+	LD	HL,(ENVPTR)	; Is there an environment present?
+	LD	A,H
+	OR	L
+	JR	Z,DSKO5A	; Bypass second part of prompt if No ENV
+	CALL	VPRINT
+	DEFB	', (',1,'Z',2,')CPR3',0
+DSKO5A:	CALL	VPRINT		; ..Now print end of prompt
+	DEFB	'] : ',0
+DSKO5B:	CALL	GETCH
+	LD	HL,0		; Preset default disable value
+	CP	'D'
+	JR	Z,DFLTW0	; Jump if Disabling wheel
+	CP	'Z'
+	JR	Z,DFLTW		; Jump if accepting ZCPR3 Wheel
+	CP	'S'
+	JR	NZ,DSKO5B	; Loop if not valid char
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter WHEEL Address : ',0
+	LD	HL,0
+	CALL	GETADR		; ..else get Wheel address
+	JR	DFLTW0		; ..and set it
+
+DFLTW:	LD	HL,(ENVPTR)	; Are we operating within ZCPR3 Environment?
+	LD	A,H
+	OR	L
+	JP	Z,DSKDAT	; ..jump loop without effect if Not
+	LD	HL,(WHEEL)	; Get the ZCPR3 Wheel byte address
+DFLTW0:	LD	IX,(IXVAL)
+	LD	(IX-1),H
+	LD	(IX-2),L
+	JP	DSKDAT
+
+DSKOK6:	CP	'T'		; Is it Set Clock Time request?
+	JR	NZ,DSKOKA	; ..jump if not
+	CALL	PRNL		; Get the Time BIOS Offset
+	DEFB	21,15,'Time (Clock)',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+1),L
+	LD	(IX+2),H
+	LD	A,0FFH		; prep for unload value
+	ADC	A,0		; carry flag is dummy vector flag
+	LD	(IX+15),A	; ..which will set unload to 0
+	LD	(IX+16),A	; rather than 0FFFFH
+	JP	DSKDAT		; Exit if correct character
+
+DSKOKA:	CP	'A'		; Is it Stamp Access Time request?
+	JR	NZ,DSKOKC	; ..jump if not
+	CALL	PRNL		; Get Access Time parameter
+	DEFB	21,15,'Stamp Last Access Time',0
+	CALL	CKZS		; Is this ZSDOS?
+	PUSH	AF
+	CALL	Z,PROMP0	; ..print prompt and get ZS response if so
+	POP	AF
+	CALL	NZ,PROMP1	; Else do same for ZD response
+	LD	IX,(IXVAL)
+	LD	(IX+3),L
+	LD	(IX+4),H
+	JP	DSKDAT
+
+DSKOKC:	CALL	CKZS		; Is this ZSDOS?
+	JR	NZ,DSKOKM	; ..can't change Create time if ZDDOS
+	CP	'C'		; Is it Stamp Create Time request?
+	JR	NZ,DSKOKM	; ..jump if not
+	CALL	PRNL		; Get Create Time parameter
+	DEFB	21,15,'Stamp Create Time',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+5),L
+	LD	(IX+6),H
+	JP	DSKDAT
+
+DSKOKM:	CP	'M'		; Is it Stamp Modify Time request?
+	JR	NZ,DSKOKG	; ..jump if not
+	CALL	PRNL		; Get Modify Time parameter
+	DEFB	21,15,'Stamp Modify Time',0
+	CALL	CKZS		; Is this ZSDOS?
+	PUSH	AF
+	CALL	Z,PROMP0	; ..print prompt and get ZS response if so
+	POP	AF
+	CALL	NZ,PROMP1	; Else do same for ZD
+	LD	IX,(IXVAL)
+	LD	(IX+7),L
+	LD	(IX+8),H
+	JP	DSKDAT
+
+DSKOKG:	CALL	CKZS		; Is this ZSDOS?
+	JR	NZ,DSKOKE	; ..exit here if not	
+	CP	'G'		; Is it a Get Time Stamp request?
+	JR	NZ,DSKOKS	; ..jump if not
+	CALL	PRNL
+	DEFB	21,15,'Get Time Stamp',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+9),L
+	LD	(IX+10),H
+	JP	DSKDAT
+
+DSKOKS:	CP	'S'		; Is it a Set Time Stamp request?
+	JR	NZ,DSKOKE	; ..jump error if not
+	CALL	PRNL		; Get parameter for Set Time Stamp
+	DEFB	21,15,'Set Time Stamp',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+11),L
+	LD	(IX+12),H
+	JP	DSKDAT
+
+DSKOKE:	CALL	VPRINT		; Error in entered char..
+	DEFB	BS,' ',BS,BELL,0	; ..inform the user..
+	JP	ERRENT		; Go back to entry loop
+
+EXIT:	CALL	VPRINT
+	DEFB	CR,LF,LF,'Returning to system ...',CR,LF,0
+EXIT0:	LD	SP,(STACK)
+	RET
+
+DSKOKX:	LD	A,B
+	LD	IX,(IXVAL)
+	XOR	(IX+0)		; Toggle affected bit
+	LD	(IX+0),A	; ..and store the result
+	JP	DSKDAT
+
+;.....
+;  Parse the command line arguments and set valid parameters
+
+START1:	LD	HL,BUFF		; Address the default buffer
+	LD	B,(HL)		; ..and put char count in B
+	INC	HL		; Bump the address to the first char
+START2:	CALL	GTNOSP		; Get the first Non-space char
+	JP	Z,SETIT		; Set parms and exit if the end
+	CP	'*'		; Is it a Set Wheel Request?
+	JP	Z,SETWHL	; ..do it if so
+	CP	'+'		; Is it a Set Time Vector Request?
+	JP	Z,SETTIM	; ..do it if so
+	CP	'C'		; Is it a Set Clock Vector Request?
+	JP	Z,SETCLK	; ..set it if so
+	CP	'R'		; Is it a R/O Vector Request?
+	JR	NZ,START3	; ..bypass if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'R/O Sustain    = ',0
+	LD	C,00000100B	; Set R/O vector mask
+	JP	FLGTOG		; ..and do bit
+	
+START3:	CP	'F'		; Is it a Fast Relog Request?
+	JR	NZ,START4	; ..bypass if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Fast Relog     = ',0
+	LD	C,00001000B	; Set Fast Relog mask
+	JP	FLGTOG		; ..and do bit
+
+START4:	CP	'!'		; Is it a disk warning Request?
+	JR	NZ,START5	; ..bypass if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Change Warning = ',0
+	LD	C,00010000B	; Set disk warn mask
+	JP	FLGTOG		; ..and do bit
+
+START5:	CP	'P'		; Is it a Public Flag Request?
+	JR	NZ,START6	; ..bypass if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Public Files   = ',0
+	LD	C,00000001B	; Set to Public mask
+	JP	FLGTOG		; ..and do bit
+
+START6:	CP	'W'		; Is it a Pub/Path Write Enable Request?
+	JR	NZ,START7	; ..bypass if not
+	CALL	CKZS		; Is this ZDDOS?
+	JR	Z,STAR6A	; ..jump if not to ZSDOS version
+	CALL	PRMUZL		; Else print prompt
+	DEFB	'Public Write   = ',0
+	JR	STAR6B		; ..and continue below
+
+STAR6A:	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Pub/Path Write = ',0
+STAR6B:	LD	C,00000010B	; Set to Pub/Path Write Enable mask
+	JP	FLGTOG		; ..and do bit
+
+START7:	CALL	CKZS		; Is this ZDDOS?
+	JR	NZ,STARTL	; ..skip PATH stuff if so
+
+	CP	'S'		; Is it a Path w/o System Attr Request?
+	JR	NZ,START8	; ..bypass if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Path w/o SYS   = ',0
+	LD	C,01000000B	; Set to Path w/o Sys Attr mask
+	JP	FLGTOG		; ..and do bit
+
+START8:	CP	'>'		; Is it a Set Path Request?
+	JP	Z,SETPTH	; ..do it if so
+
+STARTL:	CALL	GTSP		; Bypass field if not recognized
+	JP	NZ,START2	; Loop til done
+			;..else fall thru to exit
+SETIT:	LD	A,(MASK)	; Get mask
+	LD	HL,FLAGS
+	LD	IX,(IXVAL)
+	AND	(IX+0)		; ..and and with the flag byte
+	OR	(HL)		; Set the new flags
+	LD	(IX+0),A	; Put new byte in place
+	JP	EXIT0		; ..and quit
+
+;----
+; Get wheel byte address from command line and put in buffer
+SETWHL:	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Wheel Protect  = ',0
+	CALL	GTNX		; Get the next character
+	CALL	Z,INVALD	; ..print error message if EOL
+	JR	Z,SETIT		; Exit if the end
+	CP	'-'		; Disable Wheel?
+	JR	NZ,SETWH0	; ..jump if not
+	CALL	NOTON		; Print status if not muzzled
+	LD	DE,0000		; Set value to disable wheel
+	JR	SETWH9		; ..and assume it is on
+
+SETWH0:	CP	'Z'		; Use the ZCPR Wheel?
+	LD	DE,(WHEEL)
+	JR	Z,SETWH2	; Don't get addr if we use ZCPR Wheel
+	CALL	SCANAD		; ..scan for an address if not
+	CALL	Z,INVALD	; Print error message if bad
+	JR	Z,STARTL	; ..Exit without setting if error
+SETWH1:	CALL	PRMZNM		; Print value if not muzzled
+SETWH9:	LD	IX,(IXVAL)
+	LD	(IX-1),D	; Save whichever address is in DE
+	LD	(IX-2),E
+STRT2L:	CALL	GTSP		; Advance to next delimiter..
+	JP	START2		; ..and loop
+
+SETWH2:	PUSH	HL		; Save line address across call
+	LD	HL,(ENVPTR)	; Z requested, do we have valid ENV?
+	LD	A,H
+	OR	L
+	POP	HL		; ..restore buffer address
+	JR	NZ,SETWH3	; Jump if valid ENV
+	CALL	INVALD		; Else print status if not muzzled
+	JP	START2		; ..and loop
+
+SETWH3:	CALL	PRMUZL		; Print status if not muzzled
+	DEFB	'Z-System @ ',0
+	JR	SETWH1		; ..Else set the wheel
+
+;----
+; Get Path address from command line and put in buffer, setting bit
+
+SETPTH:	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Search Path    = ',0
+	CALL	GTNX		; Get next char
+	CALL	Z,INVALD	; ..print error message if EOL
+	JP	Z,SETIT		; Exit if the end
+	CP	'-'		; Disable Path?
+	JR	NZ,SETPT4	; ..jump if not
+	CALL	NOTON		; Print status if not muzzled
+	LD	IX,(IXVAL)
+	RES	5,(IX+0)	; Else deactivate Path bit
+	JP	START2
+
+SETPT4:	CP	'I'		; Use the Internal Dos Path?
+	JR	NZ,SETPT0	; ..jump if not
+	PUSH	HL
+	LD	DE,IPATH	; Else calculate internal addr
+	LD	HL,(BDOSPG)
+	ADD	HL,DE
+	EX	DE,HL		; Put in DE
+	POP	HL
+	CALL	PRMUZL		; Say something if allowed
+	DEFB	'Internal',CR,LF,0
+	JR	SETP1A		; ..and set it
+
+SETPT0:	CP	'Z'		; Use the ZCPR Path?
+	LD	DE,(PATH)
+	JR	Z,SETPT2	; Don't get addr if we use ZCPR3
+	CALL	SCANAD		; ..scan for path addr if not
+	CALL	Z,INVALD	; Print error msg if Bad
+	JP	Z,STARTL	; Loop without setting on error
+SETPT1:	CALL	PRMZNM		; Print value if not muzzled
+SETP1A:	LD	IX,(IXVAL)
+	LD	(IX-3),D	; ..else set PATH from DE if Good
+	LD	(IX-4),E
+	SET	5,(IX+0)	; Set Path bit active
+	JP	STRT2L		; ..and loop
+
+SETPT2:	PUSH	HL		; Save buffer address
+	LD	HL,(ENVPTR)	; 'Z' requested, Do we have a valid ENV?
+	LD	A,H
+	OR	L
+	POP	HL		; ..restore buffer address
+	JR	NZ,SETPT3	; Jump if valid ENV
+	CALL	INVALD		; Else print status if not muzzled
+	JP	START2		; ..and loop
+
+SETPT3:	CALL	PRMUZL		; Print status if not muzzled
+	DEFB	'Z-System @ ',0
+	JR	SETPT1		; ..Else set Z Path
+
+;----
+; Set Clock vector in DOS header buffer
+
+SETCLK:	CALL	GTNX		; Get char of parameter to change
+	PUSH	AF		; Save active character
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Clock Routine  = ',0
+	POP	AF		; Restore char
+	CALL	Z,INVALD	; Print Invalid Input message if End
+	JP	Z,SETIT		; ..and Exit if EOL
+	CALL	GSTMPR		; Get the value and print status
+	LD	IX,(IXVAL)
+	LD	(IX+1),E	; Else set clock/disable address
+	LD	(IX+2),D
+	LD	A,0FFH		; Prepare for unload value
+	ADC	A,0		; Carry flag is dummy vector flag
+	LD	(IX+15),A	; ..which will set unload to 0
+	LD	(IX+16),A	; ..rather than 0FFFFH
+	JP	SETTIX
+;----
+; Get BIOS Time jump offset and set it in buffer
+
+SETTIM:	CALL	GTNX		; Get char of parameter to change
+	JP	Z,SETIT		; Exit if the end
+	LD	(TIMCHR),A	; ..and save til later
+	CALL	GTNX		; Get first char of argument
+	JR	NZ,SETTNO	; If not EOL, jump around, else compensate
+	INC	B		; ..show one char left (EOL)
+	DEC	HL		; ...point before EOL
+	LD	A,' '		; ....and add a legal delimiter
+SETTNO:	PUSH	AF		; Save the first character of argument
+SETTI1:	LD	A,(TIMCHR)	; Get output character
+	CP	'A'		; Set Stamp Access Time?
+	JR	NZ,SETTI3	; ..jump if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Stamp Access   = ',0
+	CALL	CKZS		; Is this ZSDOS?
+	JR	Z,SETT10	; ..go to second entry if so
+	POP	AF		; Restore first char of argument
+	CALL	GSTMP0		; ..and do ZDDOS version
+	JR	SETT11
+
+SETT10:	POP	AF		; Restore first char of argument
+	CALL	GSTMPR		; ..get it and print status
+SETT11:	LD	IX,(IXVAL)
+	LD	(IX+3),E	; Else set Stamp Access Time address
+	LD	(IX+4),D
+	JP	SETTIX
+
+SETTI3:	CALL	CKZS		; Is this ZDDOS?
+	JR	NZ,SETTI4	; ..jump if so
+	CP	'C'		; Set Stamp Create Time?
+	JR	NZ,SETTI4	; ..jump if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Stamp Create   = ',0
+	POP	AF		; Restore first char of argument
+	CALL	GSTMPR		; ..get it and print status
+	LD	IX,(IXVAL)
+	LD	(IX+5),E	; Else set Stamp Create Time address
+	LD	(IX+6),D
+	JP	SETTIX
+
+SETTI4:	CP	'M'		; Set Stamp Modify Time?
+	JR	NZ,SETTI5	; ..jump if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Stamp Modify   = ',0
+	CALL	CKZS		; Is this ZSDOS?
+	JR	Z,SETT40	; ..go to second entry if so
+	POP	AF		; Restore first char of argument
+	CALL	GSTMP0		; ..and do ZDDOS version
+	JR	SETT41
+
+SETT40:	POP	AF		; Restore first char of argument
+	CALL	GSTMPR		; ..get it and print status
+SETT41:	LD	IX,(IXVAL)
+	LD	(IX+7),E	; Else set Stamp Modify Time address
+	LD	(IX+8),D
+	JR	SETTIX
+
+SETTI5:	CALL	CKZS		; Is this ZDDOS?
+	JR	NZ,SETTI9	; ..exit if so
+	CP	'G'		; Get Stamp?
+	JR	NZ,SETTI6	; ..jump if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Get Stamp      = ',0
+	POP	AF		; Restore first char of argument
+	CALL	GSTMPR		; ..get it and print status
+	LD	IX,(IXVAL)
+	LD	(IX+9),E	; Else set Get Stamp address
+	LD	(IX+10),D
+	JR	SETTIX
+
+SETTI6:	CP	'S'		; Set Stamp?
+	JR	NZ,SETTI9	; ..jump if not
+	CALL	PRMUZL		; Print prompt if not muzzled
+	DEFB	'Set Stamp      = ',0
+	POP	AF		; Restore first char of argument
+	CALL	GSTMPR		; ..get it and print status
+	LD	IX,(IXVAL)
+	LD	(IX+11),E	; Else set Set Stamp address
+	LD	(IX+12),D
+	PUSH	AF		; compensate for later pop
+SETTI9:	POP	AF		; Clear stack..
+SETTIX:	JP	START2		; and back for more
+
+;.....
+;  Get flag toggle bit and set/reset as signalled
+; ENTER: HL => argument buffer
+;	  B = # of chars left
+;	  C = Mask of bit to set/reset
+
+FLGTOG:	CALL	GTNX		; Get next character
+	CP	'-'
+	LD	A,C
+	JR	NZ,FLGTO1	; If not "-", assume option being set
+	PUSH	AF		; Save values
+	CALL	NOTON		; Print message if not muzzled
+	POP	AF
+	LD	C,0		; Disable the affected bit
+	JR	FLGTO2
+
+FLGTO1:	PUSH	AF		; Save values
+	CALL	PRMUZL		; Print value if not muzzled
+	DEFB	'Active',CR,LF,0
+	POP	AF
+			; ..leave new bit in C since this is a SET
+FLGTO2:	CPL			; Complement mask
+	PUSH	HL
+	LD	HL,MASK		; Point to mask storage location
+	AND	(HL)		; ..and clear this bit
+	LD	(HL),A		; Store new mask
+	LD	HL,FLAGS	; Point to new flags
+	LD	A,C		; Get bit to set
+	OR	(HL)		; ..and set/reset
+	LD	(HL),A		; Store new Flag byte
+	POP	HL
+	JP	STARTL		; ..and continue looping
+
+;.....
+; Print confirmation status of Time modules if not muzzled
+
+GSTMPR:	CP	'-'		; Turn time off?
+	LD	DE,(DISABL)	;   (prepare default disable vector)
+	JR	NZ,GSTMP1	; ..jump if Not
+NOTON:	CALL	PRMUZL		; Print status if not muzzled
+	DEFB	'Disabled',CR,LF,0
+	SCF			; flag dummy value
+	RET			; ..and return to set
+
+GSTMP1:	CALL	SCANAD		; Get address from command line
+	JP	NZ,PRMZNM	; Jump to print value if scan OK
+	CALL	INVALD		; ..else print error message
+	POP	DE		; Clear the stack
+	JP	STARTL		; And exit without setting if error
+
+INVALD:	PUSH	AF		; Save char & Flags
+	CALL	PRMUZL		; Print error message if not muzzled
+	DEFB	'-- Invalid --',CR,LF,0
+	POP	AF
+	RET
+
+; This entry point for ZDDOS Access Time and Modify Time
+
+GSTMP0:	CP	'-'		; Turn Time off?
+	LD	DE,(DISABL)	;  (prepare default disable vector)
+	JR	Z,NOTON		; ..jump if so
+	CALL	DELIM		; Is this a delimiter char?
+	JR	NZ,INVALD	; ..exit error if not
+	LD	IX,(IXVAL)	; If not explicitly disable, then enable!
+	LD	E,(IX+5)	; Get the enable vector from Create
+	LD	D,(IX+6)
+	CALL	PRMUZL		; Print status if not muzzled
+	DEFB	'Enabled',CR,LF,0
+	XOR	A
+	RET			; ..and return to set
+	
+;.....
+;  Scan command line for valid HEX address.
+; ENTER: HL => position to start scan
+;	  B = # of chars remaining
+; EXIT : DE = HEX value gathered, or entry value if error
+;	 AF = A<>0, Zero Clear (NZ) if OK, A=0, Zero Set (Z) on Error
+;  B, HL set to next field values
+
+SCANAD:	LD	DE,0000		; Start with Zero value
+SCANA0:	CALL	CKHEX		; Validate as HEX digit
+	JR	NC,SCANA2	; Check for delimiter if not HEX digit
+	EX	DE,HL		; ..save pointer in DE
+	CALL	ADDHEX		; Store the new sum
+	EX	DE,HL		; ..restore pointer
+	CALL	GTNX		; Get a char from memory buffer
+	JR	NZ,SCANA0	; Loop if not the end
+	DEC	HL		; ..else back up one char
+	INC	B
+	JR	SCANA1		; ..and check for valid entry
+
+SCANA2:	LD	A,(HL)		; Was the char a delimiter?
+	CALL	DELIM
+	JR	Z,SCANA1
+	LD	DE,0000		; Not valid delim, Bad char, don't set value
+SCANA1:	LD	A,D		; Can't set 0 address
+	OR	E
+	RET			; Zero is valid error, Non-zero is OK
+
+;.....
+;  Advance pointer to next Non-Space char addressed by HL
+; ENTER: HL => character string
+;	  B =  Char count of remaining string
+; EXIT : HL => Non-space char if found, 0 if end of string
+;	  B =  Count of remaining characters or 0 if End
+;	 AF = Found - A=Non space char, Zero flag clear (NZ)
+;	      Not Found - A=0, Zero flag set (Z)
+
+GTNOSP:	LD	A,(HL)		; Get a char
+	OR	A
+	RET	Z		; Return End flags
+	CALL	CAPS		; ..make it uppercase
+	CALL	DELIM		; Is it a delimiter?
+	RET	NZ		; ..Return proper flags if not
+GTNOS0:	INC	HL		; Else bump pointer..
+	DJNZ	GTNOSP		; ..and loop
+	XOR	A		; If the end, set flags
+	RET
+
+;.....
+;  Advance pointer to next Delimiter char addressed by HL
+; ENTER: HL => character string
+;	  B =  Char count of remaining string
+; EXIT : HL => Delimiter char if found, 0 if end of string
+;	  B =  Count of remaining characters or 0 if End
+;	 AF = Found - A=delimiting char, Zero flag clear (NZ)
+;	      Not Found - A=0, Zero flag set (Z)
+
+GTSP:	LD	A,(HL)		; Get a char
+	OR	A
+	RET	Z		; Return End flags
+	CALL	DELIM		; Is it a delimiter?
+	JR	Z,GTSP1		; ..return if so
+GTSP0:	INC	HL		; ..else bump pointer..
+	DJNZ	GTSP		; ..and loop
+	XOR	A		; If the end, set flags
+	RET
+
+GTSP1:	OR	A		; Set Non-zero flags
+	RET
+
+;.....
+; Check for Space, Comma or TAB char.  Return Zero Set (Z) if found
+
+DELIM:	CP	' '
+	RET	Z
+	CP	','
+	RET	Z
+	CP	TAB
+	RET
+
+;.....
+;  Get the next character keeping track on the end
+; ENTER: HL => character string
+;	  B = # of chars remaining
+; EXIT : HL => next char addr
+;	 AF = char at position, Zero clear (NZ) if valid
+;		A=0, Zero Set (Z) if end of string
+;	  B = # of chars remaining
+
+GTNX:	INC	HL		; Bump pointer
+	LD	A,(HL)
+	CALL	CAPS		; Get uppercase version of char
+	DEC	B
+	RET			; Return flags set
+
+;.....
+;  Get a character from the keyboard in uppercase
+
+GETCH:	CALL	CIN
+	JP	CAPS
+
+;.....
+;  Get a Hex address in the HL register pair
+;   Enter with first char in A reg
+
+GETADR:	CALL	CAPS		; ..in caps
+	LD	(CHAR),A	; Save for possible later echo
+	CP	CR		; Is this the end?
+	RET	Z
+	CALL	CKHEX		; Validate as HEX digit
+	JR	NC,GETAD9
+GETAD0:	PUSH	AF		; Save binary value
+	LD	A,(CHAR)	; Get character entered
+	CALL	COUT		; ..and echo
+	POP	AF		; Restore binary value
+	CALL	ADDHEX		; Store the new sum
+GETAD9:	CALL	CIN		; Get a char from console
+	JR	GETADR		; ..else loop for more
+
+;.....
+;  Validate a HEX digit
+; ENTER: Character to check in A
+; EXIT : Converted char in A
+;	 Carry set (C) if OK, else Clear (NC)
+
+CKHEX:	SUB	'0'		; Validate as HEX digit
+	JP	M,CKHEXN	; ..set bad
+	CP	9+1
+	RET	C
+	SUB	7
+	CP	10
+	JR	C,CKHEXN
+	CP	16
+	RET			; Return with flags set
+
+CKHEXN:	XOR	A		; Signal Bad digit
+	DEC	A		; ..(No carry)
+	RET
+
+;.....
+;  Add the hex digit in A to accumulator in HL
+
+ADDHEX:	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	A,L
+	LD	L,A		; Store the new sum
+	RET
+
+;.....	
+;  Print YES/NO responses depending on state of Zero Flag
+
+PRYN:	JR	Z,PRYNN		; Print NO if Zero Set
+PRYN0:	CALL	VPRINT
+	DEFB	1,'YES',2,0
+	RET
+
+PRYNN:	CALL	VPRINT
+	DEFB	1,'NO',2,' ',0
+	RET
+
+;.....
+; Print desired string if Quiet Flag not active
+; Enter: Inline String address on Stack
+; Exit : Execution resumes at instruction following string ending Null
+
+PRMUZL:	CALL	GETQUIET	; Are we muzzled?
+	JP	Z,VPRINT	; ..jump if Not
+	EX	(SP),HL		; Else swap HL and String addr..
+PRMUZ0:	LD	A,(HL)		; ..and scan for terminating Null
+	INC	HL		; Step thru string
+	OR	A
+	JR	NZ,PRMUZ0	; Loop til ending Null found
+	EX	(SP),HL		; Swap saved HL with next instr addr
+	RET			; ..and return to code
+
+;.....
+; Print Hex value in DE if ZCPR Quiet flag not active
+; Enter: DE contains value to print
+
+PRMZNM:	CALL	GETQUIET	; Are we muzzled?
+	JR	NZ,PRMZN1	; ..skip to clear carry if so
+	EX	DE,HL		; Else put value in HL
+	CALL	PRHEX		; ..and print Hex value
+	EX	DE,HL		; Restore regs
+	CALL	CRLF
+PRMZN1:	AND	A		; Insure carry is clear
+	RET
+
+;.....
+;  Print status of ZDDOS Access and Modify ("Enabled" or "Disabled")
+
+PRCOND:	LD	DE,(DISABL)	; Is this the disable vector?
+	OR	A
+	SBC	HL,DE
+	ADD	HL,DE		; Compare DE to HL preserving registers
+	JR	Z,PRST0		; ..jump if disabled
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,0
+	JP	EREOL
+
+;.....
+;  Print status of Time routines, address or "Disabled"
+
+PRSTAT:	LD	DE,(DISABL)	; Is this the disable vector?
+	OR	A
+	SBC	HL,DE
+	ADD	HL,DE		; Compare DE to HL preserving registers
+	JR	Z,PRST0
+
+	CALL	PRTADD
+	JP	EREOL
+
+PRST0:	CALL	VPRINT
+	DEFB	1,'Disabled',2,0
+	JP	EREOL
+
+;.....
+;  Print a Hexidecimal address in HL highlighted
+
+PRTADD:	CALL	STNDOUT		; Put in highlighted mode if possible
+	CALL	PRHEX
+	JP	STNDEND
+
+;.....
+;  Print Hex value of HL registers followed by an 'H'
+
+PRHEX:	CALL	PHL4HC
+	LD	A,'H'
+	JP	COUT
+
+;.....
+;  Print CRLF then jump to inline print routine w/return addr on stack
+
+PRNL:	CALL	CRLF		; for non-ZCPR3 users
+	JP	GXYMSG
+
+;.....
+;  Print second part of interactive setting prompt (ZSDOS)
+
+PROMP0:	CALL	VPRINT
+	DEFB	' Routine [(',1,'D',2,')isable), '
+	DEFB	'(',1,'S',2,')et] : ',0
+PROMPA:	CALL	GETCH
+	CP	'D'		; Is it a disable request?
+	JR	Z,PROMPB
+	CP	'S'		; Set?
+	JR	NZ,PROMPA	; ..loop if not
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter Address of Routine : ',0
+	LD	HL,0
+	JP	GETADR
+
+PROMPB:	LD	HL,(DISABL)	; Disable by placing address of dummy return
+	SCF			; mark dummy address
+	RET
+
+;  Print second part of interactive setting prompt (ZDDOS)
+
+PROMP1:	CALL	VPRINT
+	DEFB	' Routine [(',1,'D',2,')isable), '
+	DEFB	'(',1,'E',2,')nable] : ',0
+PROMPC:	CALL	GETCH
+	CP	'D'		; Is it a disable request?
+	JR	Z,PROMPB
+	CP	'E'		; Is it an enable request?
+	JR	NZ,PROMPA	; ..loop if not
+	LD	IX,(IXVAL)	; Else get Enable vector from Create addr
+	LD	L,(IX+5)
+	LD	H,(IX+6)
+	RET
+
+;.....
+;  Print Error if Not ZSDOS
+
+NOTZS:	CALL	VPRINT
+	DEFB	CR,LF,BELL,'*** ERROR: DOS is not ZSDOS or ZDDOS!',CR,LF,0
+	JP	EXIT
+
+;.....
+;  Check if ZSDOS, return with Z flag set if so
+
+CKZS:	PUSH	BC
+	LD	B,A		; Save caller's regs
+	LD	A,(DOSTYP)
+	CP	'S'		; See if ZSDOS and set Z flag
+	LD	A,B
+	POP	BC		; Restore caller's regs
+	RET
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+;	    R A M      S T O R A G E
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+	DSEG
+
+BDOSPG:	DEFS	2		; Offset of DOS in running system
+IXVAL:	DEFS	2		; Storage for IX pointer to DOS Flag Byte
+PATH:	DEFS	2		; Path storage address
+WHEEL:	DEFS	2		; Wheel address storage
+DISABL:	DEFS	2		; Address of time disable vector
+TIMCHR:	DEFS	1		; Character storage for time scanning
+FLAGS:	DEFS	1		; New Flag byte storage location
+MASK:	DEFS	1		; Mask for old Flag byte
+CCFLG:	DEFS	1		; Char count for command line arguments
+VERS:	DEFS	1		; Version pf ZSDOS reported
+CHAR:	DEFS	1		; Temporary hold for characters
+DOSVER:	DEFS	1		; Dos Type returned by Function 48
+DOSTYP:	DEFS	1		; Dos ID returned by Function 48
+	DEFS	64		; ..room for stack
+STACK:	DEFS	2		; Stack storage location
+
+	END
+

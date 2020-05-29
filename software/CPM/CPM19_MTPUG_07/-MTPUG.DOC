@@ -1,0 +1,56 @@
+MTPUG.007   December 11, 1982
+
+PRMAC.SRC     A program for typing the .PRN and .SYM files produced
+     .COM     by the Digital Research's MAC assembler.  Has improved
+     .DOC     output format.
+
+GRAPH.DOC     This set of programs was the result of a concerted 
+GRPH.SRC      effort to produce a PORTABLE set of graphic procedures
+GRAPHADM.SRC  which could be easily used on more than one machine.
+              Written by J.A. Koehler and Jack Gilmer.
+
+PRETTY.DOC    A starter program for Pascal programs.  At present it
+      .SRC    only converts lower case reserved words to upper case.
+      .COM    Written by J.A. Koehler.
+
+DISKIO.DOC    Start of a library of I/O routines.  At present only 
+      .SRC    includes a routine to obtain up to two arguments on
+              a command line. Written by J.A. Koehler.
+
+SHAREFIL.DOC  This is an application program using a Pascal interface
+              to assembly modules provided by Sue Arnold of Centaurus
+              Software. These modules together provide file sharing
+              and record locking/unlocking capability for Pascal/MT+
+              programs ver 5.5 running under MP/M II. This package of
+              programs is not supported by the author or by Digital
+              Research, Inc.
+
+SHAREFIL.TST  A simple program example showing the use of the above
+              routines. Written by Dick Lovelace and Dan Erickson.
+
+BCD.DOC       Z80 Version of BCDREALS.ERL(Ver 5.5). This module is
+   .ERL       about 20% shorter and 25% faster than the original
+              library.  It is highly Z-80 specific. Provided by
+              Guenter Musstopf, author unknown.
+
+TYPESET.DOC   Program converts a text file written by "WORDSTAR"
+       .SRC   to a format acceptable to type setting equipment.
+       .PRM   Special Wordstar symbols are translated to symbols
+              acceptable to the type setting equipment. Operator
+              intervention requested when needed. May also be
+              used to translate to other word processor formats.
+              Written by Per Strangeland, Norway.
+
+FOTOSATS.DOC  Norwegian version of TYPESET above.
+        .SRC
+        .PRM
+
+MYLIB.ERL     Contains corrected versions of MT+(5.5) run time
+              modules, GETSTR and DELBLNK described in News #7.
+              Written by Henry Lucas
+
+3740UTIL.DOC  A CPM program to read/write IBM 3740 format disks
+        .COM  and read/write CPM format disks. Maintained by
+              Bob White.
+
+

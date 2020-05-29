@@ -1,0 +1,4 @@
+MTPLUS B:DIFRILE $$TB RB
+MTPLUS B:CPMNAME $$TB RB
+LINKMT B:DIFRILE,B:CPMNAME,PASLIB/S
+

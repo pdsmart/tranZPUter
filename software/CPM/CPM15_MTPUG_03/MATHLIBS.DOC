@@ -1,0 +1,29 @@
+The earlier MATHLIB math function library has been split into POWRLIB and
+TRIGLIB. The functions now include range checking, and a new trig function,
+ATAN2 has been added. This is the arctangent function with quadrant
+recognition. It works like the FORTRAN function of the same name.
+
+The new CMPXLIB library uses the pointer variable technique, now so that
+functions instead of procedures may be used.
+
+The STATLIB library uses the conformant array schema for passing arrays of
+different upper and lower bounds. The procedures find the minimum, maximum,
+mean (average), and standard deviation (sigma) of the conformant arrays passed.
+
+The FNC9511 library is the MT+ TRAN9511 library with additional range checking.
+The 9511 chip functions, TAN, ASIN, ACOS, LOG10, AND PI functions have been
+added.
+
+Ron Finger
+Ficomp, Inc.
+3017 Talking Rock Drive
+Fairfax, Virginia 22031
+(703) 280-1394
+ PI functions have been
+added.
+
+Ron Finger
+Ficomp, Inc.
+3017 Talking Rock Drive
+Fairfax, Virginia 22031
+(703

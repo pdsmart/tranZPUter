@@ -1,0 +1,108 @@
+(*  VERSION 0002  *)
+{$M plotaxis }
+{$M *}
+module plot1;
+
+(*..................................................................*)
+(*                           PLOTLIB                                *)
+(*  Plotlib is a collection of plot routines to aid in graphics     *)
+(*  programs. The routines were originally published in BYTE as     *)
+(*  'Drawing with UCSD Pascal and the Hiplot Plotter' by Dr. James   *)
+(*  Stork, Oct 1981. The routines have been modified to run with    *)
+(*  a MicroAngelo graphics terminal by Ray Hopkins, 8 Chestnut Hill *)
+(*  Ct., Cinnaminson N.J. (609) 829-4686.                           *)
+(*..................................................................*)
+
+const pi = 3.14159;
+      
+var
+  xpos,ypos :external real;
+    
+(*$ISTDLIB.DEF *)
+
+
+external procedure plotline(penpos:integer;txpos,typos:real);
+
+external procedure plotstring(px,py,height,theta:real;line:string);
+
+procedure plotaxis(px,py,leng,theta,min,max,tic:real;name:string);
+
+var temp1,side:integer;
+    print :boolean;
+    amount:string;
+    thetal,temp,rxpos,rypos,len,per,step:real;
+    
+procedure divsteps(theta:real);
+
+begin
+  theta:=theta+pi/2;
+  plotline(2,xpos+0.03*cos(theta),ypos+0.03*sin(theta));
+  plotline(2,xpos-0.06*cos(theta),ypos-0.06*sin(theta));
+  plotline(2,xpos+0.03*cos(theta),ypos+0.03*sin(theta));
+end;
+
+begin {plotaxis}
+  if tic<0 then
+    begin
+      tic:=-tic;
+      side:=-1;
+    end
+  else
+    side:=1;
+  thetal:=theta;
+  theta:=(pi/180)*theta;
+  if (px+leng*cos(theta)>511) or (py+leng*sin(theta)>479) then
+    begin
+      writeln('axis off screen');
+      readln;
+      exit;
+    end;
+  if leng<0 then
+    begin
+      print:=false;
+      leng:=-leng;
+    end
+  else
+    print:=true;
+  len:=leng;
+  plotline(1,px,py);
+  per:=(leng-0.01)/(max-min);
+  while leng>0 do
+    begin
+      if leng>tic*per then step:=tic*per
+      else step:=leng;
+      divsteps(theta);
+      if print then
+        begin
+          rxpos:=xpos;
+          rypos:=ypos;
+          temp1:=trunc(min*100);
+          intstr(temp1,0,amount);
+          insert('.',amount,length(amount)-1);
+          if temp1=0 then amount:='0';
+          temp:=length(amount)/2;
+          plotline(1,xpos-(0.086*temp*cos(theta)-
+            side*(0.14+(side-1)*0.05)*sin(theta)),
+            ypos-(0.086*temp*sin(theta)+
+            side*(0.14+(side-1)*0.05)*cos(theta)));
+          plotstring(xpos,ypos,0.1,thetal,amount);
+          plotline(1,rxpos,rypos);
+        end;
+      plotline(2,xpos+step*cos(theta),ypos+step*sin(theta));
+      leng:=leng-step;
+      min:=min+tic
+    end;
+  if print then
+    begin
+      plotline(1,
+        xpos-(len/2*cos(theta)+0.108*round(length(name)/2)
+          *cos(theta)-side*(0.35+(side-1)*0.075)*sin(theta)),
+        ypos-(len/2*sin(theta)+0.108*round(length(name)/2)
+          *sin(theta)+side*(0.35+(side-1)*0.075)*cos(theta)));
+      plotstring(xpos,ypos,0.125,thetal,name);
+    end;
+  end; {plotaxis}
+  
+
+modend.
+.

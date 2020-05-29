@@ -1,0 +1,10 @@
+BLKTOFTH.ARK    13312  07-01-87  F83 .BLK to .TXT conversion
+F83-20.MAN      33792  07-13-94  
+F83-20.MZN      15360  07-01-87  Forth-83 Manual
+F83V2-80.ARK   155136  02-06-87  Forth-83 ver. 2 for CP/M-80
+NIT4TH.ASM       5890  09-09-83  No description available
+TOOLS.BLK       36864  07-13-94  
+TOOLS.BQK       10240  05-14-86  A selection of tools for FORTH-83
+UNIFORTH.LBR    96896  11-17-87  Sampler of Professional Uniforth
+ZEDITOR.F83     26624  07-13-94  
+ZEDITOR.FQ3      8576  10-30-86  Full screen editor for Forth

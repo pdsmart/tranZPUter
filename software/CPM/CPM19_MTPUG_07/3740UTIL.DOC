@@ -1,0 +1,232 @@
+
+
+        ****************************************************************
+        *                                                              *
+        *                          N O T E                             *
+        *                          -------                             *
+        *                                                              *
+        *  The source code (.ASM file) for the  software described in  *
+        *  the following documentation  requires the macro assembler,  *
+        *  "MAC.COM", available  from  Digital Research, for assembly  *
+        *  as well  as a macro  library  called  "MACS3740.LIB".  The  *
+        *  macro library (MACS3740.LIB) is included with the 3740UTIL  *
+        *  package and must be present  on the same disk on which the  *
+        *  main source file "3740UTIL.ASM" is  assembled.  An already  *
+        *  assembled and loaded object code file (3740UTIL.OBJ) ready  *
+        *  to run is included with the 3740UTIL software package.  Be  *
+        *  sure to rename it 3740UTIL.COM for CP/M.                    *
+        *                                                              *
+        *                            -Calamity Cliffs Computer Center  *
+        *                                                              *
+        ****************************************************************
+
+
+
+
+                                  INTRODUCTION
+
+
+             The  following manual describes the use and function of  the 
+        CP/M  - IBM  disk utility.   It is designed to allow the user  to 
+        easily transfer data between CP/M and IBM disk formats.
+
+
+        CP/M is a registered trademark of Digital Research, Garden Grove, 
+        CA.   IBM  is  a registered trademark of  International  Business 
+        Machines, Poughkeepsie, NY.
+
+
+
+        TABLE OF CONTENTS
+
+
+        INTRODUCTION ................................................   1
+        INITIALIZE AN IBM DISKETTE ..................................   2
+        CHANGE AN IBM VOLUME SERIAL NUMBER ..........................   3
+        CHANGE AN IBM DATASET'S DIRECTORY ENTRY .....................   4
+        DELETE AN IBM DATASET'S DIRECTORY ENTRY .....................   5
+        LIST AN IBM DATASET'S DIRECTORY .............................   6
+        TRANSFER CP/M TO IBM DATASET (BLOCK FORMAT) .................   7
+        TRANSFER IBM TO CP/M DATASET (BLOCK FORMAT) .................   8
+        TRANSFER CP/M TO IBM DATASET (SOURCE FORMAT) ................   9
+        TRANSFER IBM TO CP/M DATASET (SOURCE FORMAT) ................  10
+        DISPLAY AN IBM DATASET ......................................  11
+        HARDWARE/SOFTWARE REQUIREMENTS ..............................  12
+        MAINTENANCE POLICIES ........................................  13
+        PROGRAM ERROR REPORT ........................................  14
+
+
+
+        INTRODUCTION
+
+
+                                  Introduction
+
+             This  program  was developed so that developement  could  be 
+        performed  on a small computer utilizing CP/M for large IBM site.  
+        The  data or programs were coded using the  small  computer,  and 
+        then  transfered  to  the IBM computer  utilizing  this  program.  
+        Also,  certain  data were transferred back to the small  computer 
+        for  updating  and  again transferred back to the  IBM  computer.  
+        Thus,  the time involved for coding and keypunching were absorbed 
+        on the small machine.   All transfers were performed by diskette.
+             This  manual assumes that the reader has a working knowledge 
+        of both CP/M and IBM operating systems.   In particular, the user 
+        should  fully understand the basic disk layout for  IBM  Standard 
+        Interchange Format.   This program assumes the SIF throughout and 
+        was  written to be compatible with only it.   NO other IBM format 
+        is  utilized.   For further information concerning  this  format, 
+        please review manual GA21-9182, IBM General Information Manual on 
+        Diskettes.
+             The  program was designed to be menu driven with  prompting.  
+        Currently,  each  response  is verified,  and if  incorrect,  re-
+        prompted.   If you make a mistake which is a valid reply, re-boot 
+        CP/M and restart the program.   At this time,  no backup facility 
+        is offered so be careful as to your responses.
+             When working with CP/M files,  the file names are assumed to 
+        be  an  1-8 byte name with a type of '.DAT'.   The 1-8 byte  name 
+        must correspond with a file name on the IBM diskette.
+
+
+
+        INITIALIZE AN IBM DISKETTE
+
+
+                           Initialize an IBM Diskette
+
+             To  initialize  a  diskette in  IBM  SIF  format,  use  this 
+        command.  Place the diskette to be initialized in the appropriate 
+        drive.   Select  this function (1).   Reply with the drive (A-D).  
+        Then reply with the new 6-byte volume serial number.  The program 
+        will  then format the diskette to IBM specifications.   This  may 
+        take  a  few minutes so don't be alarmed if it doesn't  reply  to 
+        you immediately.   After initialization, the diskette is ready to 
+        use as an IBM diskette.
+
+
+
+        CHANGE AN IBM VOLUME SERIAL NUMBER
+
+
+                       Change an IBM Volume Serial Number
+
+             This  function  allows  the user to  simply  change  an  IBM 
+        diskette's volume serial number.  Use function code (2) to invoke 
+        it.  Reply with the disk drive (A-D) that the diskette is on, and 
+        then reply with the new volume serial number, 1-6 characters.  No 
+        checking  is done on the rest of the diskette.   Only the  volume 
+        serial number is changed.
+
+
+
+        CHANGE AN IBM DATASET'S DIRECTORY ENTRY
+
+
+                     Change an IBM Dataset's Directory Entry
+
+             This  function allows you to change the directory entry  for 
+        an IBM file.   You will use this entry to create a  file,  rename 
+        it or adjust its parameters.   To invoke this function,  use code 
+        (3).   Reply  with  the disk drive containing the  IBM  diskette.  
+        Then reply with the directory sector to be changed.  You can find 
+        the  sector number by using function (6),  List  Directory.   The 
+        program will then display all the fields in the entry and request 
+        that you entry a new value.   Enter ONLY the fields that you want 
+        to change.   When the last field has been entered,  the directory 
+        will  automatically be updated,  and a completion message will be 
+        posted to the terminal.  You will then return to the main menu.
+
+
+
+        DELETE AN IBM DATASET'S DIRECTORY ENTRY
+
+
+        Delete an IBM Dataset's Directory Entry
+
+             To delete a dataset from an IBM diskette, place the diskette 
+        in a drive,  invoke function code (4), enter the disk drive (A-D) 
+        on which the diskette resides, and enter the sector number of the 
+        directory  entry.   If you are in doubt as to the sector  number, 
+        use function code (6),  List Directory,  to find out what it  is.  
+        When the entry has been deleted and a completion message has been 
+        posted, control will return to the main menu.
+
+
+
+        LIST AN IBM DIRECTORY
+        TRANSFER A CP/M FILE TO IBM FORMAT (BLOCK)
+        TRANSFER AN IBM FILE TO CP/M FORMAT (BLOCK)
+        TRANSFER A CP/M FILE TO IBM FORMAT (SOURCE)
+        TRANSFER AN IBM FILE TO CP/M FORMAT (SOURCE)
+
+
+
+        MAINTENANCE POLICIES
+
+
+                              Maintenance Policies
+
+             In the event of a problem,  contact Robert M. White at (208) 
+        377-0336.   He is responsible for answering questions relating to 
+        installation,  operation  and  maintenance.   If the  problem  is 
+        determined to be a part of this package,  please obtain a printed 
+        dump before calling for support.   ALL user modifications must be 
+        removed  before obtaining any error analysis and correction  from 
+        Robert M.  White.  If the problem persists after initial contact, 
+        please  complete the Program Error Report supplied as a  part  of 
+        this  manual and send it along with all supporting  documentation 
+        to:
+                            Robert M. White
+                            8530 Stonehaven
+                            Boise, ID  83704
+
+             Robert  M.  White will provide custom modifications to users 
+        who request them.   These modifications may require an additional 
+        charge  and  may not be quaranteed to function correctly  in  all 
+        future releases.   All agreements must be in writing.   Estimates 
+        will be issued pertaining to the work involved in performing  the 
+        modifications.
+
+
+
+
+        Program Error Report
+
+
+        Date: ________ Title:___________________________________________
+
+        Submittor:______________________________________________________
+
+        Address:  ______________________________________________________
+
+                  ______________________________________________________
+
+                  ______________________________________________________
+
+        Phone:    (   ) ___-____ ext. ____
+
+        Error Description:
+
+
+
+
+
+
+
+
+
+
+        Environment:
+             Computer Type: ________________________________________
+
+             Core Size:     _____k
+
+             No. and type of disks: ________________________________
+
+             Console type:  ________________________________________
+
+             CP/M release:  ________________________________________
+
+
+
+

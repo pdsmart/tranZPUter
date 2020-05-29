@@ -1,0 +1,464 @@
+(*  VERSION 0028 *)
+
+
+(*.......................................................................*)
+(*                           HIDELINE                                    *)
+(*  Hideline is a three-dimensional graphics program. The program        *)
+(* was written by Franklin C Crow and published as 'Three-Dimensional    *)
+(* Computer Graphics', BYTE, March/April 1981. The program was adapted   *)
+(* to run with a MicroAngelo graphics terminal by Ray Hopkins, 8         *)
+(* Chestnut Hill CT., Cinnaminson N.J. (609) 829-4686.                   *)
+(* Hl3.src builds the data files used by hl.src,the main display routine *)
+(* Hl1.src and Hl2 are support modules. Note that Hl1.src must have      *)
+(* recursion turned on. Hl.cmd is the linker command file                *)
+(*.......................................................................*)
+
+(*Z*)
+(*$S+*)
+{$K1}
+{$K2}
+{$K6}
+{$K7}
+{$K12}
+{$K13}
+{$K14}
+{$K15}
+MODULE HIDELINE1;
+
+CONST Dotsacross = 511;
+      Dotsdown = 479;
+      Maxpts = 200;
+      Maxpols = 200;
+      Maxvtx = 800;
+      Maxsides =14;
+      Move = $84;
+      Plot = $91;
+      Split = $B8;
+      Clear = $88;
+
+TYPE  Counter = 0..Maxvtx;
+     Point = RECORD
+               X,Y,Z : REAL
+             END;
+     Vertex = 0..Maxpts;
+     Polygon = RECORD
+                 Numvtx : Vertex;
+                 START : Counter;
+               END;
+     Onepoly = ARRAY [1..Maxsides] OF Point;
+     Matrix = ARRAY [1..4,1..4] OF REAL;
+
+VAR   Polygons : EXTERNAL  ARRAY [1..Maxpols] OF Polygon;
+    Vertices : EXTERNAL  ARRAY [1..Maxvtx] OF Vertex;
+    Points : EXTERNAL  ARRAY [1..Maxpts] OF Point;
+    Outpolys : EXTERNAL  ARRAY [1..Maxpols] OF Polygon;
+    Outvtces : EXTERNAL  ARRAY [1..Maxvtx] OF Point;
+    Eyespace : EXTERNAL  Matrix;
+    Window : EXTERNAL  Onepoly;
+    Eyept , Cntrint : EXTERNAL  Point;
+    Screenscale, Screenctr : EXTERNAL  Point;
+    ScreenX, SCREENY : EXTERNAL  REAL;
+    Numpols, Numvtces,  Windowsize, I : EXTERNAL  Counter;
+    Numpts : EXTERNAL  Counter;
+    NUMDISPLAY, NumvtxOUT : EXTERNAL  Counter;
+    CMDCHAR : EXTERNAL  CHAR;
+    Filename : EXTERNAL  STRING;
+    DONE : EXTERNAL  BOOLEAN;
+
+
+    EXTERNAL PROCEDURE GETPLANES(VAR Poly:Onepoly; Numpts:Counter);
+
+    EXTERNAL PROCEDURE micro2(mode:byte;x,y:real);
+
+    EXTERNAL PROCEDURE START;
+
+PROCEDURE MAKEPICTURE;
+
+VAR I,J,NUMCLP: Counter;
+    Tmpoly : Onepoly;
+
+    FUNCTION DOTPROD(PT1,PT2:Point): REAL;
+
+BEGIN {dotprod}
+  DOTPROD := PT1.X*PT2.X+PT1.Y*PT2.Y+PT1.Z*PT2.Z;
+END;  {dotprod}
+
+PROCEDURE IDENT(VAR MTX:Matrix);
+
+VAR I,J: Counter;
+
+BEGIN {ident}
+  FOR I:=1 TO 4 DO
+    BEGIN
+      FOR J:=1 TO 4 DO
+        BEGIN
+          IF I=J THEN
+            MTX[I,J] := 1
+          ELSE
+            MTX[I,J] := 0;
+        END;
+    END;
+END; {ident}
+
+PROCEDURE MatrixMULT(MT1,MT2:Matrix; VAR RESULT: Matrix);
+
+VAR I,J,K: Counter;
+
+BEGIN  {matrixmult}
+  FOR I:=1 TO 4 DO
+    BEGIN
+      FOR J:=1 TO 4 DO
+        BEGIN
+          RESULT[I,J] := 0;
+          FOR K:=1 TO 4 DO
+            BEGIN
+              RESULT[I,J] := RESULT[I,J]+MT1[K,J]*MT2[I,K];
+            END;
+        END;
+    END;
+END; {matrxmult}
+
+PROCEDURE TRANSFORM(PT:Point; MTX:Matrix; VAR NEWPT:Point);
+
+BEGIN
+  NEWPT.X := PT.X*MTX[1,1]+PT.Y*MTX[1,2]+PT.Z*MTX[1,3]+MTX[1,4];
+  NEWPT.Y := PT.X*MTX[2,1]+PT.Y*MTX[2,2]+PT.Z*MTX[2,3]+MTX[2,4];
+  NEWPT.Z := PT.X*MTX[3,1]+PT.Y*MTX[3,2]+PT.Z*MTX[3,3]+MTX[3,4];
+END;
+
+PROCEDURE GETEyespace(Eyept,Cntrint:Point);
+
+VAR MTX: Matrix;
+    C1,C2: Point;
+    HYPOTENUSE,COSA,SINA: REAL;
+
+BEGIN
+  IDENT(Eyespace);
+  WITH Eyept DO
+    BEGIN
+      Eyespace[1,4] := -X;
+      Eyespace[2,4] := -Y;
+      Eyespace[3,4] := -Z;
+    END;
+  TRANSFORM(Cntrint,Eyespace,C1);
+  IDENT(MTX);
+  WITH C1 DO
+    HYPOTENUSE := SQRT(X*X+Y*Y);
+  IF HYPOTENUSE > 0 THEN
+    BEGIN
+      COSA := C1.Y/HYPOTENUSE;
+      SINA := C1.X/HYPOTENUSE;
+      MTX[1,1] := COSA;
+      MTX[2,1] := SINA;
+      MTX[1,2] := -SINA;
+      MTX[2,2] := COSA;
+      MatrixMULT(Eyespace,MTX,Eyespace);
+    END;
+  TRANSFORM(Cntrint,Eyespace,C2);
+  IDENT(MTX);
+  WITH C2 DO
+    HYPOTENUSE := SQRT(Y*Y+Z*Z);
+  IF HYPOTENUSE > 0 THEN
+    BEGIN
+      COSA := C2.Y/HYPOTENUSE;
+      SINA := -C2.Z/HYPOTENUSE;
+      MTX[2,2] := COSA;
+      MTX[3,2] := SINA;
+      MTX[2,3] := -SINA;
+      MTX[3,3] := COSA;
+      MatrixMULT(Eyespace,MTX,Eyespace);
+    END;
+  IDENT(MTX);
+  MTX[2,2] := 0;
+  MTX[3,3] := 0;
+  MTX[2,3] := 1;
+  MTX[3,2] := 1;
+  MatrixMULT(Eyespace,MTX,Eyespace);
+END;
+
+PROCEDURE MAKEDISPLAYABLE(VAR PT:Point);
+BEGIN
+  PT.X := Screenscale.X*PT.X/PT.Z+Screenctr.X;
+  PT.Y := Screenscale.Y*PT.Y/PT.Z+Screenctr.Y;
+END;
+
+FUNCTION FACESEYE(Poly:Onepoly): BOOLEAN;
+
+VAR TMPPT: Point;
+    Tmpoly: Onepoly;
+
+BEGIN
+  WITH Poly[2] DO
+    BEGIN
+      TMPPT.X := X;
+      TMPPT.Y := Y;
+      TMPPT.Z := Z;
+    END;
+  Tmpoly[1].X := Poly[1].X-Poly[2].X;
+  Tmpoly[1].Y := Poly[1].Y-Poly[2].Y;
+  Tmpoly[1].Z := Poly[1].Z-Poly[2].Z;
+  Tmpoly[2].X := Poly[3].X-Poly[2].X;
+  Tmpoly[2].Y := Poly[3].Y-Poly[2].Y;
+  Tmpoly[2].Z := Poly[3].Z-Poly[2].Z;
+  GETPLANES(Tmpoly,2);
+  IF DOTPROD(TMPPT,Tmpoly[1]) <=0 
+    THEN
+    FACESEYE := FALSE
+  ELSE
+    FACESEYE := TRUE;
+END;
+
+PROCEDURE CLIPIN(VAR Poly:Onepoly; VAR Numpts:Counter);
+
+VAR I,J,LstJ,TMPPTS: Counter;
+    D1,D2,A: REAL;
+    Tmpoly: Onepoly;
+
+BEGIN
+  FOR I:=1 TO Windowsize DO
+    IF Numpts >0 THEN
+      BEGIN
+        D1 := DOTPROD(Poly[Numpts],Window[I]);
+        LstJ := Numpts;
+        TMPPTS := 0;
+        FOR J:=1 TO Numpts DO
+          BEGIN
+            IF D1 >0 THEN
+              BEGIN
+                TMPPTS := TMPPTS+1;
+                WITH Tmpoly[TMPPTS] DO
+                  BEGIN
+                    X := Poly[LstJ].X;
+                    Y := Poly[LstJ].Y;
+                    Z := Poly[LstJ].Z;
+                  END;
+              END;
+            D2 := DOTPROD(Poly[J],Window[I]);
+            IF D1*D2<0 THEN
+              BEGIN
+                A := D1/(D1-D2);
+                TMPPTS := TMPPTS+1;
+                WITH Tmpoly[TMPPTS] DO
+                  BEGIN
+                    X := A*Poly[J].X+(1-A)*Poly[LstJ].X;
+                    Y := A*Poly[J].Y+(1-A)*Poly[LstJ].Y;
+                    Z := A*Poly[J].Z+(1-A)*Poly[LstJ].Z;
+                  END;
+              END;
+            LstJ := J;
+            D1 := D2;
+          END;
+        FOR J:=1 TO TMPPTS DO
+          BEGIN
+            WITH Tmpoly[J] DO
+              BEGIN
+                Poly[J].X := X;
+                Poly[J].Y := Y;
+                Poly[J].Z := Z;
+              END;
+          END;
+        Numpts := TMPPTS;
+      END;
+END;
+
+PROCEDURE INSERTSORT(Poly:Onepoly;Numpts:Counter);
+
+VAR I,J,K: Counter;
+    AVDEPTH,Nptsr : REAL;
+BEGIN
+  AVDEPTH := 0;
+  Nptsr := 0;
+  FOR I:=1 TO Numpts DO
+    BEGIN
+      WITH Poly[I] DO
+        BEGIN
+          Outvtces[NumvtxOUT+I+1].X := X;
+          Outvtces[NumvtxOUT+I+1].Y := Y;
+          Outvtces[NumvtxOUT+I+1].Z := Z;
+          AVDEPTH := AVDEPTH+ Z;
+          Nptsr := Nptsr +1;
+        END;
+    END;
+  AVDEPTH := AVDEPTH /Nptsr;
+  Outvtces[NumvtxOUT+1].Z := AVDEPTH;
+  J := 0;
+  I := (NUMDISPLAY+1) DIV 2;
+  K := NUMDISPLAY;
+  WHILE (J<>I) DO
+    IF AVDEPTH<Outvtces[Outpolys[I].START].Z 
+      THEN
+      BEGIN
+        K := I;
+        I := (I+J) DIV 2;
+      END
+    ELSE
+      BEGIN
+        J := I;
+        I := (I+K+1) DIV 2;
+      END;
+  FOR J:=NUMDISPLAY DOWNTO I+1 DO
+    BEGIN
+      Outpolys[J+1].START := Outpolys[J].START;
+      Outpolys[J+1].Numvtx := OUTPolys[J].Numvtx;
+    END;
+  Outpolys[I+1].START := NumvtxOUT+1;
+  Outpolys[I+1].Numvtx := Numpts;
+  NumvtxOUT := NumvtxOUT+Numpts+1;
+  NUMDISPLAY := NUMDISPLAY+1;
+END;
+
+PROCEDURE CLIPOUT(Poly:Onepoly; VAR Numpts:Vertex; PLACE:Counter);
+
+VAR I,LstI,NUMDRAWN: Counter;
+    PT1,PT2: Point;
+    DRAWN: BOOLEAN;
+
+PROCEDURE CLIPAFTER(INDEX:Counter;PT1,PT2:Point);
+
+VAR I: Counter;
+    D1,D2,A: REAL;
+    OUT: BOOLEAN;
+    PT3: Point;
+
+BEGIN
+  IF INDEX<PLACE 
+    THEN
+    begin
+      WITH OutPolys[INDEX] DO
+        BEGIN
+          I := START+Numvtx;
+          OUT := FALSE;
+          REPEAT
+            D1 := DOTPROD(PT1,Outvtces[I]);
+            D2 := DOTPROD(PT2,Outvtces[I]);
+            IF (D1<=0.0) AND (D2<=0.0)
+              THEN
+              BEGIN
+                OUT := TRUE;
+                CLIPAFTER(INDEX+1,PT1,PT2);
+              END
+            ELSE
+              begin
+                IF D1*D2<0.0
+                  THEN
+                  BEGIN
+                    A := D1/(D1-D2);
+                    PT3.X := A*PT2.X+(1-A)*PT1.X;
+                    PT3.Y := A*PT2.Y+(1-A)*PT1.Y;
+                    PT3.Z := A*PT2.Z+(1-A)*PT1.Z;
+                    IF D1<0.0
+                      THEN
+                      BEGIN
+                        CLIPAFTER(INDEX+1,PT1,PT3);
+                        WITH PT3 DO
+                          BEGIN
+                            PT1.X := X;
+                            PT1.Y := Y;
+                            PT1.Z := Z;
+                          END;
+                      END
+                    ELSE
+                      BEGIN
+                        CLIPAFTER(INDEX+1,PT3,PT2);
+                        WITH PT3 DO
+                          BEGIN
+                            PT2.X := X;
+                            PT2.Y := Y;
+                            PT2.Z := Z;
+                          END;
+                      END;
+                  END;
+              end;
+            I := I-1;
+          UNTIL OUT OR (I=START);
+        END;
+    end
+  ELSE
+    BEGIN
+      MAKEDISPLAYABLE(PT1);
+      MAKEDISPLAYABLE(PT2);
+      micro2($84,PT1.X,PT1.Y);
+      micro2($91,PT2.X,PT2.Y);
+      DRAWN := TRUE;
+    END;
+END;
+
+BEGIN  {clipout}
+  NUMDRAWN := 0;
+  LstI := Numpts;
+  FOR I:=1 TO Numpts DO
+    BEGIN
+      WITH Poly[LstI] DO
+        BEGIN
+          PT1.X := X;
+          PT1.Y := Y;
+          PT1.Z := Z;
+        END;
+      WITH Poly[I]    DO
+        BEGIN
+          PT2.X := X;
+          PT2.Y := Y;
+          PT2.Z := Z;
+        END;
+      DRAWN := FALSE;
+      CLIPAFTER(1,PT1,PT2);
+      IF DRAWN THEN
+        NUMDRAWN := NUMDRAWN+1;
+      LstI := I;
+    END;
+  IF NUMDRAWN=0 THEN
+    Numpts := 0;
+END; {clipout}
+
+BEGIN {MAKEPICTURE}
+  GETEyespace(Eyept,Cntrint);
+  NUMDISPLAY := 0;
+  NumvtxOUT := 0;
+  FOR I:=1 TO Numpols DO
+    WITH Polygons[I] DO
+      BEGIN
+        FOR J:=1 TO Numvtx DO
+          BEGIN
+            WITH Points[Vertices[START+J]] DO
+              BEGIN
+                Tmpoly[J].X := X;
+                Tmpoly[J].Y := Y;
+                Tmpoly[J].Z := Z;
+              END;
+            TRANSFORM(Tmpoly[J],Eyespace,Tmpoly[J]);
+          END;
+        IF FACESEYE(Tmpoly) THEN
+          BEGIN
+            NUMCLP := Numvtx;
+            CLIPIN(Tmpoly,NUMCLP);
+            IF NUMCLP>0 THEN
+              INSERTSORT(Tmpoly,NUMCLP);
+          END;
+      END;
+  START;
+  FOR I:=1 TO NUMDISPLAY DO
+    WITH Outpolys[I] DO
+      BEGIN
+        FOR J:=1 TO Numvtx DO
+          WITH Outvtces[START+J] DO
+            BEGIN
+              Tmpoly[J].X := X;
+              Tmpoly[J].Y := Y;
+              Tmpoly[J].Z := Z;
+            END;
+        CLIPOUT(Tmpoly,Numvtx,I);
+        IF Numvtx>0 THEN
+          BEGIN
+            GETPLANES(Tmpoly,Numvtx);
+            FOR J:=1 TO Numvtx DO
+              WITH Outvtces[START+J] DO
+                BEGIN
+                  X := Tmpoly[J].X;
+                  Y := Tmpoly[J].Y;
+                  Z := Tmpoly[J].Z;
+                END;
+          END;
+      END;
+END;  {MAKEPICTURE}
+MODEND.
+;

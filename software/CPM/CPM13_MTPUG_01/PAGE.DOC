@@ -1,0 +1,14 @@
+
+  The command  'PAGE <file>'  causes a file to be displayed a-page-at-
+  a-time on the console.  At the end of every 23 rd line, PAGE will print
+  the prompt 'MORE...' at the bottom corner of the screen, any response
+  except  ESC, ^Q, ^C, ^X, ^Z, 'Q', 'q', 's', 'S', 'N', or 'n'  will
+  abort the program.
+
+  WARNING:  PAGE uses  character  1A hex  to clear the screen, and assumes
+  an  80-by-24  screen.
+
+  PAGE was written in PASCAL/MT by  T. W. Lougeed  and is in the public
+  domain.
+
+

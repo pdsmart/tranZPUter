@@ -1,0 +1,22 @@
+	PRMAC is a program for typing out the .PRN and .SYM files
+produced by Digital Research's MAC assembler. The only difference
+between this and the one in the manual for MAC (other than the
+fact that theirs is in assembly language) is that it paginates
+the output etc.
+
+	It is invoked by typing:
+
+	PRMAC DUMMY LISTING
+
+where DUMMY is the basename of the file to be listed and
+where LISTING is the name of the desired output file - usually this
+is just the listing 'device' - LST:
+
+The program will then read through DUMMY.PRN, send it to the output
+file, and then do the same for DUMMY.SYM.
+
+NOTE *******
+
+	After doing the above, the program will ERASE both the source
+files!
+

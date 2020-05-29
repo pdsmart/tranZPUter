@@ -1,0 +1,15 @@
+Indexer inputs a Pascal source file and outputs one of 
+two forms of index file.  
+
+The first is the short form:  Only the procedure and
+function declarations are extracted from the source.  
+
+The second is the long form:  All global declarations, and
+everything between the keyword 'procedure' or 'function' 
+and the keyword 'begin' is extracted.
+
+Invoke indexer with the following command line:
+
+INDEXER <SOURCE FILE> <DESTINATION FILE> [SHORT | LONG]
+
+Short form is assumed unless LONG is specified.

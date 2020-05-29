@@ -5,7 +5,7 @@
 // Author(s):       Philip Smart
 // Description:     tranZPUter SW Memory Map Configuration Tool
 //                  This program creates the 512KB array which forms the tranZPUterSW memory decoder.
-//                  The 512KB Flash has 19 inputs and 8 outputs, the outputs selecting or enabling
+//                  The 512KB Flash has 19 inputs and 8 outputs, the outputs select or enable
 //                  a function on the tranZPUter SW design.
 //
 //                  Inputs:
@@ -28,9 +28,19 @@
 //                     A16 - Z80_A13
 //                     A17 - Z80_A14
 //                     A18 - Z80_A15
+//                  Outputs:
+//                     D0  - DISABLE_BUS - This signal clears an SR latch which in turn sets BUSACK on the main Sharp MZ80A board. This tristates all major Z80 signals coming from the tranZPUter board to the Sharp mainboard.
+//                     D1  - ENABLE_BUS  - This signal sets an SR latch which in turn disables BUSACK allowing all Z80 signals to be sent to the Sharp mainboard.
+//                     D2  - A16         - Upper address bit to select a portion of the 512K Static RAM.
+//                     D3  - A17         - Upper address bit to select a portion of the 512K Static RAM.
+//                     D4  - A18         - Upper address bit to select a portion of the 512K Static RAM.
+//                     D5  - IODECODE    - This signal is active whenever an OUT/IN instruction is issued to a reserved address, typically 060H. According to the value of address lines A3:A1 a tranZPUter feature is accessed such as the memory map selection latch.
+//                     D6  - WE          - This signal is active whenever a write is to take place into the 512K Static RAM on the tranZPUter board.
+//                     D7  - OE          - This signal is active whenever a read is to take place from the 512K Static RAM on the tranZPUter board.
 //
 // Memory Modes:     0 - Default, normal Sharp MZ80A operating mode, all memory and IO (except tranZPUter control IO block) are on the mainboard
-//                   1 - As 0 except Floppy ROM and User ROM are mapped to tranZPUter RAM.
+//                   1 - As 0 except User ROM is mapped to tranZPUter RAM.
+//                   2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
 //                  31 - tranZPUter, all memory and IO are exclusively to the devices on the tranZPUter board, no mainboard access is made.
 //
 //
@@ -76,9 +86,9 @@
 typedef struct __attribute__((__packed__)) {
     uint8_t   DISABLE_BUS : 1;
     uint8_t   ENABLE_BUS  : 1;
-    uint8_t   reserved2   : 1;
-    uint8_t   reserved3   : 1;
-    uint8_t   reserved4   : 1;
+    uint8_t   A16         : 1;
+    uint8_t   A17         : 1;
+    uint8_t   A18         : 1;
     uint8_t   IODECODE    : 1;
     uint8_t   RAM_WE      : 1;
     uint8_t   RAM_OE      : 1;
@@ -137,9 +147,9 @@ void initMap(void)
         {
             flashRAM[idx].tranche[idx2].DISABLE_BUS = 1;
             flashRAM[idx].tranche[idx2].ENABLE_BUS  = 1;
-            flashRAM[idx].tranche[idx2].reserved2   = 1;
-            flashRAM[idx].tranche[idx2].reserved3   = 1;
-            flashRAM[idx].tranche[idx2].reserved4   = 1;
+            flashRAM[idx].tranche[idx2].A16         = 1;
+            flashRAM[idx].tranche[idx2].A17         = 1;
+            flashRAM[idx].tranche[idx2].A18         = 1;
             flashRAM[idx].tranche[idx2].IODECODE    = 1;
             flashRAM[idx].tranche[idx2].RAM_WE      = 1;
             flashRAM[idx].tranche[idx2].RAM_OE      = 1;
@@ -170,9 +180,9 @@ void outputMap(FILE *fp)
             outbuf[idx2] = flashRAM[idx2].tranche[idx].RAM_OE      << 7 |
                            flashRAM[idx2].tranche[idx].RAM_WE      << 6 |
                            flashRAM[idx2].tranche[idx].IODECODE    << 5 |
-                           flashRAM[idx2].tranche[idx].reserved4   << 4 |
-                           flashRAM[idx2].tranche[idx].reserved3   << 3 |
-                           flashRAM[idx2].tranche[idx].reserved2   << 2 |
+                           flashRAM[idx2].tranche[idx].A16         << 4 |
+                           flashRAM[idx2].tranche[idx].A17         << 3 |
+                           flashRAM[idx2].tranche[idx].A18         << 2 |
                            flashRAM[idx2].tranche[idx].ENABLE_BUS  << 1 |
                            flashRAM[idx2].tranche[idx].DISABLE_BUS;
         }
@@ -221,8 +231,14 @@ void setMap(uint8_t set, uint32_t inSignals)
         if(Z80_IO_ADDR == ioAddr)
         {
             flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
             flashRAM[set].tranche[inSignals].IODECODE    = 0;
-        }
+        } else
+        {
+            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].IODECODE    = 1;
+        }  
     }
 
     // If the non-standard case of Z80 RD and Z80 WR being set low occurs, enable the ENABLE_BUS signal as the K64F is requesting access to the MZ80A motherboard.
@@ -237,6 +253,250 @@ void setMap(uint8_t set, uint32_t inSignals)
         flashRAM[set].tranche[inSignals].IODECODE    = 1;
     }
 
+    // Upper address bits are always 0 unless modified by input parameters.
+    //
+    flashRAM[set].tranche[inSignals].A16 = 0;
+    flashRAM[set].tranche[inSignals].A17 = 0;
+    flashRAM[set].tranche[inSignals].A18 = 0;
+
+    // Pre transaction setup. The address lines contain the next address prior to the RD/WR/MREQ/IORQ signals being asserted. If a set
+    // uses mixed resources, ie tranZPUter ond mainboard then their is a propogation delay from the FlashRAM being presented with the signals
+    // to it outputting a signal plus additional delays for the 279 SR latch, 74HCT08 AND gate and the tristate buffers on the mainboard. This
+    // action on the address to pre enable the mainboard or tranZPUter removes the propagation effect on the BUSACK signal on the main board.
+    //
+    switch(set)
+    {
+        // Set 0 - default, no tranZPUter RAM access so just pulse the ENABLE_BUS signal for safety to ensure the CPU has continuous access to the
+        // mainboard resources, especially for Refresh of DRAM.
+        case 0:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            break;
+
+        // Whenever running in RAM ensure the mainboard is disabled to prevent decoder propagation delay glitches.
+        case 1:
+            if( (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000) )
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            }
+            break;
+
+        // Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
+        // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+        case 2:
+            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000)) 
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            }
+            break;
+        
+        // Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
+        // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+        case 3:
+            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000)) 
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            } else if ((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 1;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            } 
+            break;
+           
+        // Set 4 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
+        // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+        case 4:
+            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000)) 
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            } else if ((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            } 
+            break;
+           
+        // Set 5 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
+        // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+        case 5:
+            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000)) 
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            } else if ((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 1;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            } 
+            break;
+           
+        // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
+        case 20:
+            flashRAM[set].tranche[inSignals].A16 = 0;
+            flashRAM[set].tranche[inSignals].A17 = 0;
+            flashRAM[set].tranche[inSignals].A18 = 1;
+            break;
+        // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+        case 21:
+            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 1;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            break;
+        // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+        case 22:
+            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            break;
+        // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+        case 23:
+            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+            {
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            break;
+         
+        // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
+        case 24:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 0;
+            flashRAM[set].tranche[inSignals].A17 = 0;
+            flashRAM[set].tranche[inSignals].A18 = 0;
+            break;
+        // Set 25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
+        case 25:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 1;
+            flashRAM[set].tranche[inSignals].A17 = 0;
+            flashRAM[set].tranche[inSignals].A18 = 0;
+            break;
+        // Set 26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
+        case 26:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 0;
+            flashRAM[set].tranche[inSignals].A17 = 1;
+            flashRAM[set].tranche[inSignals].A18 = 0;
+            break;
+        // Set 27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
+        case 27:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 1;
+            flashRAM[set].tranche[inSignals].A17 = 1;
+            flashRAM[set].tranche[inSignals].A18 = 0;
+            break;
+        // Set 28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
+        case 28:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 0;
+            flashRAM[set].tranche[inSignals].A17 = 0;
+            flashRAM[set].tranche[inSignals].A18 = 1;
+            break;
+        // Set 29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
+        case 29:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 1;
+            flashRAM[set].tranche[inSignals].A17 = 0;
+            flashRAM[set].tranche[inSignals].A18 = 1;
+            break;
+        // Set 30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
+        case 30:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 0;
+            flashRAM[set].tranche[inSignals].A17 = 1;
+            flashRAM[set].tranche[inSignals].A18 = 1;
+            break;
+        // Set 31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
+        case 31:
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].A16 = 1;
+            flashRAM[set].tranche[inSignals].A17 = 1;
+            flashRAM[set].tranche[inSignals].A18 = 1;
+            break;
+          
+        // Default, most modes will need access to the hardware on the mainboard, so if the address falls into the memory mapped devices,
+        // pulse the ENABLE_BUS signal. Conversely, if running in tranZPUter RAM disable the mainboard to prevent decoder glitches activating
+        // mainboard circuits.
+        //
+        default:
+            if(Z80_ADDR >= 0xD000 && Z80_ADDR < 0xE800)
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            } else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            }
+            break;
+    }
+
     // Specific mapping for Memory Writes.
     if(Z80_MEM_WRITE)
     {
@@ -244,30 +504,145 @@ void setMap(uint8_t set, uint32_t inSignals)
         {
             // Set 0 - default, the Z80 uses the motherboard so no special signal activation is needed.
             case 0:
-                flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-                flashRAM[set].tranche[inSignals].RAM_OE      = 1;
-                flashRAM[set].tranche[inSignals].RAM_WE      = 1;
                 break;
 
-            // Set 1 - A standard MZ80A.the tranZPUter maps in RAM to the User and Floppy drive slots but otherwise all standard.
+            // Set 1 - A standard MZ80A, the tranZPUter maps in RAM to the User ROM slot but otherwise all standard.
+            // NB: This set is mainly used for bootstrapping, prolonged access to the User ROM areas will see the main DRAM refresh being skipped
+            // and thus loss of data.
             case 1:
-                // Place a bank of RAM into the floppy disk bios area.
-                if( (Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000) //||
-                    // Place RAM into the User ROM socket.
-                 //   (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000)
-                  )
+                // Place a bank of RAM into the user ROM area.
+                if( (Z80_ADDR >= 0xEF00 && Z80_ADDR < 0xF000) )
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                } else
-                {
-                    flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
                 }
                 break;
 
-            // Set 31 - All memory and IO are on the tranZPUter board.
+            // Set 2 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory Block 0.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 2:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                } 
+                break;
+
+            // Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 3:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                } 
+                break;
+               
+            // Set 4 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 4:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                } 
+                break;
+               
+            // Set 5 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 5:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                } 
+                break;
+
+            // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
+            case 20:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 21:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                break;
+            // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 22:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                break;
+            // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 23:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                }
+                break;
+
+            // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
+            case 24:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
+            case 25:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
+            case 26:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
+            case 27:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
+            case 28:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
+            case 29:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
+            case 30:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                break;
+            // Set 31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
             case 31:
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                 flashRAM[set].tranche[inSignals].RAM_WE = 0;
@@ -286,35 +661,150 @@ void setMap(uint8_t set, uint32_t inSignals)
         {
             // Set 0 - default, the Z80 uses the motherboard so no signal activation is needed.
             case 0:
-                flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-                flashRAM[set].tranche[inSignals].RAM_OE      = 1;
-                flashRAM[set].tranche[inSignals].RAM_WE      = 1;
                 break;
 
-            // Set 1 - A standard MZ80A.the tranZPUter maps in RAM to the User and Floppy drive slots but otherwise all standard.
+            // Set 1 - A standard MZ80A, the tranZPUter maps in RAM to the User ROM slot but otherwise all standard.
+            // NB: This set is mainly used for bootstrapping, prolonged access to the User ROM areas will see the main DRAM refresh being skipped
+            // and thus loss of data.
             case 1:
-                // Place a bank of RAM into the floppy disk bios area.
-                if( (Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000) //||
-                    // Place RAM into the User ROM socket.
-                   // (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000) 
-                  )
+                // Place a bank of RAM into the user ROM area.
+                if( (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000) )
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                } else
-                {
-                    flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
                 }
                 break;
-              
-            // Set 31 - All memory and IO are on the tranZPUter board.
+
+            // Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 2:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                } 
+                break;
+            
+            // Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 3:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                } 
+                break;
+               
+            // Set 4 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 4:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                } 
+                break;
+               
+            // Set 5 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
+            // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+            case 5:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                } 
+                break;
+               
+            // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
+            case 20:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 21:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+            // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 22:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+            // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            case 23:
+                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
+            // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
+            case 24:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
+            case 25:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
+            case 26:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
+            case 27:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
+            case 28:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
+            case 29:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
+            case 30:
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                break;
+            // Set 31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
             case 31:
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                 flashRAM[set].tranche[inSignals].RAM_OE = 0;
                 break;
-
+              
             // For default, do nothing.
             default:
                 break;
@@ -327,19 +817,12 @@ void setMap(uint8_t set, uint32_t inSignals)
         switch(set)
         {
             case 0:
-                if(Z80_IO_ADDR != ioAddr)
-                {
-                    flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-                    flashRAM[set].tranche[inSignals].RAM_OE      = 1;
-                    flashRAM[set].tranche[inSignals].RAM_WE      = 1;
-                }  
                 break;
               
             // Set 31 - All memory and IO are on the tranZPUter board.
             case 31:
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                flashRAM[set].tranche[inSignals].IODECODE = 0;
                 break;
 
             // For default, do nothing.
@@ -354,19 +837,12 @@ void setMap(uint8_t set, uint32_t inSignals)
         switch(set)
         {
             case 0:
-                if(Z80_IO_ADDR != ioAddr)
-                {
-                    flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-                    flashRAM[set].tranche[inSignals].RAM_OE      = 1;
-                    flashRAM[set].tranche[inSignals].RAM_WE      = 1;
-                }
                 break;
-              
+               
             // Set 31 - All memory and IO are on the tranZPUter board.
             case 31:
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                flashRAM[set].tranche[inSignals].IODECODE = 0;
                 break;
 
             // For default, do nothing.

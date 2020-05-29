@@ -1,0 +1,335 @@
+program testq;
+{ Test multi-tasking under MP/M with Pascal MT+86
+  Queues used for synchronization
+  TERMINATE used for subtask termination	  }
+  
+  const
+    pd_max = 61;  {max byte address in process descriptor table}
+    uda_max = 255;  {max byte address in user data area table}
+    def_prior = 201;  {default process priority}
+    qd_nmsgs = 5;  {max messages in queue}
+    q_open = 135;
+    q_delete = 136;
+    q_read = 137;
+    q_cond_read = 138;
+    q_write = 139;
+    q_cond_write = 140;
+
+  type
+    name_type = packed array [1..8] of char;
+
+    pd_size = 0..pd_max;  {Process Descriptor}
+    pd_type =
+      record
+	case boolean of
+	  true:
+	    (z1: packed array [1..5] of byte;
+	     prior: byte;
+	     flag: word;
+	     name: name_type;
+	     uda: word;
+	     user, disk: byte;
+	     z2: packed array [1..12] of byte;
+	     cns: byte;
+	     z3: packed array [1..3] of byte;
+	     list: byte;
+	     z4: packed array [1..15] of byte;
+	     cns2: byte;
+	     z5: byte;
+	     name2: name_type);
+	  false:
+	    (ray: array [pd_size] of byte);
+      end;
+
+    uda_size = 0..uda_max;  {User Data Area for Process}
+    uda_type = array [uda_size] of byte;
+
+    ptr = ^integer;
+    pdp = ^pd_type;
+    udap = ^uda_type;
+    qdp = ^qd_type;
+    qpbp = ^qpb_type;
+    qdmp = ^qd_msg;
+
+    ptrtype = (ptrp, pdpp, udapp, qdpp, qpbpp, qdmpp, offseg);
+    pointer =
+      record  {kludge to allow any type of pointer reference}
+	case ptrtype of
+	  ptrp:
+	    (pptr: ptr);
+	  pdpp:
+	    (pdpp: pdp);
+	  udapp:
+	    (puda: udap);
+	  qdpp:
+	    (pqdp: qdp);
+	  qpbpp:
+	    (pqpb: qpbp);
+	  qdmpp:
+	    (pqdm: qdmp);
+	  offseg:
+	    (off: word;
+	     seg: word)
+      end;
+
+    qd_msg =
+      record  {actual Queue Message for this example}
+	name: name_type;
+	count: integer
+      end;
+
+    qd_type =
+      record  {Queue Descriptor block}
+	z1: longint;
+	flags: word;
+	name: name_type;
+	msglen: integer;
+	nmsgs: integer;
+	z3, z2: longint;
+	z4: word;
+      end;
+
+    qpb_type =
+      record  {Queue Parameter Block}
+	z: word;
+	qid: word;
+	nmsgs: integer;
+	buffer: word;
+	name: name_type;
+      end;
+
+  var
+    uda_c, uda_b, uda_a: uda_type;  {user data area for sub-process}
+    pd_c, pd_b, pd_a: pd_type;  {process descriptor for sub-process}
+    qd: qd_type;  {queue descriptor block}
+    qpb: qpb_type;  {queue parameter block}
+    qmsg: qd_msg;  {queue message}
+    done_c, done_b, done_a: boolean;  {communication flags}
+    writ_c, writ_b, writ_a: boolean;
+
+  external procedure init_mpm_util(size: integer);
+  external procedure fix_stack(taskp: ptr;
+			       var uda: uda_type;
+			       size: integer);
+  external procedure delay(ticks: integer);
+  external procedure dispatch;
+  external procedure terminate;
+  external function create_process(var pd: pd_type): boolean;
+  external function set_priority(priority: byte): boolean;
+  external function queue_make(var qd: qd_type): boolean;
+  external function queue_oper(op: byte;
+			       var qpb: qpb_type): boolean;
+{
+  ***********************************************************
+}
+  procedure startup(var pd: pd_type;
+		    var uda: uda_type;
+		    task: ptr;
+		    name: string;
+		    priority: integer;
+		    size: integer);
+    var
+      i: integer;
+      p: pointer;
+
+    begin
+      for i := 0 to pd_max do
+	pd.ray[i] := 0;
+      for i := 0 to uda_max do
+	uda[i] := 0;
+
+      pd.prior := priority;
+      for i := 1 to 8 do
+	begin
+	pd.name[i] := name[i];
+	pd.name2[i] := name[i]
+	end;
+      p.puda := addr(uda);
+      pd.uda := shr(p.off, 4);  {make into paragraph address}
+      fix_stack(task, uda, size);
+
+      if create_process(pd) then
+	writeln('Starting ', name)
+      else
+	writeln('Startup of ', name, ' failed');
+    end;
+
+
+  function makeq(var qd: qd_type;  {queue descriptor address}
+		 var qpb: qpb_type;  {queue parm block address}
+		 name: name_type;  {name of queue}
+		 msglen: integer;  {length of message in bytes}
+		 nmsgs: integer)  {max messages in queue}
+		: boolean;
+
+    begin  {make and open the main message queue}
+      qd.z1 := #0;  {initialize queue descriptor}
+      qd.flags := 0;
+      qd.name := name;
+      qd.msglen := msglen;
+      qd.nmsgs := nmsgs;
+      qd.z2 := #0;
+      qd.z3 := #0;
+      qd.z4 := 0;
+
+      if not queue_make(qd) then
+	begin
+	writeln('Unable to make queue');
+	makeq := false
+	end
+      else
+	begin
+	qpb.z := 0;  {initialize queue parameter block}
+	qpb.name := name;
+	if not queue_oper(q_open, qpb) then
+	  begin
+	  writeln('Unable to open queue');
+	  makeq := false
+	  end
+	else
+	  makeq := true;
+	end
+    end;
+
+
+  function read_msg(rm_qpb: qpb_type;  {local copy of the q parm block}
+		    var msgp: qd_msg)  {where to send the message}
+		   : boolean;
+
+    var
+      p: pointer;
+      rm_msg: qd_msg;  {local copy of message read}
+
+    begin  {read a message from a queue}
+      rm_qpb.nmsgs := 1;
+      p.pqdm := addr(rm_msg);
+      rm_qpb.buffer := p.off;  {put offset of msg into qpb}
+      read_msg := queue_oper(q_read, rm_qpb);
+      msgp := rm_msg;  {copy message to output}
+    end;
+
+
+  function write_msg(wm_qpb: qpb_type;  {local copy of the q parm block}
+		     wm_msg: qd_msg)  {local copy of the message}
+		    : boolean;
+
+    var
+      p: pointer;
+
+    begin  {write a message to a queue}
+      wm_qpb.nmsgs := 1;
+      p.pqdm := addr(wm_msg);
+      wm_qpb.buffer := p.off;  {put offset of msg into qpb}
+      write_msg := queue_oper(q_write, wm_qpb);
+    end;
+
+
+  procedure task_a;
+
+    var
+      msg_a: qd_msg;
+
+    begin
+      msg_a.count := 0;
+      msg_a.name := 'A-msg   ';
+
+      repeat
+	delay(31);
+	msg_a.count := msg_a.count + 1;
+	if not write_msg(qpb, msg_a) then
+	  msg_a.count := 999;
+      until msg_a.count >= 9;
+      done_a := true;
+      terminate;
+    end;
+
+
+  procedure task_b;
+
+    var
+      msg_b: qd_msg;
+
+    begin
+      msg_b.count := 0;
+      msg_b.name := ' B-msg  ';
+
+      repeat
+	delay(19);
+	msg_b.count := msg_b.count + 1;
+	if not write_msg(qpb, msg_b) then
+	  msg_b.count := 999;
+      until msg_b.count >= 9;
+      done_b := true;
+      terminate;
+    end;
+
+
+  procedure task_c;
+
+    var
+      msg_c: qd_msg;
+
+    begin
+      msg_c.count := 0;
+      msg_c.name := '  C-msg ';
+
+      repeat
+	delay(25);
+	msg_c.count := msg_c.count + 1;
+	if not write_msg(qpb, msg_c) then
+	  msg_c.count := 999;
+      until msg_c.count >= 9;
+      done_c := true;
+      terminate;
+    end;
+
+
+  begin  {main program}
+    if not makeq(qd, qpb, 'MAIN QQQ', sizeof(qmsg), qd_nmsgs) then
+      exit;
+    if not set_priority(def_prior) then
+      begin
+      writeln('Unable to set main program priority');
+      exit
+      end;
+
+    done_a := false;	done_b := false;	done_c := false;
+    writ_a := false;	writ_b := false;	writ_c := false;
+    init_mpm_util(1500);
+    startup(pd_a, uda_a, addr(task_a), 'TASK_A  ', def_prior, 1500);
+    startup(pd_b, uda_b, addr(task_b), 'TASK_B  ', def_prior, 1500);
+    startup(pd_c, uda_c, addr(task_c), 'TASK_C  ', def_prior, 1500);
+    delay(1);
+
+    repeat
+      if not readmsg(qpb, qmsg) then
+	begin
+	writeln('Error trying to read queue');
+	exit;
+	end;
+      writeln(qmsg.name, ' loop count = ', qmsg.count);
+      if done_a then
+	begin
+	writeln('TASK A completed');
+	writ_a := true;
+	done_a := false;
+	end;
+      if done_b then
+	begin
+	writeln('TASK B completed');
+	writ_b := true;
+	done_b := false;
+	end;
+      if done_c then
+	begin
+	writeln('TASK C completed');
+	writ_c := true;
+	done_c := false;
+	end;
+    until writ_a and writ_b and writ_c;
+
+    if not queue_oper(q_delete, qpb) then
+      writeln('Unable to delete queue');
+
+  end.
+

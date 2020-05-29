@@ -1,0 +1,2272 @@
+	TITLE	"SETUPZST - Setup ZSDOS Time Stamping"
+;***************************************************************;
+;	SETUPZST						;
+;	--------						;
+; Copyright (C) 1988  by Harold F. Bower and Cameron W. Cotrill	;
+;---------------------------------------------------------------:
+; This program combines a General-Purpose loader with a clock	;
+; reading routine and Time Stamping routine into a single pro-	;
+; gram.  The output program will be a .COM file which, when	;
+; executed, loads the clock driver and Time Stamp code and	;
+; enable time stamping.						;
+;								;
+; This program also permits configuration of options in an	;
+; existing file.						;
+;								;
+; Revisions:							;
+;	1.2	Added NZTME Stamping modules.	HFB   5 Dec 93	;
+;	1.1a	Corrected DAT vs. LBR in Help, parse Command	;
+;		tail to get DU if modify mode.	HFB  13 Aug 89	;
+;	1.1	Increased # of Clocks on screen. HFB  3 Jun 89	;
+;	1.0a	Corrected Stamp type prompt screen, increased	;
+;		size of _PRE_/_POST_ areas.	HFB  22 Oct 88	;
+;	1.0	Initial Release			     16 Sep 88	;
+;***************************************************************;
+; Link with Vers 4 of: SYSLIB.REL, VLIB.REL, Z3LIB.REL
+; ..as:
+; A>ZLINK SETUPZST,VLIB/,Z3LIB/,SYSLIB/
+;* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+VER	EQU	12		; Release version
+rev	EQU	' '		; Revision level
+
+CTRLC	EQU	03		; Control-C character
+BEL	EQU	07		; Bell char
+BS	EQU	08		; Backspace char
+LF	EQU	10		; Line Feed char
+CR	EQU	13		; Carriage Return char
+
+BDOS	EQU	0005H		; DOS Entry vector
+FCB	EQU	005CH		; Default FCB location
+BUFF	EQU	0080H		; Default File Buffer
+
+; Version specific equates
+
+TOPOFF	EQU	12H		; Top of module offset in header
+MODID	EQU	0EH		; Offset of ZSDOS/ZDDOS ID char in INSTZST
+
+
+	EXT	Z3VINIT, EREOL, CLS, GOTOXY, GXYMSG		; VLib
+	EXT	VPRINT, STNDOUT, STNDEND, AT			;   "
+	EXT	WHRENV, DNSCAN, ZPRSFN				; Z3Lib
+	EXT	CIN, COUT, CAPS, CRLF, CODEND, BLINE, EVAL10	; SysLib
+	EXT	PADC, PA2HC, PAFDC, PFN1, PHL4HC, @B2HL, @B2HH	;   "
+	EXT	RETUD, LOGUD, INITFCB, SETDMA, F$EXIST, F$OPEN	;   "
+	EXT	F$READ, F$WRITE, F$CLOSE, F$MAKE, F$DELETE	;   "
+	EXT	LUDIR, LUINIT, LUOPEN, LUREAD			;   "
+
+	PAGE
+;================================================
+;	B E G I N    T H E    S O U R C E
+;================================================
+	CSEG
+
+SETUP:	JP	START		; Jump over ZCPR3 header
+	DEFB	'Z3ENV'
+	DEFB	1		; External Environment
+	DEFW	0000		; Dummy value for environment
+
+START:	LD	(STACK),SP	; Save entry stack
+	LD	SP,STACK	; ..and set local one
+	LD	HL,0000		; Prevent re-execution by..
+	LD	(SETUP+1),HL	; ..forcing warm boot if attempted
+
+; Establish the environment location and initialize
+
+	LD	HL,0001H	; Set dummy location to force search
+	CALL	WHRENV		; Locate and confirm
+	LD	(ENVPTR),HL
+	CALL	Z3VINIT		; Initialize VLIB and Z3LIB
+
+; Clear working storage
+
+	LD	HL,CHAR		; Start with this byte
+	LD	DE,CHAR+1	; ..moving a byte along
+	LD	BC,STACK-CHAR-4	; ...for this many bytes
+	LD	(HL),0		; Initialize value
+	LDIR
+	LD	HL,DEFOUT	; Move default name..
+	LD	DE,DEFNAM	; ..into position
+	LD	BC,11
+	LDIR
+
+; Scan default buffer for option switches
+
+	LD	HL,BUFF		; Check for HELP request
+	LD	A,(HL)		; Get # of chars
+	INC	HL		; Advance to 1st char
+	INC	HL
+	OR	A		; If NO arguments
+	JP	Z,CHKZ80	; ..jump to main program
+	CP	3		; Help must have 3 chars
+	JP	NZ,CHKZ80
+	LD	A,(HL)		; Get 1st char
+	INC	HL
+	CP	'/'		; Is it a slash?
+	JP	NZ,CHKZ80	; ..jump if not
+	LD	A,(HL)		; Get 2nd char
+	CP	'/'		; Is it a slash?
+	JP	NZ,CHKZ80	; ..jump if not
+	CALL	VPRINT		; Two slashes is a help request
+	DEFB	CR,LF,LF
+	DEFB	1,'SETUPZST',2,'  V',VER/10+'0','.',VER MOD 10 + '0',rev
+	DEFB	'  Create/Modify ZSDOS/ZDDOS Time Stamp module'
+	DEFB	CR,LF,LF
+	DEFB	'  Syntax:',CR,LF,LF
+	DEFB	'       SETUPZST       - Enter interactive mode',CR,LF
+	DEFB	'       SETUPZST fn    - Set defaults in file "FN.COM"',CR,LF
+	DEFB	'       SETUPZST //    - Print this message',CR,LF,LF
+	DEFB	'  Note:',CR,LF,LF
+	DEFB	'       Creation of Stamp module requires access to ',CR,LF
+	DEFB	'       STAMPS.DAT and CLOCKS.DAT.',CR,LF,0
+	JR	EXITV
+
+CHKZ80:	XOR	A		; Check for Z80 processor
+	DEC	A		; Set parity flag if 8080
+	JP	PO,ISZ80	; ..jump if Z80
+
+	CALL	VPRINT
+	DEFB	BEL,CR,LF,'+++ ZSDOS is only for Z80 type computers!!!',0
+EXITV:	JP	EXIT
+
+ISZ80:	CALL	CODEND		; Get start of available memory
+	INC	H
+	LD	(BASADR),HL	; Save bottom of file buffer
+	LD	D,H		; ..and clear 12K of memory
+	LD	E,L
+	INC	DE
+	LD	(HL),0
+	LD	BC,3000H
+	LDIR			; ..move the zero along
+
+	LD	BC,11		; Initialize all File Control Blocks
+	LD	HL,LDRWRK	; beginning with the Loader
+	LD	DE,LFCB+1
+	LDIR
+	LD	BC,11		; ..then the Stamp file
+	LD	HL,TIMWRK
+	LD	DE,TFCB+1
+	LDIR
+	LD	BC,11		; ..and finally the clock
+	LD	HL,CLKWRK
+	LD	DE,CFCB+1
+	LDIR
+
+	CALL	RETUD		; Get logged Drive/User
+	LD	(CUSER),BC	; ..and save
+
+	CALL	CLS		; Start with a clear screen
+	CALL	PRNL
+	DEFB	1,1,1,'SETUPZST',2,' V',VER/10+'0','.',[VER MOD 10]+'0',rev
+	DEFB	'    Copyright (C) 1988/93    H.F. Bower / C.W. Cotrill',0
+
+	LD	A,(FCB+1)	; Has a parameter been passed?
+	CP	' '
+	JR	Z,NOFILE	; ..jump to menu if Not
+	LD	HL,BUFF+1	; Else check for DIR:/DU:
+SCN00:	LD	A,(HL)		; Get a char
+	CP	' '		; Dead space before name?
+	INC	HL		; .advance in case
+	JR	Z,SCN00		; ..loop if Space
+	DEC	HL		; Else back up to char
+	OR	0FFH
+	LD	(EXPERT),A	; .(say we are modifying)
+	CALL	DNSCAN		; Scan for DIR: form first
+	JP	Z,CONFG1	; ..jump to continue if Parse Error
+	LD	(SUSER),BC	; Else save the DU
+	CALL	LOGUD		; .log into it
+	JP	CONFG1		; ..and continue
+
+NOFILE:	CALL	PRNL
+	DEFB	4,10,'1 - Generate New Time Stamp Program',0
+	CALL	PRNL
+	DEFB	5,10,'2 - Examine/Modify Existing Time Stamp Program',0
+	CALL	PRNL
+	DEFB	6,10,'X - Exit to DOS',0
+	CALL	PRNL
+	DEFB	10,20,'Enter Selection : ',0
+L0L:	CALL	EREOL
+	CALL	GETCH		; Get a character in Ucase
+	CP	'X'
+	JP	Z,EXIT		; Back to DOS if this char
+	CP	'2'		; Configure request?
+	JP	Z,CONFIG	; ..jump if so
+	CP	'1'		; Initial generation request?
+	JR	NZ,L0L		; ..jump loop if not
+			;..else fall thru if selection 1..
+;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+; Determine type of Time Stamping to use, and check existence
+
+	CALL	CLSCRN		; Clear partial screen
+	CALL	PRNL
+	DEFB	4,10,'Select type of Date/Time Stamping :',0
+	CALL	PRNL
+	DEFB	6,10,'1 - DateStamper (tm)',0
+	CALL	PRNL
+	DEFB	7,10,'2 - P2DOS (CP/M Plus compatible)',0
+	CALL	PRNL
+	DEFB	8,10,'3 - Read DateStamper (tm), Write Both DateStamper & '
+	DEFB	'P2DOS',0
+	CALL	PRNL
+	DEFB	9,10,'4 - Read P2DOS, Write Both DateStamper & P2DOS',0
+;1.2	CALL	PRNL
+;1.2	DEFB	10,10,'5 - ZDDOS Clock interface',0
+	CALL	PRNL			;1.2
+	DEFB	10,10,'5 - NZTime',0	;1.2
+	CALL	PRNL			;1.2
+	DEFB	11,10,'6 - Read P2DOS or NZTime, Write P2DOS or NZTime',0
+	CALL	PRNL			;1.2
+	DEFB	12,10,'7 - ZDDOS Clock interface',0	;1.2
+L1L:	CALL	PRNL
+;1.2	DEFB	12,20,'Choice (^C Exits) : ',0
+	DEFB	14,20,'Choice (^C Exits) : ',0		;1.2
+	CALL	EREOL
+	CALL	GETCH		; Get selection
+	CP	'1'
+	JR	C,L1L
+;1.2	CP	'5'+1
+	CP	'7'+1		;1.2
+	JR	NC,L1L
+	CALL	COUT		; Echo only valid selections
+
+; Select desired time stamp file and check for existance
+
+	LD	C,'D'		; Set ID character for ZDDOS clock
+	LD	HL,ZDDREL
+;1.2	CP	'5'		; Is it ZDDOS glue module?
+	CP	'7'		;1.2 Is it ZDDOS glue module?
+	JR	Z,HAVIT		; ..jump if so
+	LD	C,'S'		; Set ID character for P2D module
+	LD	HL,NZREL	;1.2
+	CP	'5'		;1.2 Is it NZTime?
+	JR	Z,HAVIT		;1.2 ..jump if So
+	LD	HL,NZPREL	;1.2
+	CP	'6'		;1.2 Is it NZP2?
+	JR	Z,HAVIT		;1.2 ..jump if So
+	LD	HL,P2DREL
+	CP	'2'		; Is it P2Dos type?
+	JR	Z,HAVIT		; ..jump if so
+	LD	HL,ZDSREL	; Else select DateStamper type
+	CP	'1'		; Is it DateStamper?
+	JR	Z,HAVIT		; ..jump if so
+	LD	HL,DSBOTH	; Else point to DS --> Both
+	CP	'3'		; Is it DS2Both?
+	JR	Z,HAVIT		; ..jump if so
+	LD	HL,P2BOTH	; Else it must be P2 --> Both (selection 4)
+HAVIT:	LD	A,C
+	LD	(IDCHAR),A	; Save ID character for INSTZST load
+	LD	DE,TMPNM2	; Move the name here
+	LD	BC,8
+	LDIR
+
+	CALL	PRNL
+	DEFB	13,07,'Load as an RSX below the CCP? (Y/[N]) : ',0
+	CALL	EREOL
+	CALL	GETCH		; Get a character response
+	LD	C,0FFH		; Set the default NO response flag
+	LD	HL,HITYP	; ..and module type pointer for Hi-mem
+	CP	'Y'		; Is it an explicit YES?
+	JR	NZ,LODLOW	; ..jump if not with default flag
+	INC	C		; Else make flag a YES
+	LD	HL,LOWTYP	; ..and set module type pointer for RSX
+	CALL	PRYES
+	JR	LODLO1		; Jump to echo Yes
+
+LODLOW:	CALL	PRNO		; Default is No, so set response
+LODLO1:	LD	A,C
+	LD	(LOWFLG),A	; Save the RSX load flag
+	LD	DE,TMPNM2+8	; Destination is filetype field
+	LD	BC,3
+	PUSH	AF		; Save Hi/Lo flag for later test
+	LDIR			; Move module type
+
+	CALL	CLRERR		; Clear any existing error status
+	POP	AF		; Restore Hi/Lo flag
+	LD	C,0FFH		; Set RSX flag to show true
+	JR	Z,NONZ1		; ..and jump if loading as RSX
+
+	CALL	PRNL
+	DEFB	14,07,'Install in NZ-COM User Space? ([Y]/N) : ',0
+	CALL	EREOL
+	CALL	GETCH		; Get a character response
+	LD	C,0FFH		; Set the default NO response flag
+	CP	'N'		; Is it an explicit No?
+	JR	Z,NONZ0		; ..jump if it is a No
+	INC	C		; Else set for a Yes (0) response
+	CALL	PRYES		; ..and print
+	JR	NONZ1
+
+NONZ0:	CALL	PRNO		; Echo a No response
+NONZ1:	LD	A,C		; Get the flag
+	LD	(NZCFLG),A	; ..and save it
+
+LODLO2:	LD	HL,TIMLIB	; Move the library ID to FCB
+	LD	DE,LUDFCB+1
+	LD	BC,11
+	LDIR
+
+SLIBL:	CALL	PRNL		; Get Library location
+	DEFB	15,7,'Location of STAMPS.DAT file [',0
+	CALL	PRNTDU		; Print current Drive/User
+	CALL	VPRINT
+	DEFB	':]     : ',0
+	CALL	EREOL
+	CALL	GETNAM		; Parse it and log Drive/User
+
+	CALL	INITLIB		; Initialize the library
+	JR	Z,SLIBOK	; ..jump if OK
+
+	CALL	FNDERR
+	JR	SLIBL		; ..and back for selection
+
+SLIBOK:	CALL	CLRERR		; Clear any Error status message
+	CALL	PRNL
+	DEFB	17,7,'..Extracting files from STAMPS.DAT..',0
+	LD	HL,LDRID	; Locate and load this file
+	CALL	LDFREL		; Get the REL file from the Library
+	LD	DE,LFCB
+	CALL	WRFREL		; Write the REL to a temporary file
+
+	LD	BC,(SUSER)	; Reset the DU to the Library
+	CALL	LOGUD
+
+	LD	HL,TMPNM2	; Locate and load this file
+	CALL	LDFREL		; Get the REL file from the library
+	LD	DE,TFCB
+	CALL	WRFREL
+
+;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+; Time Stamp Routine set, Get the type of clock to use
+
+	CALL	CLSCRN		; Clear partial screen again
+
+	LD	BC,(CUSER)	; Restore entry Drive/User
+	CALL	LOGUD
+
+	XOR	A		; Show that we have user clock
+	LD	(LIBFLG),A
+	CALL	PRNL
+	DEFB	3,10,'Extract Clock from Library ([Y]/N) : ',0
+	CALL	GETCH		; Get a char
+	CP	'N'		; Is it an explicit No?
+	JR	NZ,USELIB	; ..jump to use library if not
+	CALL	PRNO		; Else print No
+NOUNAM:	CALL	PRNL
+	DEFB	4,10,'Name of User-supplied .REL clock : ',0
+	CALL	EREOL
+	CALL	GETNAM		; Get the name
+	LD	(CLKDU),BC	; ..and save DU
+	LD	A,(FCB+1)	; Was a name entered?
+	CP	' '
+	JR	Z,NOUNAM	; ..loop if not
+	LD	HL,FCB+1	; Else move the entered name
+	LD	DE,CFCB+1	; ..to the clock FCB
+	LD	BC,11
+	LDIR
+
+	LD	DE,CFCB		; Make sure it is there
+	CALL	INITFCB
+	CALL	F$EXIST
+	JR	NZ,NOUNA0	; ..jump if file found
+	LD	A,BEL		; Else beep and try again
+	CALL	COUT
+	JR	NOUNAM
+
+NOUNA0:	LD	BC,(CUSER)	; Restore default DU
+	CALL	LOGUD
+	JP	SIZALL		; Size the modules
+
+USELIB:	OR	0FFH		; Show that we're using library clock
+	LD	(LIBFLG),A
+	CALL	PRYES		; Print Yes, and proceed
+	CALL	PRNL
+	DEFB	4,10,'Location of CLOCKS.DAT [',0
+	CALL	PRNTDU
+	CALL	VPRINT
+	DEFB	':] : ',0
+	CALL	EREOL
+	CALL	GETNAM
+
+	LD	HL,CLKLIB	; Move Clock library name..
+	LD	DE,LUDFCB+1	; ..to LUD's FCB
+	LD	BC,11
+	LDIR
+
+	CALL	PRNL		; Give a CRLF if No ENV..
+	DEFB	6,1,0		; ..else position cursor
+
+	LD	DE,LUDFCB	; Initialize the FCB
+	CALL	INITFCB
+	XOR	A		; Insure that we use default DU
+	LD	(DE),A
+	CALL	F$EXIST		; Does the file exist?
+	JR	NZ,FCLKOK	; ..jump if OK
+
+	CALL	FNDERR
+	JP	EXIT
+
+FCLKOK:	CALL	INITLIB		; Initialize the Library
+	JR	Z,CLIBOK	; ..jump if OK
+
+	CALL	PRNL		; Else print error
+	DEFB	23,10,BEL,'-- Error initializing DAT file',0
+	JP	EXIT
+
+CLIBOK:	CALL	CODEND		; Get base of available memory
+	LD	C,L		; ..to BC
+	LD	B,H
+	LD	DE,LUD		; Stock up for directory list
+	LD	HL,MASK		; Show all entries
+	CALL	LUDIR		; ..and get them
+	JR	Z,CLIBO1	; Jump if OK read
+	CALL	PRNL		; ..else print error
+	DEFB	23,10,BEL,'-- Memory overflow in DAT file',0
+	JP	EXIT
+
+; Directory entries now in memory.  Print them with selection keys
+
+CLIBO1:	CALL	CODEND		; Get back base address
+	EX	DE,HL		; ..to DE
+	LD	C,1		; Set first selection item
+CLLOP:
+	LD	B,4		; 4 entries per line
+	CALL	PRLNAM
+	CALL	CRLF		; Move to next line
+	LD	A,(DE)		; Is this the end?
+	OR	A
+	JR	NZ,CLLOP	; Loop if not done
+	JR	GTCSEL		; ..else continue and get clock selection
+
+PRLNAM:	LD	A,(DE)		; Is it the end?
+	OR	A
+	RET	Z		; ..return if so
+	CP	' '		; Is it a null entry?
+	JR	NZ,PRLNA0	; ..jump if not
+	CALL	NXTENT		; Else advance to next entry
+	JR	PRLNAM		; ..and try again
+
+PRLNA0:	LD	A,C		; Get selector char
+	INC	C		; ..and increment
+	CALL	PADC		; Print the number
+	CALL	VPRINT
+	DEFB	'. ',0
+	CALL	PRCNAM		; Print the entry
+	CALL	VPRINT		; ..and a separator
+	DEFB	'  ',0
+	CALL	NXTENT		; Advance to next entry
+	DJNZ	PRLNAM		; Loop if more to go
+	RET			; ..then return
+
+NXTENT:	LD	HL,17		; Advance to next name
+	ADD	HL,DE
+	EX	DE,HL
+	RET
+
+GTCERR:	LD	A,BEL		; Error loop entry starts with BELL
+	CALL	COUT
+GTCSEL:	CALL	PRNL
+	DEFB	21,1,'Enter Clock Driver Selection : ',0
+	CALL	EREOL
+	LD	HL,KYBUFF	; Set up string buffer
+	LD	(HL),10
+	INC	HL
+	LD	(HL),0
+	DEC	HL
+	XOR	A		; Set for No capitalization
+	CALL	BLINE		; ..and get number string
+	LD	HL,KYBUFF+2	; Now evaluate the string
+	CALL	EVAL10		; ..for a decimal number
+	LD	A,(HL)		; Did the string evaluate to the end?
+	OR	A
+	JR	NZ,GTCERR	; ..jump error if not
+	LD	A,D		; Was the number less than 256?
+	OR	A
+	JR	NZ,GTCERR	; ..jump error if Not
+	LD	C,E		; Move selected value to C
+	LD	B,1		; ..and initial value for 1st selection
+
+; Now scan list of files for match
+
+	CALL	CODEND		; Get start of buffer
+GTCSL0:	EX	DE,HL
+	LD	A,(DE)
+	OR	A
+	JR	Z,GTNFND	; Error if end of table
+	CP	' '		; Is it a null entry?
+	JR	Z,GTCSL1	; ..jump if so
+	LD	A,B		; See if this entry matches
+	CP	C
+	JR	Z,GTFND		; ..Jump if match
+	INC	B		; Bump selector char
+GTCSL1:	LD	HL,17		; Advance to next entry
+	ADD	HL,DE
+	JR	GTCSL0		; ..and loop
+
+GTNFND:	CALL	PRNL		; Print error
+	DEFB	23,5,BEL,'-- Error in locating Clock file',0
+	JP	GTCSEL
+
+GTFND:	CALL	PRNL		; Print feedback notice
+	DEFB	22,5,'..Loading : ',0
+	CALL	PRCNAM
+	CALL	VPRINT
+	DEFB	' ... ',0
+	EX	DE,HL		; Move name to hold buffer
+	LD	DE,TMPNAM
+	LD	BC,11
+	LDIR
+
+	LD	HL,TMPNAM	; Select the desired Clock file
+	CALL	LDFREL		; .. and load it
+
+	LD	DE,CFCB		; Set Temp file FCB for Clock
+	CALL	WRFREL		; ..and write the file
+
+; Size the Basic Stamp driver module
+
+SIZALL:	LD	DE,TFCB		; Put addr of FCB on stack
+	CALL	INITFCB		; Initialize the FCB
+	PUSH	DE		; ..in case of error return..
+	PUSH	DE		; ..for Linker
+	XOR	A		; Tell LINKN to just size module
+	CALL	LINKN
+	POP	HL		; Restore FCB in case of errors
+	EX	DE,HL		; Put module Code Size in HL, FCB to DE
+	OR	A		; Any errors?
+	JP	NZ,SZERR	; ..jump if so
+	LD	(CSZ1),HL	; Save Module Code Size
+	ADD	HL,BC		; Add with Data Size for total
+FTIM0:	LD	A,L		; Round up to even 8-byte boundary
+	AND	07H
+	JR	Z,FTIM1
+	INC	HL
+	JR	FTIM0		; ..loop til there
+
+FTIM1:	LD	(DSZ1),HL	; Save Total Module Size
+
+; Size the extracted Clock module driver
+
+	LD	A,(LIBFLG)	; Are we using a library clock?
+	OR	A
+	JR	NZ,FCL2		; ..jump if so
+	LD	BC,(CLKDU)	; Set DU to clock location
+	CALL	LOGUD
+
+FCL2:	LD	DE,CFCB		; Size the clock module
+	CALL	INITFCB
+	PUSH	DE		; Put addr of FCB on stack in case of errors..
+	PUSH	DE		; ..and for Link
+	XOR	A		; Flag LINKN to just Size
+	CALL	LINKN
+	POP	HL
+	EX	DE,HL		; Put Code Size in HL, FCB in DE
+	OR	A		; Any errors?
+	JP	NZ,SZERR	; ..jump if so
+	LD	(CSZ2),HL	; Save Clock Module Code Size
+	ADD	HL,BC		; Add Code + Data Size for Total
+FCL0:	LD	A,L		; Round up to even 8-byte boundary
+	AND	07H
+	JR	Z,FCL1
+	INC	HL
+	JR	FCL0		; ..loop til done
+
+FCL1:	LD	(DSZ2),HL	; Save Total Clock Module Size
+	LD	BC,(CUSER)	; Restore default DU
+	CALL	LOGUD
+
+;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+; Everything found and sized.  Load the loader core routine
+
+	CALL	CLSCRN		; Clear partial screen
+	CALL	PRNL
+	DEFB	4,10,'Linking Loader Module.. ',0
+
+	LD	DE,LFCB		; Does the file exist?
+	CALL	INITFCB		; ..insure the FCB initialized
+	CALL	F$EXIST
+	JR	NZ,LDROK	; Jump if loader file exists
+
+	CALL	FNDERR		; Print error
+	JP	EXIT		; ..and exit
+
+LDROK:	PUSH	DE		; Put addr of FCB on stack
+	PUSH	DE		; ..again for error return
+	XOR	A		; Command link to just size
+	CALL	LINKN
+	POP	HL 
+	EX	DE,HL		; Size to HL, FCB to DE
+	OR	A		; Any errors?
+	JP	NZ,SZERR
+	LD	(CSZ3),HL	; Save returned sizes
+	ADD	HL,BC
+	LD	(DSZ3),HL	; Save total size
+
+; Load basic loader module as .COM file orged at 100H
+
+	CALL	INITFCB
+	EXX			; Load alternate regs for Load
+	LD	BC,100H		; ORG addr for data in .COM file
+	LD	HL,(CSZ3)
+	ADD	HL,BC		; Data starts after code
+	EX	DE,HL		; Data ORG addr to DE
+	EXX			; ..back to primary regs to load up
+	LD	BC,(BASADR)	; Physical load addr to BC (code)
+	LD	HL,(CSZ3)
+	ADD	HL,BC		; Offset to physical data load addr
+	EX	DE,HL		; Physical load addr to DE (data)
+				; ..puts FCB back to HL
+	PUSH	HL		; Put FCB addr on stack
+	PUSH	HL		; ..again in case of errors
+	LD	A,0001B		; Command LINKN to load with no Map
+	CALL	LINKN
+	POP	DE		; Restore FCB
+	OR	A
+	JP	NZ,LNKERR	; Jump if any errors
+
+	LD	HL,(BASADR)	; Get start of root loader code
+	LD	DE,MODID	; ..and offset to ID character in header
+	ADD	HL,DE
+	LD	A,(IDCHAR)	; Get necessary ID character
+	LD	(HL),A		; ..and store in image
+
+	CALL	VPRINT		; Print message if OK link & load
+	DEFB	'OK',0
+
+;.....
+; Set location to even page, and Time Addr for half page
+
+	LD	HL,(DSZ3)	; Get Loader total size
+	LD	A,L
+	OR	A		; Set addr for page boundary
+	JR	Z,EVNPAG
+	LD	L,0
+	INC	H
+EVNPAG:	LD	DE,(BASADR)	; Set physical address
+	ADD	HL,DE		; Set address of Clock ID section
+	LD	(CLKOFF),HL
+	INC	H
+	LD	(PREOFF),HL	; ..and of Pre-execution check code
+	INC	H		; Up to Module code page
+	LD	L,80H		; Next module starts on half page
+	LD	(PHLOAD),HL	; Store starting addr of Stamp module
+
+; Calculate load addresses for Time module
+
+	EX	DE,HL
+	LD	HL,(DSZ1)	; Add time module total size
+	LD	BC,(DSZ2)	; ..to clock total size
+	ADD	HL,BC
+	LD	(MODSIZ),HL	; Save total module size
+	EX	DE,HL
+	LD	L,0		; Back up to empty half-page
+	LD	(HL),E		; ..and save module size (to map)
+	INC	HL
+	LD	(HL),D
+	LD	L,80H
+	ADD	HL,DE
+	LD	(BITMAP),HL
+
+; Now load the root Time Stamp module in location for loader
+
+	CALL	PRNL
+	DEFB	5,10,'Linking Time Module ... ',0
+
+	LD	DE,TFCB		; Clear the Control Block
+	CALL	INITFCB
+	EXX
+	LD	BC,0000		; ORG Time is 0 (code)
+	LD	DE,(CSZ1)	; ORG Time is CSIZE (data)
+	EXX
+	LD	BC,(PHLOAD)	; Set physical Code load address
+	LD	HL,TOPOFF	; Offset to vector for top-of-module
+	ADD	HL,BC
+	LD	(TOPVEC),HL	; Save in module header
+	LD	HL,(CSZ1)	; ..offset to data segment
+	ADD	HL,BC
+	EX	DE,HL		; Physical Data load to DE, FCB to HL
+	PUSH	HL		; Put FCB addr on stack
+	PUSH	HL		; ..again in case of errors
+	LD	A,0011B		; Command to link & build map
+	CALL	LINKN
+	POP	DE		; Restore FCB
+	OR	A		; Errors?
+	JP	NZ,LNKERR	; ..jump if errors
+	CALL	VPRINT		; Print message if OK
+	DEFB	'OK',0
+
+; Link and Load Clock driver
+
+NOPORT:	CALL	PRNL
+	DEFB	6,10,'Linking Clock Module... ',0
+
+	LD	A,(LIBFLG)	; Are we using User clock?
+	OR	A
+	JR	NZ,NOPOR0	; ..jump if Not
+	LD	BC,(CLKDU)
+	CALL	LOGUD		; Else log into DU with clock
+
+NOPOR0:	LD	HL,(PHLOAD)	; Update load values for Clock portion
+	LD	DE,(DSZ1)
+	ADD	HL,DE
+	LD	(PHLOAD),HL
+	LD	HL,(BITMAP)	; Update Bitmap addr
+	LD	DE,CFCB		; Clear FCB for clock
+	CALL	INITFCB
+	EXX			; Fill up regs for link
+	LD	BC,(DSZ1)	; ORG for Clock module (code)
+	LD	HL,(CSZ2)	; ..offset for Cseg
+	ADD	HL,BC
+	EX	DE,HL		; ORG for Clock data to DE
+	EXX
+	LD	BC,(PHLOAD)	; Physical Clock load (code)
+	LD	HL,(CSZ2)	; ..offset for Dseg
+	ADD	HL,BC
+	EX	DE,HL		; Data load to DE, FCB to HL
+	PUSH	HL		; Put addr of FCB on stack
+	PUSH	HL		; ..again in case of errors
+	LD	A,0011B		; Command for link
+	CALL	LINKN
+	POP	DE		; Restore FCB
+	OR	A		; Errors?
+	JP	NZ,LNKERR	; ..jump if errors
+	CALL	VPRINT		; Print message if OK
+	DEFB	'OK',CR,LF,0
+
+	LD	BC,(CUSER)	; Restore default Drive/User
+	CALL	LOGUD
+
+; Examine the clock code for ZSDOS standard and alter the error
+; return to jump to clock set if it exists
+
+	LD	HL,(PHLOAD)	; Point to clock start..and..
+	DEC	HL		; ..back up to error Ret/JR Set Clock
+	DEC	HL
+	DEC	HL
+	LD	DE,3		; ..offset value
+	PUSH	HL		; Save pointer
+	ADD	HL,DE		; Point to clock entry
+	LD	A,(HL)		; ..get first opcode
+	ADD	HL,DE		; Point to possible second jump
+	LD	B,(HL)		; ..get Entry+3 opcode
+	POP	HL		; Restore pointer
+	CP	0C3H		; Is first opcode a Jump?
+	JR	NZ,DSCLK	; ..is DateStamper type if not
+	CP	B		; Is entry+3 also a Jump?
+	JR	NZ,DSCLK	; ..is NOT ZSDOS type if not (no clk set)
+
+; We have a ZSDOS "type" clock with two jumps (Read and Set), so patch
+
+	LD	(HL),18H	; JR
+	INC	HL
+	LD	(HL),04H	; CLK+3 .. jump to Clock Set
+	INC	HL
+	LD	(HL),0		; Null last byte
+
+; Image is in memory, set absolute ending address for write
+
+DSCLK:	LD	HL,(DSZ2)	; Convert size of Clock module..
+	LD	B,3
+DIV0:	SRL	H		; ..to number of bytes in Map
+	RR	L
+	DJNZ	DIV0
+	INC	HL		; ..in case of partial byte
+	LD	DE,(BITMAP)	; Physical addr of beginning clock Map
+	ADD	HL,DE
+	LD	(ENDADR),HL	; Save addr of last byte in memory
+	LD	DE,(BASADR)	; Calculate number of CP/M sectors
+	OR	A
+	SBC	HL,DE
+	LD	A,L
+	RLA			; Bit 7 goes to carry
+	RL	H		; ..and into Bit 0 of H, shifting rest left
+	OR	A		; Partial sector?
+	JR	Z,DIV1		; ..jump if not
+	INC	H
+DIV1:	LD	L,H		; # sectors to L..
+	LD	H,0		; ..null high byte
+	LD	(RECNT),HL	; Store number of sectors
+	LD	HL,5		; Offset BASADR to size words of storage..
+	ADD	HL,DE		; ..for Time Stamp..
+	LD	A,(LOWFLG)	; Are we loading low?
+	OR	A
+	JR	NZ,DIV2		; ..jump if Not
+	DEC	HL		; Else back up to load addr @ base + 3,4
+	LD	(HL),A		; ..and set to zero
+	DEC	HL
+	LD	(HL),A
+	INC	HL		; Then back to storage addr
+	INC	HL
+DIV2:	LD	A,(NZCFLG)	; Are we auto-installing with NZCOM?
+	OR	A
+	JR	NZ,DIV3		; ..jump if not
+	DEC	HL		; Else back up to load addr @ base + 3,4
+	LD	(HL),0FFH	; ..and set to FFFF
+	DEC	HL
+	LD	(HL),0FFH
+	INC	HL		; Then back to storage addr
+	INC	HL
+DIV3:	LD	DE,(DSZ1)
+	LD	(HL),E
+	INC	HL
+	LD	(HL),D
+	INC	HL
+	LD	BC,(DSZ2)	; ..and Clock driver
+	LD	(HL),C
+	INC	HL
+	LD	(HL),B
+	LD	A,(LOWFLG)	; Is this an RSX load?
+	OR	A
+	JR	Z,..3		; ..jump if so and do not set TOP vector
+	EX	DE,HL		; Calculate next available address
+	ADD	HL,BC
+	EX	DE,HL
+	LD	HL,(TOPVEC)	; Store in module header
+	LD	(HL),E
+	INC	HL
+	LD	(HL),D
+
+; Configure the clock module
+
+..3:	CALL	CLSCRN		; Clear the screen
+	LD	HL,3*256+10	; Position the cursor
+	CALL	GOTOXY
+	LD	HL,(CLKOFF)	; Print the Clock name
+	INC	HL		;  (bypass static year)
+	INC	HL
+	CALL	PRTLIN		; ..and version #
+	CALL	CRLF
+	CALL	CRLF
+	LD	HL,(CLKOFF)	; Now print the description
+	LD	DE,30
+	ADD	HL,DE
+	CALL	PRTLIN
+	CALL	CRLF
+	CALL	CRLF
+
+	LD	HL,CKPARM	; Load the registers
+	LD	C,(HL)		; Get # of parameters to BC
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	LD	E,(HL)		; Point DE first to string for first parm
+	INC	HL
+	LD	D,(HL)
+	INC	HL		; ..then HL to addr of first parm
+	EX	DE,HL		; Now DE-->1st parm addr, HL-->1st parm str
+
+STPRM0:	LD	A,B		; Is there anything to set?
+	OR	C
+	JR	Z,SETPRM	; ..jump to set if not
+	PUSH	BC		; Save regs around the setup
+	PUSH	DE
+	CALL	PRTLIN		; Print the prompt line
+	CALL	VPRINT		; ..and separator
+	DEFB	' (Default=',0	;
+	POP	DE		; Restore the parm value
+	LD	A,(DE)
+	INC	DE		; Advance to first byte of value
+	OR	A		; Word or byte?
+	JR	Z,ONEBYT	; ..jump if only byte
+	INC	DE		; Have word so advance to hi byte
+	LD	A,(DE)
+	CALL	PA2HC		; Print it
+	DEC	DE		; ..and back down to lo byte
+ONEBYT:	LD	A,(DE)		; Get low byte
+	CALL	PA2HC		; Print the byte
+	CALL	VPRINT		; ..and end of string
+	DEFB	'H) : ',0	;
+	CALL	GETCH		; Get response from keyboard
+	CP	CR		; Is it an accept default?
+	JR	Z,STPRM1	; ..jump if so
+	PUSH	HL		; Else save regs
+	LD	HL,0		; Set up
+	CALL	GETAD2		; ..and get the new value
+	LD	A,L		; Store new value in table
+	LD	(DE),A
+	INC	DE
+	LD	A,H		; ..including hi byte
+	LD	(DE),A
+	DEC	DE		; and back to start
+	POP	HL		; Restore regs
+
+STPRM1:	CALL	CRLF		; Go to new line
+	INC	DE		; Advance to next value
+	INC	DE
+	POP	BC		; Restore counter
+	DEC	BC		; Count down
+	JR	STPRM0		; ..and back for more
+
+; Initialize installed parameters if required
+
+SETPRM:	LD	HL,(TOPVEC)	; Prepare for Initialization of module
+	LD	DE,TOPOFF	;
+	OR	A
+	SBC	HL,DE		; ..by setting base of relocatable module
+	EX	DE,HL		; Put in DE
+	CALL	CKPOST		; Set port & mask values
+	LD	HL,7*256+1	; Clear a partial screen
+	LD	B,17
+	CALL	CLLOOP
+	JP	CONFG0		; ..and jump to configuration section
+
+; Exit the program placing cursor at bottom and relogging DU:
+
+EXIT:	CALL	CRLF
+	LD	HL,23*256+1	; Position near bottom of screen
+	CALL	GOTOXY
+	LD	BC,(CUSER)	; Restore entry Drive and User
+	CALL	LOGUD
+	LD	SP,(STACK)	; Restore old stack & quit
+	RET
+
+;.....
+; Load point for reconfiguration of existing image.
+; Begin by loading program to memory
+
+CONFIG:	CALL	COUT		; Echo selection
+LDCOM:	CALL	CLSCRN		; Clear partial screen
+LDCOM0:	CALL	PRNL
+	DEFB	4,5,'Time Stamp File to load [default type = .COM] : ',0
+	CALL	GETNAM
+
+	LD	A,0FFH		; Show that we have entered DU
+	LD	(EXPERT),A
+	LD	A,(FCB+1)	; Check for name entered
+	CP	'?'
+	JR	Z,LDCOM0	; ..jump if no name entered
+	LD	HL,4*256+1	; Clear addr entry line
+	CALL	CLRXY
+
+CONFG1:	LD	HL,DFLT1
+	CALL	SETTYP
+	LD	DE,DEFNAM	; Move passed name to default
+	LD	HL,FCB+1	; ..from default FCB
+	LD	BC,11
+	LDIR
+
+	CALL	LOADFI		; Open file and print status
+	LD	DE,128		; Set sector size
+	LD	BC,0		; Set record count
+	LD	HL,(BASADR)	; Get starting address
+LDLOOP:	LD	(ENDADR),HL	; Set current top address
+	PUSH	BC		; Save record count
+	PUSH	DE		; ..and sector size
+	CALL	SETDMA		; Set the DMA transfer address
+	LD	DE,FCB
+	CALL	F$READ		; Read a sector
+	POP	DE		; Restore regs
+	POP	BC
+	OR	A		; Any errors?
+	JR	NZ,FXFER1	; ..exit if the end
+	LD	HL,(ENDADR)
+	ADD	HL,DE		; calculate new DMA address
+	INC	BC		; Bump record counter
+	JR	LDLOOP
+
+FXFER1:	LD	(RECNT),BC	; Save record count
+	LD	DE,FCB
+	CALL	F$CLOSE		; ..as a formality
+	LD	HL,5*256+1	; Clear addr entry line
+	CALL	CLRXY
+
+; Desired file is in memory from BASADR to ENDADR.  Configure options
+; Begin by displaying present load points and ranges
+
+CONFG0:	LD	HL,(BASADR)
+	INC	HL		; Advance to addr of load point
+	INC	HL
+	INC	HL
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	LD	A,D		; Is it a Low RSX?
+	OR	E
+	JR	NZ,ISITNZ	; ..jump to check NZCOM load if not
+	CALL	PRNL
+	DEFB	7,10,'Module will load below CCP',0
+	JP	CHKCC0		; Bypass stats and jump to CCP size set
+
+ISITNZ:	LD	A,D 
+	AND	E		; a=0ffh if de=0ffffh
+	INC	A		; now set Z flag if DE=0FFFF
+	JP	NZ,CONFGH	; ..jump if not NZCOM
+	CALL	PRNL
+	DEFB	7,10,'Module will load NZ-COM User Space.  Change? (Y/[N])',0
+	CALL	GETCH		; Get a character response
+	CP	'Y'		; Is it an explicit Yes?
+	JR	Z,INITN0	; ..jump if it is a Yes to change
+	CALL	PRNO		; Else print a No
+	PUSH	HL
+	CALL	PRNL
+	DEFB	9,10,'NZCOM user area size (in bytes) must be ',0
+	POP	HL
+	INC	HL		; get stamp module size
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	LD	E,(HL)		; ..and get clock size
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	DEC	HL		; back up to last addr used
+	ADD	HL,BC
+	CALL	PHL4HC
+	LD	A,'H'
+	CALL	COUT
+	JP	OPNMS0		; Bypass stats and jump to message set
+
+INITN0:	CALL	PRYES		; Print a Yes and fall thru to change
+
+CONFGH:	PUSH	DE		; Save Load address
+	PUSH	HL		; ..and index to vectors
+	CALL	PRNL
+	DEFB	9,10,'Stamp Routine : ',0
+	POP	DE
+	POP	HL
+	PUSH	HL
+	PUSH	DE
+	CALL	PHL4HC		; Print load address in Hex
+	LD	A,'-'
+	CALL	COUT
+	POP	HL		; Restore vectors
+	POP	DE
+	INC	HL		; Get Stamp module size
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	PUSH	HL
+	EX	DE,HL
+	ADD	HL,BC
+	PUSH	HL		; Save ending address
+	DEC	HL		; ..back up to last addr used..
+	CALL	PHL4HC		; ..and print it
+	LD	A,'H'
+	CALL	COUT
+	CALL	EREOL
+	CALL	PRNL		; Move to new line and print
+	DEFB	10,10,'Clock Driver  : ',0
+	POP	HL
+	PUSH	HL
+	CALL	PHL4HC
+	LD	A,'-'
+	CALL	COUT
+	POP	DE
+	POP	HL		; Restore vector address
+	LD	C,(HL)		; ..and get clock size
+	INC	HL
+	LD	B,(HL)
+	EX	DE,HL
+	DEC	HL		; Back up to last addr used
+	ADD	HL,BC
+	CALL	PHL4HC
+	LD	A,'H'
+	CALL	COUT
+
+	CALL	PRNL
+	DEFB	11,10,'Change Load Address (Y/[N])? : ',0
+	CALL	EREOL
+	CALL	GETCH		; Get response
+	CP	'Y'
+	JR	NZ,CHKCCP	; ..jump if No change needed
+	CALL	PRYES
+	CALL	PRNL
+	DEFB	12,20,'Enter HEX Load address : ',0
+	CALL	EREOL
+	CALL	GETADR		; Else get hex address in HL
+	EX	DE,HL		; Put new addr in DE
+	LD	HL,(BASADR)	; ..and get destination
+	INC	HL
+	INC	HL
+	INC	HL
+	LD	(HL),E		; Save the new value
+	INC	HL
+	LD	(HL),D
+	JP	CONFG0		; ..and show it for confirmation
+
+; Check the CCP size, and set if requested
+
+CHKCCP:	CALL	PRNO
+CHKCC0:	LD	HL,13*256+1
+	CALL	CLRXY		; Clear status line
+	CALL	PRNL
+	DEFB	13,10,'CCP Size is : ',0
+	LD	HL,(BASADR)
+	LD	DE,9		; Offset to addr in image
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	CALL	PHL4HC		; Print existing address
+	CALL	VPRINT
+	DEFB	'H.  Change it (Y/[N])? : ',0
+	CALL	EREOL
+	CALL	GETCH		; Get answer
+	CP	'Y'
+	JR	NZ,OPNMSG
+	CALL	PRYES
+	CALL	PRNL
+	DEFB	14,20,'Enter CCP size in HEX : ',0
+	CALL	EREOL
+	CALL	GETADR		; Get an entered value
+	EX	DE,HL
+	LD	HL,(BASADR)	; Calculate destination
+	LD	BC,9
+	ADD	HL,BC
+	LD	(HL),E		; ..and save
+	INC	HL
+	LD	(HL),D
+	JP	CHKCC0		; Loop til right
+
+; See if the operator wants any banner to announce installation
+
+OPNMSG:	CALL	PRNO		; Print NO response
+OPNMS0:	CALL	PRNL
+	DEFB	15,10,'Opening Message : '
+	DEFB	'________________________________________\',0
+	LD	B,41		; Now backspace to start
+BSLOOP:	LD	A,BS
+	CALL	COUT		; ..by sending backspaces
+	DJNZ	BSLOOP
+	LD	HL,KYBUFF
+	LD	(HL),41		; Initialize the buffer
+	INC	HL
+	LD	(HL),0
+	DEC	HL
+	XOR	A		; No capitalization of string
+	CALL	BLINE		; Get the string
+	LD	C,A		; Put count in C..
+	INC	C		; ..correcting for ending null
+	LD	B,0
+	PUSH	BC		; Save counter
+	EX	DE,HL		; Save string starting addr in DE
+	LD	HL,(BASADR)
+	LD	BC,11
+	ADD	HL,BC		; Now have the vector for destination..
+	LD	C,(HL)		; ..get the relative string offset
+	INC	HL
+	LD	B,(HL)
+	LD	HL,(BASADR)	; Calculate the real destination
+	ADD	HL,BC
+	POP	BC		; Retrieve count
+	EX	DE,HL		; ..and set addresses
+	LDIR			; Move the string
+	JR	SAVFL0
+
+; File is configured, and ready to go.  Save it
+
+SAVFIL:	CALL	PRNO
+SAVFL0:	CALL	PRNL
+	DEFB	17,10,'Name of output file [Default = ',0
+	CALL	PRNTDU
+	LD	A,':'
+	CALL	COUT
+	LD	DE,DEFNAM
+	CALL	PFN1
+	CALL	VPRINT
+	DEFB	'] : ',0
+	CALL	EREOL		; Clear rest of line
+	LD	A,(EXPERT)	; Are we modifying a COM file?
+	OR	A
+	JR	NZ,SAVFL1	; ..jump if so
+	LD	HL,(CUSER)	; Load Entry (default) DU to destination
+	LD	(SUSER),HL
+SAVFL1:	CALL	GETNAM
+	LD	A,(FCB+1)	; Was name entered?
+	CP	'?'		; Jump default if ambiguous
+	JR	Z,SAVDEF
+	CP	' '
+	PUSH	AF		; Save status while type set to .COM
+	LD	HL,DFLT1
+	CALL	SETTYP
+	POP	AF		; Restore flags and test
+	JR	NZ,OK2SAV	; ..jump if yes
+SAVDEF:	LD	HL,DEFNAM	; Move default name & type to FCB
+	LD	DE,FCB+1
+	LD	BC,11
+	LDIR
+OK2SAV:	LD	DE,FCB
+	CALL	INITFCB		; Initialize the FCB
+
+	LD	C,13		; Reset disks for swap
+	CALL	BDOS
+	LD	BC,(SUSER)	; ..and log into desired user
+	CALL	LOGUD
+
+	LD	DE,FCB
+	CALL	F$EXIST		; See if file already exists
+	JR	Z,SAVZST	; If no file
+	CALL	PRNL		; See if user wants to replace file
+	DEFB	18,10,BEL,'+++ That file already exists.  '
+	DEFB	'Overwrite it (Y/[N])? ',0
+	CALL	EREOL
+	CALL	GETCH		; Get response
+	CP	'Y'		; Erase existing file?
+	JP	NZ,SAVFIL	; ..Jump If no erase to get a new name
+	CALL	PRYES
+	LD	DE,FCB
+	CALL	F$DELETE	; Erase the existing file
+
+SAVZST:	CALL	PRNL
+	DEFB	19,20,' ..Saving : ',0
+	CALL	PRNTDU
+	CALL	VPRINT
+	DEFB	': ',0
+	LD	DE,FCB+1
+	CALL	PFN1		; Print filename in message
+	LD	DE,FCB
+	CALL	F$MAKE		; Create and open the Save file
+	INC	A		; FF --> 00
+	JP	Z,FERROR	; Jump to general file error
+
+	LD	HL,(BASADR)	; Load the base address
+SAVZS2:	CALL	SETDMA		; ..and set it
+	PUSH	HL
+	LD	DE,FCB
+	CALL	F$WRITE		; Write a sector
+	POP	HL		; Restore the DMA address
+	OR	A		; Check error status
+	JP	NZ,FERROR	; ..jump error if necessary
+	LD	DE,128		; Compute new DMA address
+	ADD	HL,DE
+	EX	DE,HL		; Put DMA address in DE
+	LD	HL,(RECNT)	; Get data block count
+	DEC	HL		; ..count down
+	LD	(RECNT),HL	; Save new count
+	LD	A,H
+	OR	L
+	EX	DE,HL		; Restore DMA address in case more to go
+	JR	NZ,SAVZS2	; Loop til done
+
+SAVZS3:	LD	DE,FCB
+	CALL	F$CLOSE		; Close the file
+	INC	A		; FF --> 00
+	JP	Z,FERROR	; ..jump if unable to close
+
+	CALL	PRNL		; Keep the user informed
+	DEFB	20,21,'..Erasing Work Files..',0
+	CALL	EREOL
+	LD	BC,(CUSER)
+	CALL	LOGUD		; Move back to the default directory
+	LD	HL,LFCB+4	; Use the loader FCB to clear temporaries
+	LD	(HL),'?'
+	INC	HL
+	LD	(HL),'?'
+	INC	HL
+	LD	(HL),'?'
+	LD	DE,LFCB		; Now erase them
+	CALL	INITFCB		; ..after cleaning up the FCB
+	CALL	F$DELETE
+
+	CALL	PRNL		; Sign off the system
+	DEFB	22,10,'<< System Saved.  Good Bye >>',0
+	CALL	EREOL
+	JP	EXIT
+
+;=============================================
+;	S U P P O R T    R O U T I N E S
+;===============================================
+
+;.....
+; Write a Null-terminated string to the console from HL
+
+PRTLIN:	LD	A,(HL)		; Get a char from the string
+	INC	HL
+	OR	A		; Is this the end?
+	RET	Z		; ..return if so
+	PUSH	HL
+	CALL	COUT		; Print the char
+	POP	HL
+	JR	PRTLIN
+
+;.....
+; Print Error if file not found
+
+FNDERR:	PUSH	DE		; Preserve file name
+	CALL	PRNL
+	DEFB	23,10,BEL,'+++ Can''t find : ',0
+	CALL	PRNTDU
+	CALL	VPRINT
+	DEFB	': ',0
+	POP	DE
+	INC	DE
+	JP	PFN1
+
+;.....
+; Print error if sizing module and abort
+
+SZERR:	PUSH	DE
+	CALL	PRNL
+	DEFB	23,10,BEL,'+++ Error sizing : ',0
+ERXIT:	POP	DE
+	INC	DE
+	CALL	PRNTDU
+	CALL	VPRINT
+	DEFB	': ',0
+	CALL	PFN1		; Print the file name
+	JP	EXIT
+
+;.....
+; Print error if linking error on module and abort
+
+LNKERR:	PUSH	DE		; save file name
+	PUSH	AF		; ..and error code
+	CALL	PRNL
+	DEFB	23,10,BEL,'+++ Link Error : ',0
+	POP	AF
+	CALL	PA2HC		; Print hex error code
+	CALL	VPRINT
+	DEFB	' in file : ',0
+	JR	ERXIT
+
+;.....
+; Print error on file open.
+
+FERROR:	CALL	PRNL
+	DEFB	23,10,BEL,'+++ Error on file open',0
+	RET
+
+;.....
+; Open file specified in FCB and notify user
+
+LOADFI:	LD	DE,FCB		; Act on this file
+	CALL	F$OPEN		; Open it
+	JR	Z,LOADF2	; ..jump if Ok
+	CALL	FERROR		; Else print error message
+	JP	EXIT		; ..and quit
+
+LOADF2:	CALL	PRNL
+	DEFB	4,10,'..Loading ',0
+	CALL	PRNTDU		; Print Drive/User
+	CALL	VPRINT
+	DEFB	': ',0
+			;..fall thru to..
+;.....
+; Print filename in FCB
+
+PRNAME:	LD	DE,FCB+1
+	CALL	PFN1
+	JP	CRLF
+
+;.....
+; Clear Lines 4 thru 13 on the screen
+
+CLSCRN:	LD	HL,2*256+1	; Start at line 4
+	LD	B,21		; Clear this many lines
+CLLOOP:	PUSH	BC		; Preserve counter
+	PUSH	HL
+	CALL	GOTOXY		; Set the cursor
+	CALL	EREOL
+	POP	HL		; Restore cursor addr
+	INC	H		; ..and move to next line
+	POP	BC
+	DJNZ	CLLOOP
+	RET
+
+;.....
+; Get user input line and parse into the FCB
+
+GETNAM:	LD	HL,KYBUFF	; Address the line buffer
+	LD	(HL),30
+	INC	HL
+	LD	(HL),0
+	DEC	HL
+	LD	A,0FFH		; Capitalize input
+	CALL	BLINE		; ..and get it
+	LD	DE,FCB
+	LD	HL,KYBUFF+2
+	LD	DE,FCB
+	LD	A,01H		; Scan for DU: form first
+	CALL	ZPRSFN		; Parse DU and FN.FT to FCB
+	LD	A,(FCB+13)	; Get the User
+	LD	C,A		; ..to C
+	LD	A,(FCB)		; Load Drive
+	LD	B,A		; ..to B
+	LD	DE,(CUSER)	; Get current Drive/User
+	OR	A		; Test for default
+	JR	NZ,GETNA1	; Jump if different drive selected
+	LD	B,D		; ..else set default to current
+	INC	B		; Compensate..
+GETNA1:	DEC	B
+	LD	A,C
+	INC	A		; FF -> 0
+	JR	NZ,GETNA2	; Jump if specific user requested
+	LD	C,E		; ..else set default to current
+GETNA2:	LD	(SUSER),BC	; Save the desired DU
+	JP	LOGUD		; Exit by logging to requested DU
+
+;.....
+; Get a character from the keyboard in uppercase
+
+GETCH:	CALL	CIN
+	CALL	CAPS
+	CP	CTRLC		; Is it an abort request?
+	JP	Z,EXIT		; ..jump exit if so
+	RET
+
+;.....
+; Get a Hex address in the HL register pair
+;  Enter with first char in A reg
+
+GETADR:	LD	HL,0		; Start with a clean value
+GETAD1:	CALL	GETCH		; Get char from kybd in caps
+GETAD2:	LD	(CHAR),A	; Save for possible later echo
+	CP	CR		; Is this the end?
+	RET	Z
+	CALL	CKHEX		; Validate as HEX digit
+	JR	NC,GETAD1
+GETAD0:	PUSH	AF		; Save binary value
+	LD	A,(CHAR)	; Get character entered
+	CALL	COUT		; ..and echo
+	POP	AF		; Restore binary value
+	CALL	ADDHEX		; Store the new sum
+	JR	GETAD1		; ..else loop for more
+
+;.....
+; Validate a HEX digit
+; ENTER: Character to check in A
+; EXIT : Converted char in A
+;	 Carry set (C) if OK, else Clear (NC)
+
+CKHEX:	SUB	'0'		; Validate as HEX digit
+	JP	M,CKHEXN	; ..set bad
+	CP	9+1
+	RET	C
+	SUB	7
+	CP	10
+	JR	C,CKHEXN
+	CP	16
+	RET			; Return with flags set
+
+CKHEXN:	XOR	A		; Signal Bad digit
+	DEC	A		; ..(No Carry)
+	RET
+
+;.....
+; Add the hex digit in A to accumulator in HL
+
+ADDHEX:	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	A,L
+	LD	L,A		; Store the new sum
+	RET
+
+;.....
+; Print Yes/No answers to console
+
+PRYES:	CALL	VPRINT
+	DEFB	'YES',0
+	RET
+
+PRNO:	CALL	VPRINT
+	DEFB	'NO',0
+	RET
+
+;.....
+; Print Hex value of HL registers followed by an 'H'
+
+PRHEX:	CALL	PHL4HC
+	LD	A,'H'
+	JP	COUT
+
+;.....
+; Print Currently-logged Drive & User Number to screen
+
+PRNTDU:	CALL	RETUD		; Get current DU to BC
+	LD	A,B
+	ADD	A,'A'		; Make Drive to letter
+	CALL	COUT
+	LD	A,C		; Get User #
+	JP	PAFDC		; ..print it and return
+
+;.....
+; Print CRLF then jump to inline print routine w/return addr on stack
+
+PRNL:	CALL	CRLF		; For non-ZCPR3 users
+	JP	GXYMSG
+
+;.....
+; Clear Error Status Line
+
+CLRERR:	LD	HL,23*256+1	; Clear any existing error status
+			;..fall thru to do it
+;.....
+; Clear the line addressed by HL
+
+CLRXY:	CALL	GOTOXY		; Position cursor
+	JP	EREOL		; ..and clear the line
+
+;.....
+; Set default file type if necessary
+
+SETTYP:	LD	DE,FCB+9
+	LD	A,(DE)		; Is the entered type null?
+	CP	' '
+	JR	Z,SETTY3	; ..jump to fill w/default if Nulls
+	CP	'?'		; Is it ambiguous?
+	RET	NZ		; ..quit here if not
+SETTY3:	LD	BC,3		; Type is this long
+	LDIR			; Move the specified default type
+	RET
+
+;.....
+; Print a clock filename.typ as a single 11-char string
+; Enter: DE --> points to a filename.typ entry
+
+PRCNAM:	PUSH	DE		; Save registers
+	PUSH	BC
+	LD	B,11		; Print this many characters
+PRCNA0:	LD	A,(DE)		; Get a char
+	CALL	COUT		; ..and print
+	INC	DE		; Point to next
+	DJNZ	PRCNA0		; Loop til done
+	POP	BC		; Restore regs
+	POP	DE
+	RET
+
+;.....
+; Initialize a Library file LUD and return status
+
+INITLIB: LD	DE,LUD		; Initialize the Library
+	 JP	LUINIT		; ..do it and return status
+
+;.....
+; Open Library file and read specified file into memory
+; Enter: HL --> 11 char name.type to load
+;	   Drive and User must have already been logged
+;	   LUD must already have been set up
+; Exit : B = Number of records in the file in memory
+
+LDFREL:	CALL	INITLIB		; Set up the library
+	JR	Z,OPNLIB	; ..jump if OK
+
+	CALL	PRNL
+	DEFB	23,10,'-- Error in : ',0
+	JR	LIBERR
+
+OPNLIB:	CALL	LUOPEN		; Do the open
+	JR	Z,RDLIB		; ..jump to read if OK
+
+	CALL	PRNL
+	DEFB	23,10,'-- Error Opening : ',0
+	EX	DE,HL		; Print library element
+LIBER0:	CALL	PFN1
+	CALL	VPRINT		; ..and connector
+	DEFB	' in ',0
+LIBERR:	LD	DE,LUDFCB+1
+	CALL	PFN1
+	JP	EXIT
+
+RDLIB:	CALL	CODEND		; Get base of memory to HL
+	LD	B,0		; Set number of records
+RDLIB0:	CALL	SETDMA		; Set the transfer address
+	LD	DE,LUD		; ..and address the library header
+	INC	B		; Assume it will be a good read
+	CALL	LUREAD		; Get a record
+	JR	NZ,RDLIB1	; ..jump if EOF or error
+	LD	DE,128		; Advance to next record
+	ADD	HL,DE
+	JR	RDLIB0		; Loop til done/error
+
+RDLIB1:	DEC	B		; correct record count
+	INC	A		; Check for EOF (FF-->0)
+	RET	Z		; ..Return if EOF..
+
+	CALL	PRNL		; ..else it is an error
+	DEFB	23,10,'-- Error Reading : ',0
+	LD	DE,LUD+6	; Print element name
+	JR	LIBER0
+
+;.....
+; Write file from memory to the file specified in a given FCB in default DU
+; Enter:  B = Number of records in file
+;	 DE --> FCB of file to write
+; Exit : None
+
+WRFREL:	PUSH	BC		; Save number of records
+	LD	BC,(CUSER)	; Reset to current DU
+	CALL	LOGUD
+
+	CALL	INITFCB		; Initialize the FCB
+	CALL	F$DELETE	; Delete any existing temp file
+	CALL	F$MAKE		; ..and create it anew
+	POP	BC		; Restore number of records
+	INC	A		; FF --> 0
+	JP	Z,FERROR	; ..jump if error
+
+	CALL	CODEND		; Start saving from here
+WRLIB:	CALL	SETDMA		; Set transfer address
+	CALL	F$WRITE		; Write a record
+	JP	NZ,FERROR	; ..jump if error
+	PUSH	DE		; Save FCB addr..
+	LD	DE,128		; while calculating new addr
+	ADD	HL,DE
+	POP	DE
+	DJNZ	WRLIB		; Loop til all records written
+	CALL	F$CLOSE		; Then close the file
+	INC	A		; FF --> 0
+	JP	Z,FERROR	; ..jump if error
+	RET
+
+;.....
+MASK:	DEFB	'???????????'	; Mask for library directory searches
+CLKLIB:	DEFB	'CLOCKS  DAT'	; Default library of clock drivers
+TIMLIB:	DEFB	'STAMPS  DAT'	; Default library of Time Stamp routines
+
+LDRWRK:	DEFB	'---LDR--TMP'	; Temporary loader file name.typ
+TIMWRK:	DEFB	'---TIM--TMP'	; Temporary Stamp routine name.typ
+CLKWRK:	DEFB	'---CLK--TMP'	; Temporary clock file name.typ
+
+DEFOUT:	 DEFB	'LDTIM   COM'	; Default output file
+LDRID:	 DEFB	'INSTZST REL'	; Time Stamp Loader
+P2DREL:	 DEFB	'P2D     '	; P2DOS Time File
+ZDSREL:	 DEFB	'ZDS     '	; DateStamper Time File
+ZDDREL:	 DEFB	'ZDDCLK  '	; ZDDOS clock glue module
+DSBOTH:	 DEFB	'DS2BOTH '	; Read DS, Write DS & P2DOS Time Files
+P2BOTH:	 DEFB	'P2D2BOTH'	; Read P2DOS, Write DS & P2DOS Time Files
+NZREL:	 DEFB	'NZT     '	;1.2 Read/Write NZTime Files
+NZPREL:	 DEFB	'NZP2    '	;1.2 Read/Write NZTime or P2DOS Time Files
+
+DFLT1:	 DEFB	'COM'
+LOWTYP:	 DEFB	'LR '		; File type for Low-REL time stamp module
+HITYP:	 DEFB	'HR '		; File type for Hi-REL time stamp module
+
+COMTBL:	 DEFB	'_CLKID',80H,0	; Clock ID strings
+CLKOFF:	 DEFW	0000		; ..(after INSTZST)
+	 DEFB	'_PARM_',80H,0	; Clock Parameters
+	 DEFW	CKPARM		; ..Starts at CODEND
+	 DEFB	'_PRE_',80H,0,0	; Clock Pre-load initialization
+PREOFF:	 DEFW	0000		; ..(after CLKOFF)
+	 DEFB	'_POST_',80H,0	; Clock Post-load initialization
+	 DEFW	CKPOST		; ..starts after CKPARM
+	 DEFW	80H		; Table terminator
+
+	PAGE
+;===============================================================
+;  NAME - LINK
+;  Entry:  <A> - Bit 0 = 0 for just sizing info, 1 to link file
+;		 Bit 1 = 0 for No Reloc Bit Map, 1 to generate map
+;	  <BC> - Points to physical address to put CSEG
+;	  <DE> - Points to physical address to put DSEG
+;	 <BC'> - Offset to add to CSEG (Code Segment ORG)
+;	 <DE'> - Offset to add to DSEG (Data Segment ORG)
+;	<SP+2> - Contains address of FCB for .REL file
+;  Exit : <AF> - A=0, Zero Set (Z) if OK,
+;		 A=Error Code, Zero Clear (NZ) on err
+;	  <BC> - Size of CSEG
+;	  <DE> - Size of DSEG
+;  Uses : <AF>,<BC>,<DE>,<AF'>,<BC'>,<DE'>,<HL'>
+;  Accesses: BITMAP, COMTBL
+;  Special Requirements:
+;	a) Entry parameters for sizing need only <A>,<HL> and FCB on Stack.
+;	b) This routine alters the DMA Address.  The user is responsible
+;	   for re-setting it.
+;	c) The FCB address is passed on the stack immediately above the
+;	   return address.  It will be removed by SLINK before exitting.
+;	d) COMMON is indexed via a user-supplied table whose structure is:
+;	        "Name (8-char, terminated by 80H), 16-bit offset base"
+;	   Example:
+;		DEFB	'BASE1',80H,0,0	; Name, Null terminated
+;		DEFW	OFFSET1
+;		DEFB	'SECOND',80H,0	; Second entry
+;		DEFB	OFFSET2
+;		DEFB	80H		; Table terminator
+;
+;===============================================================
+; This module accepts MicroSoft .REL modules, and links them to a
+; specified point in memory.
+
+;  Register Useage:
+;	 A  = General Purpose 8-bit accumulator/flags
+;	 B  = Bit count for source byte
+;	 C  = Source byte shifted, b7=current
+;	 D  = General Purpose counter
+;	 E  = Output Byte for map
+;	HL  = General Purpose 16-bit register
+;	AF' = General Purpose 8-bit accumulator/flags
+;	BC' = Program 'ORG' Base offset
+;	DE' = Data 'ORG' Base offset
+;	HL' = 16-bit accumulator for displacement calculations
+;	IX  = Code Segment Physical load location
+;	IY  = points to flags
+
+; Begin pass by initializing all variables
+
+LINKN:	POP	HL		; Return addr to HL
+	EX	(SP),HL		; Ret addr to stack, FCB addr to HL
+	LD	(FCB0),HL	; ..and save
+	PUSH	IX		; Save some registers
+	PUSH	IY
+	PUSH	BC		; Put Physical CSEG location..
+	POP	IX		; .to proper register
+	LD	(PRGVAL),BC	; ..and storage location
+
+; Insure that all variables are zeroized
+
+	LD	HL,COMVAL	; Start clearing memory from here..
+	LD	B,ENDDAT-COMVAL	; ..for this many bytes
+CLRLOP:	LD	(HL),0
+	INC	HL
+	DJNZ	CLRLOP
+
+; Now Initialize some of the variables for a pass
+
+	LD	(DATLOD),DE	; Save physical Data Segment load location
+	LD	IY,FLAGS	; Set flag pointer
+	LD	(IY+0),A	; ..Set flags to entry parms
+
+; Open the file addressed by the FCB and prepare for linkage
+
+	LD	A,128
+	LD	(INPTR),A	; Indicate initial read
+	LD	(SSTACK),SP	; ..save SP in case of errors
+	LD	DE,(FCB0)	; FCB address to DE
+	CALL	SAVALT
+	CALL	F$OPEN		; Open file named in FCB
+	CALL	RESALT
+	JP	NZ,OPNERR	; Jump error if something not right
+	LD	E,0		; Insure we start with clear Map byte
+	CALL	SAVALT
+	CALL	READ		; Set bit position
+	CALL	RESALT
+	JR	LOOP1		; Jump to main loop with bit already set
+
+;=======================================================;
+;	 M a i n     P r o g r a m     L o o p
+;=======================================================;
+
+LOOP:	BIT	0,(IY+0)	; Is this a sizing request?
+	JR	NZ,LOOP0	; ..jump if loading
+	BIT	7,(IY+0)	; If sizing, are we done?
+	JP	NZ,FINIX	; ..Exit if both areas sized
+
+LOOP0:	CALL	GETBIT		; Get a source bit in position
+LOOP1:	JR	NZ,LOOP2	; If first bit=1, jump and test next
+	CALL	BYTE0		; 0 = load 8 bits absolute
+	JR	LOOP		; ..and back for more
+
+; Have 1x form.  Check second bit
+
+LOOP2:	CALL	GETBIT
+	JR	NZ,LOOP3	; Jump if 11x
+
+; Have 10x form.  Check third bit
+
+	CALL	GETBIT
+	JR	Z,SPECL		; 0 = Special, 1 = Program
+
+;  101 = Program Relative.
+
+	CALL	ADDR16		; Get 16 bits, prog relative
+	EXX			; ..writing 01 in bit map
+	LD	HL,(TEMP)
+	ADD	HL,BC		; Add offset to CSEG base
+OUTV:	LD	A,L		; Vector here to output
+	EXX			; ..relative addresses
+	CALL	BYTE0V
+	EXX
+	LD	A,H
+	EXX
+	CALL	BYTE1V
+	JR	LOOP
+
+; Have 11x form.  Check third bit
+
+LOOP3:	CALL	GETBIT
+	JR	NZ,LOOP4	; Jump Common Relative if 111
+
+;  110 = Process Data Relative
+
+	CALL	ADDR16		; Get 16 bits, data relative
+	EXX			; Write 01 to map
+	LD	HL,(TEMP)
+	ADD	HL,DE		; Add offset to DSEG base
+	JR	OUTV
+
+;  111 = Process Common Relative
+
+LOOP4:	CALL	ADDR16		; Get 16 bits, Common Relative
+	EXX			; Write 01 to map
+	LD	HL,(TEMP)
+	PUSH	DE		; Save regs
+	LD	DE,(COMVAL)	; Get Common offset value
+	ADD	HL,DE		; ..and add code value
+	POP	DE		; Restore regs
+	JR	OUTV		; Jump to write bytes and bits to output
+	
+; Arrive here if special link (100xxxxxxxx)
+
+SPECL:	CALL	GETTYP		; Get 4 bit type
+	OR	A		; 0=Entry Symbol?
+	JP	Z,PNAME		; ..bypass name if so
+	CP	1		; 1=Set Common Block?
+	JP	Z,SETCOM	; ..jump to get Common block offset if so
+	CP	2		; 2=Program Name?
+	JR	Z,PNAME		; ..bypass name if so
+	CP	5		; 5=Common Size?
+	JR	Z,BYPASS	; ..bypass address and name if so
+	CP	7		; 7=Entry Point?
+	JR	Z,BYPASS	; ..bypass address and name if so
+	CP	10		; 10=Data Size?
+	JR	Z,DATSIZ	; ..get data size if so
+	CP	11		; 11=Load Location?
+	JP	Z,LODLOC	; ..set pointers to new load location if so
+	CP	13		; 13=Program Size?
+	JR	Z,PRGSIZ	; ..get program size if so
+	JR	C,FINI0		; All less values are error exits
+			;..fall thru to exit..
+;.....
+; End of activity, so wind it up and exit.
+
+FINI:	BIT	1,(IY+0)	; Are we generating a Map?
+	JR	Z,FINIX		; ..exit if not
+
+	LD	A,(COUNT)	; shift last map byte if needed
+	OR	A		; ..exit if not needed
+	JR	Z,FINI0
+FINLOP:	RL	E
+	INC	A		; Bump count
+	CP	8		; At the end of a byte yet?
+	JR	C,FINLOP	; ..loop if not
+
+	LD	HL,(BITMAP)	; Save the last Map byte
+	LD	(HL),E
+	INC	HL		; Bump Bitmap Pointer
+	LD	(BITMAP),HL	; Save Pointer to Next
+FINIX:	XOR	A		; Set OK Error Status Code
+
+FINI0:	PUSH	AF		; Save exit status
+	LD	DE,(FCB0)	; ..and address the Subject file
+	CALL	F$CLOSE		; Close it to remain "pure"
+	POP	AF		; Get the exit status back
+	LD	DE,(PROGSZ)	; Set size registers
+	LD	BC,(DATASZ)
+	OR	A		; Set return flags
+	LD	SP,(SSTACK)
+	POP	IY		; ..and restore registers
+	POP	IX
+	RET
+
+;.....
+; Error routine Exits
+
+OPNERR:	LD	A,0FFH		; Set status for Open Error
+	DEFB	21H
+
+RDERR:	LD	A,0FEH		; Set status for Read Error
+	DEFB	21H
+
+ERRNS:	LD	A,0F0H		; Set status for "Not Sized" Error
+	DEFB	21H
+
+LOCERR:	LD	A,0FDH		; Location being set in negative dir
+	DEFB	21H
+
+SPCLER:	LD	A,0FCH		; "Special Special" typeing not supported
+	JR	FINI0
+
+;.....
+; Set data area size when found
+
+DATSIZ:	CALL	GET16		; Get the 16-bit value
+	LD	(DATASZ),HL	; ..and save in Data Size location
+	SET	5,(IY+0)	; Show data area OK
+	JR	SZEXIT		; Check status and go back for more
+
+;.....
+; Set program size when found
+
+PRGSIZ:	CALL	GET16		; Get the 16-bit value
+	LD	(PROGSZ),HL	; ..and save in Program Size location
+	SET	6,(IY+0)	; Show data area OK
+SZEXIT:	CALL	SETSTAT
+	JP	LOOP		; ..continue with Main loop
+
+;.....
+; Bypass a 16-bit address field & name field and keep going
+
+BYPASS:	CALL	GET16		; Get the 16-bit value
+			;..fall thru to..
+;.....
+; Bypass name field and keep going
+
+PNAME:	CALL	GETID		; get name to local buffer..forget and..
+	JP	LOOP		; ..resume main program
+
+;.....
+; Attempt to set COMMON Block offset by scanning table for name
+
+SETCOM:	CALL	GETID		; Gather name to temporary buffer
+	PUSH	DE		; Save DE reg
+	LD	HL,COMTBL	; Get address of COMMON table
+SETC0:	LD	DE,NAMBUF	; Point to desired name
+	PUSH	HL		; Save current table pointer
+SETC1:	LD	A,(DE)		; Get character from desired name
+	BIT	7,A		; Is it the end of string marker?
+	JR	NZ,SETCHK	; ..jump to check for end if so
+	CP	(HL)		; Compare to char of table name
+	JR	NZ,SETEND	; Check for end of table/advance to next
+	INC	HL		; ..else advance to next char
+	INC	DE
+	JR	SETC1		; Loop til end
+
+SETCHK:	CP	(HL)		; Are both strings at end?
+	JR	NZ,SETEND	; ..check end/advance to next if not
+	POP	HL		; Retrieve table addr
+	BIT	7,(HL)		; ..and check for end
+	JR	NZ,SETXIT	; Quit with error status if the end
+	LD	DE,8		; Else advance to offset value
+	ADD	HL,DE
+	LD	E,(HL)		; ..and get it
+	INC	HL
+	LD	D,(HL)
+	LD	(COMVAL),DE	; Save Common Offset Value for this segment
+	XOR	A		; ..and set OK return status
+	JR	SETXI0		; Jump below to continue
+
+SETEND:	POP	HL		; Retrieve entry starting address
+	BIT	7,(HL)		; Is it the end of the table?
+	JR	NZ,SETXIT	; ..exit if so with error code
+	LD	DE,10		; Else advance to next entry
+	ADD	HL,DE
+	JR	SETC0		; ..and try again
+
+SETXIT:	OR	0FFH		; ..and set error code
+SETXI0:	POP	DE		; Restore entry DE reg
+	JP	LOOP		; ..and back to the main program
+
+;.....
+; Set load location when found
+
+LODLOC:	CALL	GET16		; Get a 16-bit address
+	LD	(LODPTR),HL	; Save the address in the proper location
+
+; Compare new load location with internal counter and
+;  fill bit map with 0 to new location
+
+	PUSH	DE		; Save registers
+	LD	HL,(LODPTR)	; Get new load address
+	LD	A,(TYPLOD)	; Check type of load
+	OR	A		; Is it Type 0?
+	JR	Z,SPCLER	; ..Error if so.  No Special Specials
+	CP	2
+	JR	C,CHECK0	; Type 1 = Program Segment
+	JR	NZ,CHECK3	; Special process if Type 3 (COMMON)
+	LD	DE,(PROGSZ)	; Type 2 = Data Segment
+	ADD	HL,DE		; ..assume consecutive CSEG->DSEG->Map
+CHECK0:	BIT	2,(IY+0)	; Are we in COMMON load mode?
+	JR	Z,CHECK1	; ..jump if not
+	EX	DE,HL		; Else, reload destination pointer
+	LD	HL,(PRGVAL)	; By offsetting index by program load value
+	ADD	HL,DE
+	PUSH	HL
+	POP	IX		; ..and loading pointer register
+	EX	DE,HL		; Put things back
+	RES	2,(IY+0)	; ..and show we are back in CSEG/DSEG mode
+CHECK1:	LD	DE,(PCNTR)	; Get internal location
+	OR	A
+	SBC	HL,DE		; Now we have the difference
+	POP	DE		; Restore output byte
+	JP	C,LOCERR	; Jump error if overflow..
+	JP	M,LOCERR	; ..or if location in negative dir
+CHECK2:	LD	A,H		; Ready for exit?
+	OR	L
+	JP	Z,LOOP		; ..back to main program if finished
+	XOR	A		; Fill space with Zeros
+	PUSH	HL		; Save counter
+	CALL	BYTE0V		; Write a zero & increment IX
+	POP	HL		; ..restore counter
+	DEC	HL
+	JR	CHECK2		; ..back for more
+
+CHECK3:	LD	DE,(COMVAL)	; Get address of current COMMON segment
+	ADD	HL,DE		; ..and calculate absolute address
+	POP	DE		; Restore output byte
+	SET	2,(IY+0)	; Show that we are assembling COMMON setment
+	PUSH	HL		; Move the destination address
+	POP	IX		; ..to the pointer register
+	JP	LOOP
+
+;.....
+; Subroutine for name retrieval
+
+GETID:	LD	D,3		; Get char count
+	XOR	A
+	CALL	GBITS
+	LD	D,A		; Move cc to counter
+	OR	A
+	LD	HL,NAMBUF	; Set local buffer address
+	JR	NZ,PNAME1	; Jump to gather name if Count > 0
+	LD	(HL),' '	; ..else set blank common
+	INC	HL
+	JR	PNAMEX		; Jump to write end mark
+
+PNAME1:	PUSH	DE		; Get 1 ascii char
+	PUSH	HL		; Save pointer
+	CALL	GETBYT
+	POP	HL		; Restore pointer
+	LD	(HL),A		; Save character
+	INC	HL		; ..and advance to next position
+	POP	DE
+	DEC	D
+	JR	NZ,PNAME1	; Go back for more
+PNAMEX:	LD	(HL),80H	; Store ending mark
+	RET
+
+;------------------------------------------------------------------
+;     L o w e r - L e v e l   B i t   M a n i p u l a t i o n
+;------------------------------------------------------------------
+;.....
+; Get a bit from the input file, reading as necessary
+
+GETBIT:	RL	C		; Rotate byte for test
+	DJNZ	READX		; ..jump if new byte not necessary
+
+; Need another byte from the file, so fall thru..
+
+READ:	PUSH	AF		; Set up addresses and
+	PUSH	DE		; ..read a byte
+	LD	A,(INPTR)	; Check pointer for disk read
+	CP	128
+	JR	C,READ0		; Bypass disk read if not at end (inptr < 128)
+
+; Last byte in buffer read, get another from the file by CP/M read
+
+	LD	HL,LKBUFF	; Input buffer starts here
+	CALL	SAVALT		; Save alternates from brain damaged bioses
+	CALL	SETDMA		;  (Library set DMA call)
+	LD	DE,(FCB0)	; Get ID of file to access
+	CALL	F$READ		;  (Library sector read)
+	CALL	RESALT		; ..restore alternates
+	OR	A
+	JP	NZ,RDERR	; Jump error exit if error occured
+
+; Valid data is in the sector buffer.  Get a byte, bump pointer and return
+
+READ0:	LD	E,A		; Set pointer for offset
+	LD	D,00		; ..Nulling high addr for 16-bit math
+	LD	HL,LKBUFF	; Start from base
+	ADD	HL,DE
+	INC	A		; Bump pointer
+	LD	(INPTR),A	; ..and save
+	LD	C,(HL)		; Get a byte
+	LD	B,8		; ..and set counter
+	POP	DE
+	POP	AF
+READX:	BIT	7,C		; Set Zero flag to MSB of subject byte
+	RET
+
+;.....
+; Accumulate 16-bits from input file as pointer.
+;  EXIT: Variable TEMP contains 16-bit value
+
+GET16:	XOR	A
+	LD	D,2		; Get number type
+	CALL	GBITS		; ..but don't do anything with it
+	LD	(TYPLOD),A	; Save load type
+ADDR16:	CALL	GETBYT		; Get low byte
+	EX	AF,AF'		; ..and temporarily save
+	CALL	GETBYT		; Now get hi byte
+	LD	H,A		; Prepare to save 16-bit value & return
+	EX	AF,AF'		; Get Low byte back
+	LD	L,A
+	LD	(TEMP),HL	; Save the Word if needed
+	RET
+
+;.....
+; Output a byte with a 1 map bit
+
+BYTE1V:	SCF			; Set carry for 1 in bit map
+	JR	CHKWRT
+
+;.....
+; Accumulate 8 bits into a byte and output with a 0 map bit
+
+BYTE0:	CALL	GETBYT		; Gather 8 bits into a byte
+BYTE0V:	OR	A		; Reset carry for 0 bit in map
+			;..fall thru to..
+;.....
+; Check for output write status on map bit
+;  Carry Flag unaffected until shifted into E register
+
+CHKWRT:	BIT	0,(IY+0)	; Just Size?
+	RET	Z		; ..quit if so
+
+	BIT	7,(IY+0)	; Has everything been sized?
+	JP	Z,ERRNS		; ..jump error if not
+
+	LD	(IX+0),A	; Save Code Byte
+	INC	IX		; ..and bump code pointer
+
+	BIT	2,(IY+0)	; Are we loading COMMON?
+	RET	NZ		; ..quit here if so
+
+	LD	HL,(PCNTR)	; Increment the Pseudo-code address
+	INC	HL
+	LD	(PCNTR),HL
+
+	BIT	1,(IY+0)	; Are we generating a map?
+	RET	Z		; ..quit here if not
+
+	RL	E		; Add Carry bit to Map Byte
+	LD	HL,COUNT
+	INC	(HL)		; Bump count..
+	BIT	3,(HL)		; ..check = 8?
+	RET	Z		; Return if < 8
+	LD	(HL),0		; ..else reset counter to 0
+	LD	HL,(BITMAP)	; Write 8 bits out
+	LD	(HL),E
+	INC	HL		; ..bumping address
+	LD	(BITMAP),HL
+	LD	E,0		; Preset next map byte to 0
+	RET
+
+;.....
+; Get 4 bit designator for Special Link Type
+
+GETTYP:	LD	D,4		; Get type of spec link
+	XOR	A		; ..into A register
+	JR	GBITS		; Jump to it
+
+;.....
+; Get 8-bit byte into the accumulator
+
+GETBYT:	LD	D,8		; 8 bits to a byte
+GBITS:	CALL	GETBIT
+	SCF			; Prepare to shift in "1" bit
+	JR	NZ,GBITS0	; ..jump if MSB is a "1"
+	CCF			; Else complement carry for "0" bit
+GBITS0:	RLA			; Rotate bit into accumulator
+	DEC	D		; Count down number of loops
+	JR	NZ,GBITS	; Loop til no more bits
+	RET
+
+;.....
+;  Check status of area set flags.  If Program and Data areas are sized,
+;  Set OK-to-Load flag, and load registers and pointers
+
+SETSTAT: BIT	5,(IY+0)	; Data size set?
+	RET	Z		; ..Ret if not
+	BIT	6,(IY+0)	; Program size set?
+	RET	Z		; ..Ret if not
+	SET	7,(IY+0)	; Ready, so set ok-to-load
+	RET
+
+;.....
+; Routine to save alternate registers
+
+SAVALT:	EXX
+	EX	AF,AF'
+	EX	(SP),HL		; Return in HL' - HL' to TOS
+	PUSH	DE
+	PUSH	BC
+	PUSH	AF
+	PUSH	HL		; Place Return on stack
+	EXX
+	EX	AF,AF'
+	RET
+
+;.....
+; Routine to restore alternates saved by SAVALT
+
+RESALT:	EXX
+	EX	AF,AF'
+	POP	HL		; Pop return into HL'
+	POP	AF
+	POP	BC
+	POP	DE
+	EX	(SP),HL		; Return to TOS, HL' in HL'
+	EXX
+	EX	AF,AF'
+	RET
+
+;-------------------------------------------------------;
+;	V A R I A B L E        S T O R A G E
+;-------------------------------------------------------;
+
+	DSEG			; Put this in Data Segment
+
+FCB0:	DEFS	2		; Address of Entry FCB
+PRGVAL:	DEFS	2		; Value for base CSEG physical segment
+
+; The following variables are cleared to zero on each execution
+
+COMVAL:	DEFS	2		; Value for current COMMON segment
+NAMBUF:	DEFS	8		; Buffer for name accumulation
+TEMP:	DEFS	2		; temporary working storage
+SSTACK:	DEFS	2		; Entry Stack pointer (in case of errors)
+DATLOD:	DEFS	2		; Data Segment Physical load base address
+PROGSZ:	DEFS	2		; PROGRAM size
+DATASZ:	DEFS	2		; DATA size
+COUNT:	DEFS	1		; output bit count
+PCNTR:	DEFS	2		; program relative counter
+LODPTR:	DEFS	2		; load location storage
+TYPLOD:	DEFS	1		; type of load operation
+FLAGS:	DEFS	1		; Flags for operations -
+				; Bit 7 - 0 = CSEG/DSEG not set, 1 = both set
+				;     6 - 0 = No Pgm size set, 1 = Pgm Sized
+				;     5 - 0 = No Data size set, 1 = Data Sized
+				;     3,4 - reserved
+				;     2 - 0 = CSEG/DSEG load, 1 = Common load
+				;     1 - 0 = No Bit Map, 1 = Form Bit Map
+				;     0 - 0 = Size Module, 1 = Link Code/Data
+INPTR:	DEFS	1		; input pointer to next byte
+LKBUFF:	DEFS	128		; Input data buffer
+
+ENDDAT	EQU	$
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;	  R A M     D A T A    S T O R A G E
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+IDCHAR:	DEFS	1		; ZSDOS/ZDDOS ID character for INSTZST
+LOWFLG:	DEFS	1		; 0=Load below CCP as RSX, FF=Load in Hi-mem
+NZCFLG:	DEFS	1		; 0=Auto-install in NZCOM, FF=load absolute
+ENVPTR:	DEFS	2		; Pointer to any ZCPR3 environment found
+CHAR:	DEFS	1		; Miscellaneous character storage
+TOPVEC:	DEFS	2		; Physical address of Top-of-module vector
+EXPERT:	DEFS	1		; FF=Modifying file, 0=Generating New
+
+TMPNAM:	DEFS	11		; Temp name.typ holder for LBR extraction
+TMPNM2:	DEFS	11		; Temp name.typ holder for Stamp method file
+DEFNAM:	DEFS	11		; Default name on exit for save
+LFCB:	DEFS	36		; Loader File Control Block
+TFCB:	DEFS	36		; Time Stamp File Control Block
+CFCB:	DEFS	36		; Clock File Control Block
+
+BASADR:	DEFS	2		; Base address for Stamping program
+ENDADR:	DEFS	2		; Top address of the loader/overlay image
+RECNT:	DEFS	2		; Record count of the image
+
+BITMAP:	DEFS	2		; Address for Bitmap
+CSZ1:	DEFS	2		; Code Size Module 1 (Time)
+DSZ1:	DEFS	2		; Data Size Module 1
+CSZ2:	DEFS	2		; Code Size Module 2 (Clock)
+DSZ2:	DEFS	2		; Data Size Module 2
+CSZ3:	DEFS	2		; Code Size Module 3 (Loader)
+DSZ3:	DEFS	2		; Data Size Module 3
+MODSIZ:	DEFS	2		; Relocatable module total size
+PHLOAD:	DEFS	2		; Next module physical load location
+
+KYBUFF:	DEFS	44		; Buffer for string inputs (ID and FN.FT)
+CUSER:	DEFS	2		; Current (entry) Drive/User
+SUSER:	DEFS	2		; Source file Drive/User
+CLKDU:	DEFS	2		; Drive/User for User clock routine
+
+LIBFLG:	DEFS	1		; Flag for user clock (0) or lib clk (FF)
+LUD:	DEFS	6		; Logical Unit Descriptor for .LBR files
+LUDNAM:	DEFS	11		; Logical Unit Descriptor current file
+LUDFCB:	DEFS	36		; Logical Unit DEscriptor FCB
+
+	DEFS	64		; Stack Space
+STACK:	DEFS	2		; Storage for entry Stack Pointer
+
+CKPARM:	DEFS	512		; Clock parameter storage
+CKPOST:	DEFS	512		; Clock post-load routines
+
+	END
+

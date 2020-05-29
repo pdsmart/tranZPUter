@@ -1,0 +1,131 @@
+(*  VERSION 0009 *)
+
+
+(*.......................................................................*)
+(*                           HIDELINE                                    *)
+(*  Hideline is a three-dimensional graphics program. The program        *)
+(* was written by Franklin C Crow and published as 'Three-Dimensional    *)
+(* Computer Graphics', BYTE, March/April 1981. The program was adapted   *)
+(* to run with a MicroAngelo graphics terminal by Ray Hopkins, 8         *)
+(* Chestnut Hill CT., Cinnaminson N.J. (609) 829-4686.                   *)
+(* Hl3.src builds the data files used by hl.src,the main display routine *)
+(* Hl1.src and Hl2 are support modules. Note that Hl1.src must have      *)
+(* recursion turned on. Hl.cmd is the linker command file                *)
+(*.......................................................................*)
+
+(*Z*)
+{$K1}
+{$K2}
+{$K3}
+{$K5}
+{$K6}
+{$K7}
+{$K12}
+{$K13}
+{$K14}
+{$K15}
+
+PROGRAM HIDELINE;
+
+CONST Dotsacross = 511;
+      Dotsdown = 479;
+      Maxpts = 200;
+      Maxpols = 200;
+      Maxvtx = 800;
+      Maxsides =14;
+
+TYPE  Counter = 0..Maxvtx;
+      Point = RECORD
+                X,Y,Z : REAL
+              END;
+      Vertex = 0..Maxpts;
+      Polygon = RECORD
+                  Numvtx : Vertex;
+                  START : Counter;
+                END;
+      Onepoly = ARRAY [1..Maxsides] OF Point;
+      Matrix = ARRAY [1..4,1..4] OF REAL;
+
+VAR   Polygons : ARRAY [1..Maxpols] OF Polygon;
+      Vertices : ARRAY [1..Maxvtx] OF Vertex;
+      Points : ARRAY [1..Maxpts] OF Point;
+      Outpolys : ARRAY [1..Maxpols] OF Polygon;
+      Outvtces : ARRAY [1..Maxvtx] OF Point;
+      Eyespace : Matrix;
+      Window : Onepoly;
+      Eyept , Cntrint : Point;
+      Screenscale, Screenctr : Point;
+      ScreenX, SCREENY : REAL;
+      Numpols, Numvtces,  Windowsize, I : Counter;
+      Numpts : Counter;
+      NUMDISPLAY, NumvtxOUT : Counter;
+      CMDCHAR : CHAR;
+      Filename : STRING;
+      DONE : BOOLEAN;
+
+external procedure @I95;
+
+EXTERNAL PROCEDURE OUTP(B:BYTE);
+
+EXTERNAL PROCEDURE MICRO2(COMMAND:BYTE;X,Y:INTEGER);
+
+EXTERNAL PROCEDURE GETPLANES(VAR Poly:Onepoly; Numpts:Counter);
+
+EXTERNAL PROCEDURE GETScreenscale;
+
+EXTERNAL PROCEDURE INITIALIZE;
+
+EXTERNAL PROCEDURE START;
+
+EXTERNAL PROCEDURE READOBJECT(Filename:STRING);
+
+EXTERNAL PROCEDURE MAKEPICTURE;
+
+BEGIN {MAIN}
+{ @I95;}
+  INITIALIZE;
+  WHILE NOT DONE DO
+    BEGIN
+      WRITE('R)ead obj, E)yepoint, C)enter, S)tart, W)indow, Q)uit ? ');
+      READLN(CMDCHAR);
+      CASE CMDCHAR OF
+        'R','r': BEGIN
+                   WRITE('Enter name of object file ?');
+                   READLN(Filename);
+                   READOBJECT(Filename);
+                 END;
+        'E','e': BEGIN
+                   WRITE('Enter eyepoint, X,Y,Z ?');
+                   WITH Eyept DO
+                     READLN(X,Y,Z);
+                 END;
+        'C','c': BEGIN
+                   WRITE('Enter center of interest X,Y,Z ?');
+                   WITH Cntrint DO
+                     READLN(X,Y,Z);
+                 END;
+        'S','s': BEGIN
+                   Numpols := 0;
+                   Numpts := 0;
+                 END;
+        'W','w': BEGIN
+                   WRITE('Set display window : How many sides ?');
+                   READLN(Windowsize);
+                   FOR I:=1 TO Windowsize DO
+                     BEGIN
+                       WRITE('Side number ',I,' X,Y,Z ?');
+                       WITH Window[I] DO
+                         READLN(X,Y,Z);
+                     END;
+                   GETScreenscale;
+                   GETPLANES(Window,Windowsize);
+                 END;
+        'P','p': MAKEPICTURE;
+        'Q','q': DONE := TRUE;
+      END;
+    END;
+outp($B8);
+outp($28);
+END. {MAIN}
+
+ 

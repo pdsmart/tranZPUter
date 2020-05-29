@@ -1,0 +1,114 @@
+{##########################################################################
+####                                                                   ####
+####  Full module name: INCLUDE FILE for TYPECHK and SCANNER modules.  ####
+####  File name:  TYPECHK.DEC.             (109 LINES LONG)            ####
+####  Support modules reqd:  <none>                                    ####
+####  Run time environment: <any>.                                     ####
+####  Compile time environment: MT MicroSYSTEMS Pascal/MT+v5.25.       ####
+####  Link time environment: MT MicroSYSTEMS Linkmt v5.1.              ####
+####  Copyright (C) 1982 by Haldo Products, Inc. All rights reserved.  ####
+####                        56 Camille Ln, E. Patchogue, NY 11772      ####
+####  Programmer: Lawrence Adkins.                                     ####
+####  Module Development/Maintenance History:                          ####
+       6-NOV-81 vers 1.0. File just created.
+      12-NOV-81           Development of this version is completed.
+       9-JAN-82 vers 2.0. development begun.
+       1-MAR-82           Development of this version complete.
+       6_MAR-82 Vers 2.1. Conformant array stuff added.
+      19-APR-82 Vers 2.2. Blockread parameters added.
+####                                                                   ####
+##########################################################################}
+
+
+CONST
+  header1 = ' Pascal/MT+5.2 Cross Module Type Checking Program. Vers 2.1.';
+  header2 = ' Copyright (c) 1982 by Haldo Products, Inc. All rights reserved.';
+  datastart = $8000;              { Where I tell linker to start the data area}
+  dataextent = $3225;             { data size assuming standard input }
+(*dataextent = $4000;             { data size assuming fast input } *) 
+  max_constants = 250;            { max size of constant table }
+  max_type_elements = 200;        { max size of type table }
+  max_var_elements = 100;         { max size of variable table }
+  max_routines = 200;             { max size of routine table }
+  alfalen = 8;                    { max length of any identifier }
+  output_file = 'OUTPUT.PRN';     { where all scanned text and errors are put }
+  cpmlinesz = 127;                { max chars permitted on cpm command line }
+  maxlinelength = 132;            { max permitted length of Pascal source line}
+  blkiosize = 2048;               { size of io buffer used when blockreading }
+  cr = $0D;                       { ascii carriage return code }
+  lf = $0A;                       { ascii line feed code }
+  eofmark = $1A;                  { char used as eofmark on CPM textfiles }
+
+TYPE
+  natural = 0..maxint;            { for use with conformant arrays }
+  alfa = STRING [alfalen];        { identifiers, keywords, etc buffer }
+  string132 = STRING [maxlinelength]; { input line buffer }
+  string15 = STRING [15];         { hold file name }
+  p_array_of_char = PACKED ARRAY [1..blkiosize] OF char; {hold blockread text}
+
+  token_type =     { the recognized tokens }
+   (notoken,       tokliteral,    toklparen,     tokrparen,     tokcomma,
+    tokperiod,     tokcolon,      toksemicolon,  tokequal,      toklbracket,
+    tokrbracket,   tokdotdot,     tokpointer,    tokminus,      tokplus,
+    tokintnum,     tokbytenum,    tokrealnum,    toklitstring,  tokidentifier,
+    tokbegin,      tokend,        tokconst,      toktype,       tokvar,
+    tokproc,       tokfunc,       tokpacked,     tokstring,     tokarray,
+    tokof,         tokfile,       tokset,        tokrecord,     tokcase,
+    tokexternal,   toklabel    );
+
+  tt_types =       { the types assignable to an entry in the type table }
+   (undef_type,    predef_type,   simple_type,   ptr_type,      string_type,
+    array_type,    file_type,     set_type,      record_type,   recfields,
+    recfldnestedrecord,           recvariant,    recvarvalues);
+
+  t_parm_class =   { the attributes of a parameter in the routine table }
+   (var_parm,      value_parm,    func_value,    conform_array, procfunc);
+
+  t_const_tab_rec = RECORD   { A record of the constant table }
+    const_id: alfa;
+    actual_value: integer
+    END;
+
+  t_type_tab_rec = RECORD    { A record of the type table }
+    lower_bound,
+    upper_bound: integer;
+    base_type_index: natural;
+    CASE entry_purpose: tt_types OF
+      undef_type,    predef_type,   simple_type,   ptr_type,      string_type,
+      array_type,    file_type,     set_type,      record_type:
+        (type_id :            alfa);
+      recfields,     recfldnestedrecord,           recvariant,    recvarvalues:
+        (n_of_stacked_fields,
+         record_nesting:      byte;
+         field_entry_purpose: tt_types;
+         local_fieldlist_continues: boolean)
+      END;
+
+  t_var_tab_rec = RECORD     { A record of the variable table }
+    var_id: alfa;
+    var_ptr_to_type_table: natural
+    END;
+
+  t_ptr_to_next_parm = ^t_parm;
+
+  t_parm = RECORD          { one parameter's info linked to the routine table }
+    parm_class:  t_parm_class;
+    parm_indx_to_type_table: natural;
+    rest_of_parm_list: t_ptr_to_next_parm
+    END;
+
+  t_rout_tab_rec = RECORD    { A record of the routine table }
+    routine_name: alfa;
+    parm_list: t_ptr_to_next_parm
+    END;
+
+  t_record_parsing_status = RECORD  {Contains some important type_parsing info}
+    got_rec_type: byte;
+    last_n_of_stacked_fields: byte;
+    last_base_type_index: natural
+    END;
+
+
+
+
+

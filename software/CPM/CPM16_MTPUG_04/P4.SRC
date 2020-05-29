@@ -1,0 +1,42 @@
+(*  VERSION 0002  *)
+{$M outp }
+{$M micro2 }
+{$M *}
+
+module plot4;
+
+(*..................................................................*)
+(*                           PLOTLIB                                *)
+(*  Plotlib is a collection of plot routines to aid in graphics     *)
+(*  programs. The routines were originally published in BYTE as     *)
+(*  'Drawing with UCSD Pascal and the Hiplot Plotter' by Dr. James   *)
+(*  Stork, Oct 1981. The routines have been modified to run with    *)
+(*  a MicroAngelo graphics terminal by Ray Hopkins, 8 Chestnut Hill *)
+(*  Ct., Cinnaminson N.J. (609) 829-4686.                           *)
+(*..................................................................*)
+
+procedure outp(B:byte);
+
+{outputs a byte to MicroAngelo terminal E1=status port, E0=data port}
+
+begin
+inline("IN/$E1/
+       "ANI/1/
+       "JNZ/*-4);
+       out[$E0]:=B;
+end;
+
+procedure micro2(comm:byte;x,y:integer);
+
+{outputs command and 2 integer operands to terminal}
+
+begin
+outp(comm);
+outp(HI(x));
+outp(LO(x));
+outp(HI(y));
+outp(LO(y));
+end;
+
+modend.
+ 

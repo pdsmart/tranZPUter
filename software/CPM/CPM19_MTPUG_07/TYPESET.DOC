@@ -1,0 +1,184 @@
+.lh 10
+PROGRAM TYPESET - CONVERSION OF WORDSTAR TEXT TO OTHER FORMATS
+
+PER STANGELAND
+4230 SAND
+NORWAY
+1982/11/27
+
+Prograí  TYPESET‚ convertó á texô writteî bù WORDSTAÒ tï á  formaô 
+acceptable to  type setting equipment.
+
+
+Operating instructions
+
+TYPESET.SRC is the program code
+TYPESET.COM is the version you run
+TYPESET.PRM contains the parameter list.
+
+Any CP/M system with at least one disk drive can be used.
+TYPESET.COM and TYPESET.PRM must be on the same disk.
+Write TYPESET, and press RETURN
+Thå  prograí  askó  foò  youò texô file®  Assurå  thaô  therå  ió 
+sufficienô  spacå oî thaô disë foò thå ne÷ version¬  anä givå  iô 
+the drive prefix and file name.
+
+Thå filå texô ió displayeä oî youò terminaì aó iô ió  read®  Non-
+printable characters are substituted with ?
+
+Thå  prograí stopó executioî aô undefineó doô commands¬  sï  thaô 
+you may give a suitable number code at this point.
+
+Youò  ne÷  filå ió writteî iî chunkó oæ 4K®  Iô ió  calleä  <filå 
+name>.SET
+
+
+WHAT DOES THE PROGRAM DO?
+
+Youò  WORDSTAÒ  texô ió read¬  characteò  bù  character®  Speciaì 
+wordstaò  featureó arå exchangeä witè speciaì symbols.Alì symboló 
+tï  bå  entereä  iî  thå  ne÷  texô  arå  reaä  froí  á  separatå 
+file:TYPESET.PRM®  Theså  parameteró caî bå changeä aô  will¬  tï 
+suiô  differenô typesetteò equipment®  Equippeä witè thå  correcô 
+parameters¬  thió  prograí  maù  alsï bå  usefuì  foò  convertinç 
+WORDSTAÒ textó tï á formaô accepteä bù otheò texô editors.
+ŠThå olä filå ió lefô unchanged® Thå ne÷ filå witè suffiø .SEÔ haó 
+the following characteristics:
+
+*Onlù  onå blanë (oò otheò worä delimiteò oæ youò choice© betweeî  
+ eacè word
+*Additionaì whitespacå - blanë lineó anä characters¬  linå shiftó 
+ withiî paragraphs- arå removed
+*A special symbol marks end of every paragraph
+*Headings¬  subtitleó  anä quotationó arå markeä aô beginninç anä 
+ end
+*Other features in the WORDSTAR text are standardized to ASCII.
+
+Thå  distributeä  versioî  oæ TYPESET.COÍ requireó á  filå  nameä 
+TYPESET.PRÍ  witè 2± parameteró iî it®  Theså parameteró arå  puô 
+intï thå ne÷ filå insteaä oæ thå correspondinç WORDSTAÒ symboì iî 
+thió list:
+
+.cp 10  
+CONVERSION CODES FROM WS TO TYPESETTER SYMBOLS
+ 
+No  Doô commandó én WS- fiìe                        TYPESET.PRM
+                                                  for LINOTRON 202N
+
+-  .cğ ø (conditional page shift©                  on-linå choice
+1  .pá (new page)                                  Bell c1>
+2  .lè 1° (line height 1 1/2)                ON:   Bell c2>
+                                             OFF:  Bell c5>
+3  .lè ¸ (narrow lines)                            Bell c3>
+´ .lè 1² (double spaced lines)                     Belì c4>
+                                      After .lh 8: Bell c5>
+________________________________________________________________
+.cp 20Š   ASCII-code
+No Heø  dec.  Function:      		          TYPESET.PRM
+   						
+-  0¸   0¸    BÓ Backspacå 			  removed
+   
+8  0²   0²    Boldface ^Ğ Â                       ON:  Bell c¸> 	
+9                                                 OFF: Bell c9>               
+                     
+10 1³   1¹    underline on/off    ^Ğ Ó	          ON:  Bell c10¾ 
+11                                                OFF: Bell c11>
+
+12 1´   2°    superscript on/off        ^Ğ T      ON:  0· 3ã 75 32 hex
+13                                                OFF: Bell c13>
+
+14 22   34    " quote symbol                      ON:  02 hex
+15                                                OFF: 01 hex
+
+1· 1Å   3°    sofô hypheî (noô printeä bù WS©     À (means:removed© 
+17 1Æ   3±    soft hyphen at end-of-line          @ (means:removed)
+    
+18 0F   1µ    non- breaë spacå                    ON: Bell c 15>
+                                                  OFF:Bell c 15>
+
+19 8D         SOFTLINÅ line shift within          if only delimiter
+              a paragraph 			  between two words: 20 hex
+                                                  Else:removed.
+ 
+20 0D   1³    CÒ - new paragraph                  1¶ 0³ 5E hex        
+    
+-  0á   1°    LÆ (line feed -follows CR)          removed
+    
+2± 0¹   0¹    TAB                                 20 hex
+______________________________________________________________________
+"Belì"  in this table means the character 07 hex.
+________________________________________________________________
+
+Thå  parameteró  giveî  iî  thió tablå  arå  thå  oneó  founä  iî 
+TYPESET.PRÍ  oî  thå  distributioî disk®  Theù  suiô  mù  printeò 
+contacô  anä  hió  LINOTROÎ 202Î prettù well®  Buô  theù  maù  bå 
+changeä  tï  anù  otheò symbol¬  oò  sequencå  oæ  symbols®  Eacè 
+sequencå oæ symboló iî TYPESET.PRÍ ió terminateä bù á CR-LF® Thió 
+meanó thaô thå CR-LÆ symboì itselæ caî noô bå á parameter®  Iô ió 
+representeä  bù  thå  symboì '$§  (2´  hex)¬  whicè  thå  prograí 
+interpretó aó á standarä end-of-paragrapè symbol(0ä 0á hex)Š
+Thå  sigî  '@§  (4°  hex© iî TYPESET.PRÍ meanó  removaì  oæ  thaô 
+Wordstar feature. 
+
+Parameteò  no®  6,·  anä  1¶ arå aô  disposaì  wheî  runninç  thå 
+program®  Doô  commandó thaô maù havå differenô meaninç accordinç 
+tï thå context¬  havå nï pre-determineä conversioî code® Exampleº 
+Iô thå prograí findó á '.cğ 10§ symboì iî thå WORDSTAÒ  file¬  iô 
+wilì givå á BELÌ sigî tï thå terminal¬  anä requesô á numbeò froí 
+thå user® ° meanó thaô thió doô commanä shoulä bå ignored® Iæ thå 
+"conditionaì  page"- commanä  aô  thió spoô meanó  thaô  á  tablå 
+startó here¬  thå useò maù enteò symboì 6¬  anä telì thå typeset
+tinç firí thaô symboì ¶ meanó starô oæ tables.
+
+PROGRAM CHANGES
+
+Iæ  you'ä  likå  tï adä tï thå lisô oæ Wordstaò  featureó  tï  bå 
+converted¬  you'ä  havå  tï compilå á ne÷ versioî oæ thå  TYPESEÔ 
+program® Exampleº You'ä likå tï changå alì {,ü anä ı tï somethinç 
+else® Iô requireó thå followinç changes:
+
+in the sequence CASE ord(ch) OF   (*in procedure convert- line 257 *)
+
+you add:
+
+'{': Enter(22);
+'|': Enter(23);
+'}': Enter(24);
+
+CONSÔ no_of_codeó ½ 21» (Line 4© is changed to
+
+CONST no_of_codes = 24; (*three extra codes for {,|,}*)
+
+anä  thå  filå  TYPESET.PRÍ  ió  giveî  threå  additionaì  lines¬ 
+containing the symbols you'd like to have instead of {,| and }.
+
+
+IS THE FINAL TEXT READY FOR PRINT?
+
+Somå finaì editinç bù thå typesettinç firí wilì bå necessary® Thå 
+codeó giveî bù thió prograí arå intermediate¬ anä arå switcheä tï 
+codeó  whicè  indicatå  characteò  fonts®   Pagå  sizå  anä  pagå 
+numberinç ió noô carrieä oveò froí thå WORDSTAÒ text® Theså finaì 
+toucheó  concerninç  lay-ouô  arå betteò lefô tï  thå  typesetteò Šprofessionals®  If¬ however¬ thå uså oæ underlininç anä differenô 
+linå  heightó  iî youò texô ió inconsistent¬  you'ä havå  tï  paù 
+extra foò re-editing® Somå advice:
+
+Agreå  witè youò typesetteò contacô firsô oî suitablå parameters® 
+Make sure that he can read your disk or cassette format.
+
+Start the text with a .lh 10 - this is interpreted as ordinary
+line height 
+
+use .lh 8 for quotations
+use .pa for new chapters
+Use underlining and boldface for sub-headings
+
+NON-COPYRIGHT NOTICE
+
+Thió  prograí ió aô disposaì foò non-commerciaì uså  bù  writers® 
+Your comments are welcome.
+
+Anù  publisheò oò printeò firí thaô consideró takinç thå  prograí 
+intï regulaò uså ió requesteä tï contacô må aô thå addresó above® 
+É mighô selì theí aî updateä oò custom-builô version® 
+ 

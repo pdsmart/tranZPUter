@@ -1,0 +1,43 @@
+
+
+{ -> 270 }
+procedure trapez(function f(x:real):real;
+		lower,upper,tol: real;
+		var sum		: real);
+
+{ numerical integration by the trapezoid method }
+{ function is f (as parameter), limits are LOWER and UPPER }
+{ with number of regions equal to PIECES }
+{ fixed partition is DELTA_X, answer is SUM }
+
+var	pieces,i			: integer;
+	x,delta_x,end_sum,mid_sum,
+	end_cor,sum1			: real;
+
+function dfx(x: real): real;
+begin
+  dfx:=1.0/sqr(x)
+end;
+
+begin
+  pieces:=1;
+  delta_x:=(upper-lower)/pieces;
+  end_sum:=f(lower)+f(upper);
+  end_cor:=(dfx(upper)-dfx(lower))/12.0;
+  sum:=end_sum*delta_x/2.0;
+  mid_sum:=0.0;
+  repeat
+    pieces:=pieces*2;
+    sum1:=sum;
+    delta_x:=(upper-lower)/pieces;
+    for i:=1 to pieces div 2 do
+    begin
+      x:=lower+delta_x*(2.0*i-1.0);
+      mid_sum:=mid_sum+f(x)
+    end;
+  sum:=(end_sum+2.0*mid_sum)*delta_x*0.5*0.5-sqr(delta_x)*end_cor;
+  until abs(sum-sum1)<=abs(tol*sum)
+end;		{ TRAPEZ }
+
+
+

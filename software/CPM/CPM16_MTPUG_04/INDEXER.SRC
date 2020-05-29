@@ -1,0 +1,300 @@
+PROGRAM INDEXIT;
+{-------------------------------------------------------}
+{Purpose  : Find procedure and function declarations and}
+{           output them in alphabetical order to a file }
+{Inputs   : File to be indexed.                         }
+{Outputs  : File of procedures and functions            }
+{CREATED  : Jan 31, 1981 NJL                            } 
+{MODIFIED : Jul 26, 1982 Steve Clamage                  }
+{	    Recognizes lower case, and outputs declar-	}
+{	    ations extending over more than one line.	}
+{NOTE	  : Keywords must be all upper or all lower case}
+{-------------------------------------------------------}
+
+TYPE
+  LSTRINGP = ^LSTRING;
+  FILENAME = STRING;
+  RWFILE = (RESETT,REWRITTE);
+  SUM_TYPE = (SHORT,LONG);
+  LSTRING = STRING[132];
+  SSTRING = STRING[10];
+
+VAR
+  FIN : TEXT;
+  FOUT : TEXT;
+  NAME : FILENAME;
+  STR : LSTRING;
+  STRP : LSTRINGP;
+  I : INTEGER;
+  LINES : INTEGER;
+  PROGFLG : BOOLEAN;
+  SUMMARY : SUM_TYPE;
+  LOC : INTEGER;
+
+EXTERNAL FUNCTION @BDOS(FUNC, PARM: INTEGER): INTEGER;
+EXTERNAL FUNCTION @CMD: LSTRINGP;
+EXTERNAL PROCEDURE @HLT;
+
+
+FUNCTION KEYPRESSED: BOOLEAN;
+BEGIN
+  KEYPRESSED := (@BDOS(11,0) <> 0)
+END;
+
+
+PROCEDURE ABORT;
+BEGIN
+  WRITELN;
+  WRITELN('Pascal/MT+ Program Index utility aborted from console');
+  @HLT
+END;
+
+
+FUNCTION DOFILE(VAR F: TEXT; RW: RWFILE; NAME: FILENAME): BOOLEAN;
+{---------------------------------------------------------------}
+{ Purpose: Attempt to reset or rewrite the given file. Check    }
+{          IORESULT.                                            }
+{ Inputs:  File, whether to reset or rewrite, and name of file.	}
+{ Outputs: File open for reading or writing. True if successful,}
+{          false if not successful.                             }
+{ Last Mod:                                                     }
+{---------------------------------------------------------------}
+BEGIN
+  ASSIGN(F,NAME);
+  IF RW = RESETT THEN
+    RESET(F)
+  ELSE
+    REWRITE(F);
+  IF IORESULT = 255 THEN
+    DOFILE := FALSE
+  ELSE
+    DOFILE := TRUE;
+END;
+
+PROCEDURE GETNAME(VAR OUTSTR : FILENAME);
+{---------------------------------------------------------------}
+{ Purpose: Read a name from the keyboard, return in STR.        }
+{ Inputs:  CPMCMDBUF.                                           }
+{ Outputs: STR contains name of file if it was given to start.  }
+{ Last Mod: 11/23/80                                            }
+{---------------------------------------------------------------}
+BEGIN
+  WHILE (LENGTH(STR) <> 0) AND (STR[1] = ' ') DO
+    DELETE(STR,1,1);            (* DELETE LEADING BLANKS *)
+  OUTSTR := '';
+  WHILE (LENGTH(STR) <> 0) AND (STR[1] <> ' ') DO
+    BEGIN
+      OUTSTR := CONCAT(OUTSTR,STR[1]);
+      DELETE(STR,1,1)
+    END;
+END;
+
+
+FUNCTION STRIPBLNKS(S: LSTRING):INTEGER;
+VAR
+  I : INTEGER;
+BEGIN
+  STRIPBLNKS := 0;
+  I := 1;
+  WHILE (S[I] = ' ') AND (I <= LENGTH(S)) DO
+    I := I + 1;
+  IF I <= LENGTH(S) THEN
+    STRIPBLNKS := I;
+END;
+
+FUNCTION PRESENT(KEYWORD: SSTRING; STR: LSTRING): BOOLEAN; 
+{---------------------------------------------------------------}
+{ Purpose: Return true if the string KEYWORD                    }
+{          the first string on the input line STR.  If it is    }
+{          not first or is  not present return false.           }
+{ Inputs:  KEYWORD,STR.                                         }
+{ Outputs: Function return value of true or false.              }
+{ Last Mod: 26 July 82, accept lowercase                        }
+{---------------------------------------------------------------}
+  PROCEDURE LOWER(VAR STR: SSTRING);
+  VAR
+    I: INTEGER;
+  BEGIN {convert uppercase alphabetic string to lowercase}
+    FOR I:=1 TO LENGTH(STR) DO
+      STR[I] := CHR( ORD(STR[I]) + (ORD('a') - ORD('A')) )
+  END;
+
+BEGIN
+  PRESENT := FALSE;
+  LOC := STRIPBLNKS(STR);	(* LOCATION OF KEYWORD *)
+  IF LOC <> 0 THEN
+    IF POS(KEYWORD,STR) = LOC THEN
+      PRESENT := TRUE
+    ELSE
+      BEGIN
+        LOWER(KEYWORD);		(* NOTE: ALL UPPER OR ALL LOWERCASE ONLY! *)
+        IF POS(KEYWORD,STR) = LOC THEN
+          PRESENT := TRUE;
+      END
+END;
+
+
+PROCEDURE PROGRESS;
+{ Mark progress every 16 lines on the screen }
+BEGIN
+  LINES := LINES + 1;
+  IF (LINES & $0F) = 0 THEN WRITE('.')
+END;
+
+
+PROCEDURE BALPAR(STR: LSTRING);
+{Copy procedure header through any balanced parens,	}
+{  including succeeding lines as necessary.		}
+VAR
+  I : INTEGER;
+  LEVEL: BYTE;
+  CH: CHAR;
+
+  FUNCTION NEXTCHAR: CHAR;
+  {Return next char from string, get new line if needed}
+  BEGIN
+    I := I + 1;
+    IF I > LENGTH(STR) THEN
+    BEGIN
+      READLN(FIN,STR);
+      WRITELN(FOUT,STR);
+      PROGRESS;
+      I := 1
+    END;
+    NEXTCHAR := STR[I]
+  END;
+
+BEGIN {BALPAR}
+  I := LOC;		(* START AT KEYWORD *)
+  REPEAT
+    CH := NEXTCHAR;
+  UNTIL (CH = '(') OR (CH = ';');
+  IF CH = '(' THEN	(* NEED TO BALANCE OUT PARENS *)
+    BEGIN
+      LEVEL := 1;	(* NESTING DEPTH *)
+      REPEAT
+	CH := NEXTCHAR;
+	CASE CH OF
+	  '(' : LEVEL := LEVEL + 1;
+	  ')' : LEVEL := LEVEL - 1;
+	END
+      UNTIL ((LEVEL = 0) AND (CH = ';')) OR EOF(FIN)
+    END
+END;
+
+
+PROCEDURE TRANSFER(VAR STR : LSTRING);
+{---------------------------------------------------------------}
+{ Purpose: Transfer lines from FIN to FOUT until the next proc/ }
+{          func or begin is encountered.                        }
+{ Inputs:  STR contains the line with the PROC, FUNC or PROG def}
+{          FIN provides the text.                               }
+{ Outputs: STR contains the line containing a PROC, FUNC def or }
+{          a begin. FOUT contains new text.                     }
+{ Last Mod: 26 July 1982
+{---------------------------------------------------------------}
+VAR 
+  DONE : BOOLEAN;
+  TSTRING : LSTRING;
+
+BEGIN
+  DONE := FALSE;
+  WRITELN(FOUT,STR);
+  IF SUMMARY = LONG THEN
+  REPEAT
+    READLN(FIN,TSTRING);
+    PROGRESS;
+    IF KEYPRESSED THEN
+      ABORT;
+    IF (PRESENT('BEGIN',TSTRING)) THEN
+         DONE := TRUE
+    ELSE
+      BEGIN
+        IF PRESENT('FUNCTION',TSTRING)
+        OR PRESENT('PROCEDURE',TSTRING) THEN
+          BEGIN
+            WRITELN(FOUT);
+            WRITELN(FOUT);
+          END;
+        WRITELN(FOUT,TSTRING) 
+      END
+  UNTIL EOF(FIN) OR DONE;
+
+  IF SUMMARY = SHORT THEN
+    BEGIN
+      BALPAR(STR);	(* COPY THRU BALANCED PARENS, IF ANY *)
+      READLN(FIN,TSTRING);
+      PROGRESS;
+    END;
+
+(*IF KEYPRESSED THEN
+    ABORT;              *)
+  STR := TSTRING;  
+  IF SUMMARY = LONG THEN
+    WRITELN(FOUT);
+  WRITELN(FOUT);
+END;
+
+
+PROCEDURE DOINDEX;
+VAR
+  I : INTEGER;
+  STR : STRING;
+BEGIN
+  WHILE NOT EOF(FIN) DO
+    BEGIN
+      IF PRESENT('PROCEDURE',STR)
+      OR PRESENT('FUNCTION',STR) THEN
+        TRANSFER(STR);
+      READLN(FIN,STR);
+      PROGRESS;
+      IF KEYPRESSED THEN
+        ABORT;
+    END;
+END;
+
+        
+  
+
+BEGIN
+  STRP := @CMD;                 (* COPY COMMAND TAIL *)
+  STR := STRP^;
+
+  WRITELN('Pascal/MT+ Program Index Utility -- Release 5.2');
+  WRITELN('Copyright (c) 1981 by MT MicroSYSTEMS');
+  WRITELN;
+
+  GETNAME(NAME);
+  WRITELN('Reading text from:  ',NAME);
+  IF DOFILE(FIN,RESETT,NAME) THEN
+  BEGIN
+    GETNAME(NAME);
+    WRITELN('Output directed to: ',NAME);
+    IF DOFILE(FOUT,REWRITTE,NAME) THEN
+      BEGIN
+      GETNAME(NAME);
+      IF (LENGTH(NAME) > 0) AND (NAME[1] = 'L') THEN
+        BEGIN
+        SUMMARY := LONG;
+	NAME := 'LONG'
+        END
+      ELSE
+        BEGIN
+        SUMMARY := SHORT;
+	NAME := 'SHORT'
+        END;
+      WRITELN('Summary form:       ', NAME);
+      READLN(FIN,STR);
+      LINES := 1;
+      DOINDEX;
+      CLOSE(FOUT,I);
+      WRITELN;
+      WRITELN('Pascal/MT+ Program Index utility processing complete');
+      END
+    ELSE
+      WRITELN('Cannot create ',NAME)
+    END
+  ELSE
+    WRITELN('Cannot open ',NAME);
+END.
+

@@ -1,0 +1,96 @@
+
+;****************************************************************
+;* 	FLAG DEFINITION MODULE					*
+;*	File name: FLAGS.EQU					*
+;*	Last Update: 05/16/84					*
+;*								*
+;*	All the flags used in CCP/M's I/O system should be 	*
+;*	defined in this module.					*
+;****************************************************************
+
+; Flags 0, 1, and 2 are defined and reserved by DRI
+
+TICK_FLAG	equ	1		; system tick
+
+SEC_FLAG	equ	2		; used by clock
+
+MIN_FLAG	equ	3
+
+; OEM defined flags
+
+NMI_FLAG	equ	6		; Non Maskable Interrupt
+FDC_FLAG	equ	7		; Floppy Interrupt
+H_DISK_FLAG	equ	8		; Hard Disk Interrupt
+
+; Serial port flags
+
+C0IN_F		equ	4		; Physical usart 0
+C0OUT_F		equ	5
+
+C1IN_F		equ	9		; Physical usart 1
+C1OUT_F		equ	10
+
+C2IN_F		equ	11		; Physical usart 2
+C2OUT_F		equ	12
+
+C3IN_F		equ	13		; Physical usart 3
+C3OUT_F		equ	14
+
+C4IN_F		equ	15		; Physical usart 4
+C4OUT_F		equ	16
+
+C5IN_F		equ	17		; Physical usart 5
+C5OUT_F		equ	18
+
+C6IN_F		equ	19		; Physical usart 6
+C6OUT_F		equ	20
+
+C7IN_F		equ	21		; Physical usart 7
+C7OUT_F		equ	22
+
+C8IN_F		equ	23		; Physical usart 8
+C8OUT_F		equ	24
+
+C9IN_F		equ	25		; Physical usart 9
+C9OUT_F		equ	26
+
+C10IN_F		equ	27		; Physical usart 10
+C10OUT_F	equ	28
+
+C11IN_F		equ	29		; Physical usart 11
+C11OUT_F	equ	30		
+
+C12IN_F		equ	31		; Physical usart 12
+C12OUT_F	equ	32		
+
+C13IN_F		equ	33		; Physical usart 13
+C13OUT_F	equ	34
+
+C14IN_F		equ	35		; Physical usart 14
+C14OUT_F	equ	36
+
+C15IN_F		equ	37		; Physical usart 15
+C15OUT_F	equ	38
+
+C16IN_F		equ	39		; Physical usart 16
+C16OUT_F	equ	40
+
+
+
+V_FLAG		equ	C16OUT_F+1	; Flag bias for GSX
+SWITCH_BIAS	equ	V_FLAG+17	; Flag bias for Screen Switch
+
+WW_FLAG		equ	SWITCH_BIAS+18	; Flag for window manager
+
+WW_OFF		equ	WW_FLAG+1	; Flag to show window manager is off
+
+SCREEN_FLAG	equ	WW_OFF+1	; Flag for GSX in PC Board routines
+
+ENDFLAGS	equ	SCREEN_FLAG	; Last Flag used
+
+;*************************
+;* END OF FLAG DEFINITIONS
+;*************************
+
+
+

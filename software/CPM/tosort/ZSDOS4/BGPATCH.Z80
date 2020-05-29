@@ -1,0 +1,254 @@
+	TITLE	"Patch file for BackGrounder ii (tm)"
+;***************************************************************;
+; BGPATCH							;
+;---------------------------------------------------------------;
+; Copyright (C) 1988  by Cameron W. Cotrill and Harold F. Bower	;
+;---------------------------------------------------------------;
+; This patch overlays LOADBG.COM to recognize ZSDOS/ZDDOS	;
+;								;
+; Load over LOADBG.COM with MLOAD.COM as follows:		;
+;								;
+;	MLOAD LOADBGZ.COM=LOADBG.COM,BGPATCH.HEX		;
+;								;
+; Revision:							;
+;	1.1a - Changed version message for ZDDOS 23 Jul 89	;
+;	1.1  - Change ZSDOS addresses for V1.1	21 Jun 89	;
+;	1.0b - Initial Release			25 Nov 88	;
+;****************************************************************
+
+; Necessary patch locations from ZSDOS listing file
+
+BGCKDRO	  EQU	08D8H		; Check Drive patch value
+BGCONST	  EQU	02B7H		; Console status patch value
+BGHIL	  EQU	006DH		; High RAM length
+BGLORAM	  EQU	0026H		; Low RAM starting address
+BGLOWL	  EQU	0008H		; Low RAM length
+BGPTCH0	  EQU	027CH		; Patch 0 value
+BGPTCH1	  EQU	0C08H		; Patch 1 value
+BGPTCH2	  EQU	07A9H		; Patch 2 value
+BGSELDRV  EQU	051FH		; Select drive patch value
+CHKRO	  EQU	08D8H		; Check for disk R/O status
+CHKRO1	  EQU	08E5H		; Actual R/O check routine
+CMND11	  EQU	02B7H		; Get console status routine
+DCIO2	  EQU	0166H		; Check console status routine
+SELDR1	  EQU	052DH		; Select drive from FCB
+
+FLDRV	  EQU	BGLORAM+28H	; Drive select used flag
+
+;.....
+; Necessary additional equates from ZDDOS listing (Preceeded by D)
+
+DBGCKDRO  EQU	08C2H		; Check Drive patch value
+DBGCONST  EQU	028EH		; Console status patch value
+DBGPTCH0  EQU	0253H		; Patch 0 value
+DBGPTCH1  EQU	0B90H		; Patch 1 value
+DBGPTCH2  EQU	0790H		; Patch 2 value
+DBGSELDRV EQU	04F7H		; Select drive patch value
+DCHKRO	  EQU	08C2H		; Check for disk R/O status
+DCHKRO1	  EQU	08CFH		; Actual R/O check routine
+DCMND11	  EQU	028EH		; Get console status routine
+DDCIO2	  EQU	0166H		; Check console status routine
+DSELDR1	  EQU	0505H		; Select drive from FCB
+
+;-------------------------------------------------------------------------
+; ORG addresses within LOADBG to overlay one of the EXISTING entries.
+; Select ONE of the following entries that you are LEAST likely to need.
+;  NOTE: Remove comment semicolons from ONLY ONE of the following pairs...
+
+; Overlay - <Standard CP/M 2.2 BDOS>		(Ampro Little Boards, etc)
+
+;TYPCK	EQU	0F0FH		; DOS Type Check Structure
+;PATMAP	EQU	11AFH		; DOS Type Check Structure
+
+; Overlay - <ZRDOS PLUS v 1.1>			(Early MicroMint SB180s)
+
+;TYPCK	EQU	0F6FH		; DOS Type Check Structure
+;PATMAP	EQU	11CFH		; DOS Type Check Structure
+
+; Overlay - <PUBLIC ZRDOS PLUS v "1.2 HEX">
+
+DTYPCK	EQU	0FCFH		; DOS Type Check Structure
+DPATMAP	EQU	11EFH		; DOS Type Check Structure
+
+; Overlay - <PUBLIC ZRDOS PLUS v 1.3>
+
+TYPCK	EQU	102FH		; DOS Type Check Structure
+PATMAP	EQU	120FH		; DOS Type Check Structure
+
+; Overlay - <PUBLIC ZRDOS PLUS v 1.7>		(MicroMint SB180 Hard disks)
+
+;TYPCK	EQU	108FH		; DOS Type Check Structure
+;PATMAP	EQU	122FH		; DOS Type Check Structure
+
+; Overlay - <PUBLIC ZRDOS PLUS v "1.2 BCD">	(1986 MicroMint SB180 updates)
+
+;TYPCK	EQU	10EFH		; DOS Type Check Structure
+;PATMAP	EQU	124FH		; DOS Patch Data
+
+
+	ORG	TYPCK
+
+	DEFB	'ZSDOS V1.1',0,0,0,0,0,0
+	DEFB	0,0,0,0,0,0,0,0
+	DEFB	0,0,0,0,0,0,0,0
+
+	DEFB	06		; # OF CHECK ENTRIES
+
+; #1 - Call ^S Check in WRCON
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGPTCH0-1	; Offset to Check Point
+	CALL	CMND11		; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate map
+
+; #2 - Call Check Disk R/O in WRITE
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGPTCH1-1	; Offset to Check Point
+	CALL	CHKRO		; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #3 - Call Set Drive to FCB in CLOSE
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGPTCH2-1	; Offset to Check Point
+	CALL	SELDR1		; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #4 - in BGCKDRO 
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGCKDRO		; Offset to Check Point
+	CALL	CHKRO1		; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #5 - in BGSELDRV
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGSELDRV+10H	; Offset to Check Point
+	LD	(FLDRV),A	; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #6 - BGCONST Entry
+
+	DEFB	03		; # Bytes to check
+	DEFW	BGCONST		; Offset to Check Point
+	CALL	DCIO2		; What should be there (from ZSDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; Null Entry
+
+	DEFB	00		; # Bytes to check
+	DEFW	0000H		; Offset to Check Point
+	DEFB	0,0,0		; What should be there
+	DEFB	0,0,0		; Relocate Map
+
+; NOTE: The following table contains offsets of various RAM locations from
+; the base of the LOW RAM area in ZSDOS.  Any changes to these locations
+; will require modifying the offset values below.
+
+	ORG	PATMAP
+
+	DEFW	BGPTCH0		; Patch 0 - CALL ^S Check
+	DEFW	BGPTCH1		; Patch 1 - Check R/O Disk
+	DEFW	BGPTCH2		; Patch 2 - CALL Set Drive to FCB
+	DEFW	BGLORAM		; BDOS Low RAM Start - BGLORAM
+	DEFW	BGLOWL		; Length of BDOS Low RAM
+	DEFW	BGLORAM+08H	; BDOS Hi RAM Start - BGHIRAM
+	DEFW	BGHIL		; Length of BDOS Hi RAM
+	DEFW	BGLORAM+0EH	; DIR Buffer Pointer Location - DIRBUF
+	DEFW	BGLORAM+03H	; Last Console Char Read - LASTCH
+	DEFW	BGLORAM+02H	; Echo CRT: to LPT: Flag - FCONTP
+	DEFW	BGLORAM+05H	; Default Drive - DEFDRV
+	DEFW	BGLORAM+37H	; FCB Pointer - ARWORD
+	DEFW	BGCKDRO		; Check Disk R/O Routine Entry
+	DEFW	BGSELDRV	; Set Drive to FCB Spec Routine Entry
+	DEFW	BGCONST		; Check Console Status Routine Entry
+	DEFW	BGLORAM+04H	; Logged User - USER
+
+;-------------------------------------------------------------------------
+;	Z D D O S    P a t c h    l o c a t i o n s
+;-------------------------------------------------------------------------
+
+	ORG	DTYPCK
+
+	DEFB	'ZDDOS V1.1',0,0,0,0,0,0
+	DEFB	0,0,0,0,0,0,0,0
+	DEFB	0,0,0,0,0,0,0,0
+
+	DEFB	06		; # of Check Entries
+
+; #1 - Call ^S Check in WRCON
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGPTCH0-1	; Offset to Check Point
+	CALL	DCMND11		; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate map
+
+; #2 - Call Check Disk R/O in WRITE
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGPTCH1-1	; Offset to Check Point
+	CALL	DCHKRO		; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #3 - Call Set Drive to FCB in CLOSE
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGPTCH2-1	; Offset to Check Point
+	CALL	DSELDR1		; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #4 - in BGCKDRO 
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGCKDRO	; Offset to Check Point
+	CALL	DCHKRO1		; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #5 - in BGSELDRV
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGSELDRV+10H	; Offset to Check Point
+	LD	(FLDRV),A	; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; #6 - BGCONST Entry
+
+	DEFB	03		; # Bytes to check
+	DEFW	DBGCONST		; Offset to Check Point
+	CALL	DDCIO2		; What should be there (from ZDDOS listing)
+	DEFB	0,0,1		; Relocate Map
+
+; Null Entry
+
+	DEFB	00		; # Bytes to check
+	DEFW	0000H		; Offset to Check Point
+	DEFB	0,0,0		; What should be there
+	DEFB	0,0,0		; Relocate Map
+
+; NOTE: The following table contains offsets of various RAM locations from
+; the base of the LOW RAM area in ZSDOS.  Any changes to these locations
+; will require modifying the offset values below.
+
+	ORG	DPATMAP
+
+	DEFW	DBGPTCH0	; Patch 0 - CALL ^S Check
+	DEFW	DBGPTCH1	; Patch 1 - Check R/O Disk
+	DEFW	DBGPTCH2	; Patch 2 - CALL Set Drive to FCB
+	DEFW	BGLORAM		; DOS Low RAM Start - BGLORAM
+	DEFW	BGLOWL		; Length of BDOS Low RAM
+	DEFW	BGLORAM+08H	; DOS Hi RAM Start - BGHIRAM
+	DEFW	BGHIL		; Length of BDOS Hi RAM
+	DEFW	BGLORAM+0EH	; DIR Buffer Pointer Location - DIRBUF
+	DEFW	BGLORAM+03H	; Last Console Char Read - LASTCH
+	DEFW	BGLORAM+02H	; Echo CRT: to LPT: Flag - FCONTP
+	DEFW	BGLORAM+05H	; Default Drive - DEFDRV
+	DEFW	BGLORAM+37H	; FCB Pointer - ARWORD
+	DEFW	DBGCKDRO	; Check Disk R/O Routine Entry
+	DEFW	DBGSELDRV	; Set Drive to FCB Spec Routine Entry
+	DEFW	DBGCONST	; Check Console Status Routine Entry
+	DEFW	BGLORAM+04H	; Logged User - USER
+
+	END
+

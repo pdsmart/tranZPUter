@@ -1,0 +1,4210 @@
+	title	<Z280 fig-FORTH 1.1 a>		
+	subttl	Adaptive version		
+;
+;
+; Modified from Z80 fig-FORTH 1.1h by EHR 880830
+; Modified frm FIG document keyed by Dennis L. Wilson 800907
+; Converted frm "8080 FIG-FORTH VERSION A0 15SEP79"
+;
+; fig-FORTH release 1.1 for the 8080 processor.
+;
+; ALL PUBLICATIONS OF THE FORTH INTEREST GROUP
+; ARE PUBLIC DOMAIN. THEY MAY BE FURTHER
+; DISTRIBUTED BY THE INCLUSION OF THIS CREDIT NOTICE:
+;
+; This publication has been made available by the
+;	Forth Interest Group
+;	P.O.Box 1105
+;	San Carlos, CA 94070
+;	U.S.A.
+;
+; Implementation on 8080 by:
+;	John Cassady
+;	339 15th Street
+;	Oakland, CA 94612
+;	U.S.A
+;	on 790528
+; Modified by:
+;	Kim Harris
+; Acknowledgements:
+;	George Flammer
+;	Robt. D. Villwock
+; ----------------------------------------------------------------------
+; Z80 Version for Cromemco CDOS & Digital Research CP/M by:
+;	Dennis Lee Wilson c/o
+;	Aristotelian Logicians
+;	2631 East Pinchot Avenue
+;	Phoenix, AZ 85016
+;	U.S.A.
+; ----------------------------------------------------------------------
+; The 2 byte Z80 code for Jump Relative (JR) has been substituted for
+; the 3 byte Jump (JP) wherever practical. The port I/O words P@ & P!
+; have been made ROMable by use of Z80 instructions.
+; ----------------------------------------------------------------------
+; Further modifications (marked ;/) by:
+;	Edmund Ramm
+;	P.O.Box 38
+;	2358 Kaltenkirchen
+;	Fed. Rep. of Germany	840418
+;
+; 850419	changed * (star)
+; 850507	added   0<>, 0>, TUCK, NIP, -ROT, CSWAP, PICK
+; 850511	added	-CMOVE
+;
+; -----------------------------------------------------------------------------
+; Disc I/O has been modified a la Albert van der Horst (HCCH) to employ
+; CP/M 2.x's random access feature.
+; -----------------------------------------------------------------------------
+; -----------------------------------------------------------------------------
+;
+; Z280 specifics
+;
+;
+iopreg		equ	08h		; i/o page register
+;
+config0		equ	0e0h		; c/t 0 configuration register
+cntrl0		equ	0e1h		; c/t 0 command/status register
+tcon0		equ	0e2h		; c/t 0 time constatnt register
+count0		equ	0e3h		; c/t 0 count-time register
+config1		equ	0e8h		; c/t 1 configuration register
+cntrl1		equ	0e9h		; c/t 1 command/status register
+tcon1		equ	0eah		; c/t 1 time constant register
+count1		equ	0ebh		; c/t 1 count-time register
+;
+; -----------------------------------------------------------------------------
+;
+;	Release & Version numbers
+;
+figrel		equ	1		;FIG RELEASE #
+figrev		equ	1		;FIG REVISION #
+usrver		equ	61h		;USER VERSION # a by EHR
+;
+;Console & printer drivers are in external source named
+;CONPRTIO.FTH & disc drivers in DISCIO.FTH. It has 4 screen
+;buffers & end of memory is set to FBASE from locn. 0007H.
+	page					
+;	ASCII characters used
+;
+abl		equ	20h		;BLANK
+acr		equ	0dh		;CR
+adot		equ	2eh		;.
+bell		equ	07h		;^G
+bsin		equ	08h		;backspace chr = ^H
+bsout		equ	08h		
+dle		equ	10h		;^P
+lf		equ	0ah		;^J
+ff		equ	0ch		;^L
+;
+;	Memory allocation
+;
+bdoss		equ	0005h		;/ system entry
+nscr		equ	4		;  # of 1024 byte screens
+kbbuf		equ	128		;  bytes/disc buffer
+us		equ	40h		;  user variables space
+rts		equ	400h		;  Return Stack & term buff space
+co		equ	kbbuf+4		;  Disc buff + 2 header + 2 tail
+nbuf		equ	nscr*400h/kbbuf	;  # of buffers
+bufsiz		equ	co*nbuf		;/ total disc buffer size
+	page					
+	aseg					
+	;.z280					
+	; PRE280 V1.12  11-Feb-91  Copyright (c) 1988-91 by A.Zinser (fifi@hiss.han.de)
+	.Z80
+;
+	org	0100h				
+;
+orig:					
+	nop					
+	jp	cld			; vector to cold start
+	nop				
+	jp	wrm			; vector to warm start
+	defb	figrel			; fig release #
+	defb	figrev			; fig revision #
+	defb	usrver			; user version #
+	defb	0eh			; implementation attributes
+;
+;
+;
+;	0eh = 0000:1110
+;	      ---------
+; B +ORIGIN   ...W:IEBA
+;
+; W: 0=above sufficient
+;    1=other differences exist
+; I: Interpreter is	0=pre-
+;			1=post incrementing
+; E: Addr must be even: 0 yes
+;			1 no
+; B: High byte @	0=low addr.
+;			1=high addr.
+; A: CPU Addr.		0=BYTE
+;			1=WORD
+;
+;
+;
+	defw	task-7			;  topmost word in FORTH vocabulary
+	defw	bsin			;  backspace chr
+upinit:	defw	0			;/ init (up)
+;
+; * Following used by COLD; must be in same order as user variables *
+;
+s0init:	defw	0			;/ init (s0)
+r0init:	defw	0			;/ init (r0)
+tibini:	defw	0			;/ init (TIB)
+	defw	1fh			;  init (WIDTH)
+	defw	0			;  init (WARNING)
+	defw	initdp			;  init (FENCE)
+	defw	initdp			;  init (dp)
+	defw	forth+8			;  init (VOC-LINK)
+;
+; *  END DATA USED BY COLD *
+;
+	defw	0018h,0f600h		; Z280 CPU name (hw,lw)
+					; (32 bit base 36 integer)
+	page				
+;	REGISTERS
+;
+;	FORTH	Z80	FORTH PRESERVATION RULES
+;	-----	---	-----------------------
+;	IP	BC	should be preserved
+;			accross FORTH words.
+;	W	DE	sometimes output from
+;			NEXT, may be altered
+;			b4 JP'ing to NEXT,
+;			input only when 
+;			"DPUSH" called.
+;	SP	SP	should be used only as
+;			Data Stack accross
+;			FORTH words, may be
+;			used within FORTH
+;			words if restored
+;			b4 "NEXT"
+;		HL	Never output frm NEXT
+;			input only when
+;			"HPUSH" called
+;
+;
+up:	defw	0			;/ user area ptr
+rpp:	defw	0			;/ return stack ptr
+buf1:	defw	0			;/ address of 1st disc buffer
+;
+;
+;	COMMENT CONVENTIONS:
+;
+;	==	means "is equal to"
+;	<--	means assignment
+;	#NAME	=     value of name
+;	NAME    =     contents @ name
+;	(NAME)  =     contents of cell addressed by name
+;	cfa	=     code field address
+;	lfa	=     link field address
+;	nfa	=     name field address
+;	pfa	=     parameter field address
+;	s1	=     1st word of parameter stack
+;	s2	=     2nd -"-  of    -"-     -"-
+;	r1	=     1st -"-  of return stack
+;	r2	=     2nd -"-  of  -"-    -"-
+; ( above Stack posn. valid b4 & after execution of any word, not during)
+;
+;	lsb	=     least significant bit
+;	msb	=     most  significant bit
+;	lb	=     low  byte
+;	hb	=     high byte
+;	lw	=     low  word
+;	hw	=     high word
+; (May be used as suffix to above names)
+	page				
+;	FORTH ADDRESS INTERPRETER
+;	POST INCREMENTING VERSION
+;
+;
+;
+dpush:					
+	push	de			
+hpush:					
+	push	hl			; iy points here
+next:					
+	ld	h,b			;/ w <-- (ip)    ix points here
+	ld	l,c			;/
+	;ldw	hl,(hl)			;/ (hl) --> cfa
+	DEFB	0EDh,26h
+	inc	bc			
+	inc	bc			;/ ip += 2
+next1:					
+	;ldw	de,(hl)			;/ pc <-- (w)
+	DEFB	0EDh,16h
+	ex	de,hl			
+	inc	de			
+	jp	(hl)			; note: de <-- cfa + 1
+;
+;
+jnext	macro				
+	jp	(ix)			
+	endm				
+;
+jhpush	macro				
+	jp	(iy)			
+	endm				
+;
+	page				
+;	FORTH DICTIONARY
+;	DICTIONARY FORMAT:
+;
+;				BYTE
+;	ADDRESS NAME		CONTENTS
+;	------- ----		--------
+;						(MSB=1
+;						(P=PRECEDENCE BIT
+;						(S=SMUDGE BIT
+;	NFA	NAME FIELD	1PS<LEN>	<NAME LENGTH
+;				0<1CHAR>	MSB=0, NAME'S 1st CHAR
+;				0<2CHAR>
+;				  ...
+;				1<LCHAR>	MSB=1, NAME'S LAST CHAR
+;	LFA	LINK FIELD	<LINKLB>	=PREVIOUS WORD'S NFA
+;				<LINKHB>
+;LABEL:	CFA	CODE FIELD	<CODELB>	=ADDR CPU CODE
+;				<CODEHB>
+;	PFA	PARAMETER	<1PARAM>	1st PARAMETER BYTE
+;		FIELD		<2PARAM>
+;				  ...
+;
+;
+;
+dp0:					
+	defb	83h			; LIT
+	defc	'LIT'			
+	defw	0			; lfa == 0 marks end of dictionary 
+lit:					
+	defw	$+2			; s1 <-- (ip)
+	ld	h,b			
+	ld	l,c			
+	;ldw	hl,(hl)			; hl <-- (ip) = literal
+	DEFB	0EDh,26h
+	inc	bc			;/
+	inc	bc			;/ ip += 2
+	jhpush				; s1 <-- hl
+;
+;
+	defb	87h			; EXECUTE
+	defc	'EXECUTE'		
+	defw	lit-6			
+exec:					
+	defw	$+2			
+	pop	hl			
+	jp	next1			
+;
+;
+	defb	86h			; BRANCH
+	defc	'BRANCH'		
+	defw	exec-0ah		
+bran:					
+	defw	$+2			; ip += (ip)
+bran1:					
+	ld	h,b			
+	ld	l,c			; hl <-- ip
+	;addw	hl,(hl)			; hl <-- ip + branch offset
+	DEFB	0DDH
+	DEFB	0EDH,0C6h
+	ld	c,l			
+	ld	b,h			; ip += branch offset
+	jnext				
+;
+;
+	defb	87h			; 0BRANCH
+	defc	'0BRANCH'		
+	defw	bran-9			
+zbran:					
+	defw	$+2			
+	pop	hl			
+	ld	a,l			
+	or	h			
+	jr	z,bran1			; branch if if s1 == 0
+	inc	bc			; else skip branch offset
+	inc	bc			
+	jnext				
+;
+;
+	defb	86h			; (LOOP)
+	defc	'(LOOP)'		
+	defw	zbran-0ah		
+xloop:					
+	defw	$+2			
+	ld	hl,(rpp)		; (hl) --> index = r1
+	;incw	(hl)			;/ index += 1
+	DEFB	0DDH
+	inc	BC
+	;ldw	de,(hl)			;/ de <-- new index
+	DEFB	0EDh,16h
+	inc	hl			;/
+	inc	hl			;/ hl --> limit(lb)
+	ld	a,e			
+	sub	(hl)			
+	ld	a,d			
+	inc	hl			; hl --> limit(hb)
+	sbc	a,(hl)			; index < limit?
+	jp	m,bran1			; yes, loop again
+	inc	hl			; no, done
+	ld	(rpp),hl		; discard r1 & r2
+	inc	bc			
+	inc	bc			; skip branch offset
+	jnext				
+;
+;
+	defb	87h			; (+LOOP)
+	defc	'(+LOOP)'		
+	defw	xloop-9			
+xploo:					
+	defw	$+2			
+	pop	de			; de <-- increment
+	ld	hl,(rpp)		; hl --> index
+	ld	a,(hl)			; index += increment
+	add	a,e			
+	ld	(hl),a			
+	ld	e,a			
+	inc	hl			
+	ld	a,(hl)			
+	adc	a,d			
+	ld	(hl),a			
+	inc	hl			; (hl) --> limit
+	inc	d			
+	dec	d			
+	ld	d,a			; de <-- new index
+	jp	m,xloo2			; if incr > 0
+	ld	a,e			
+	sub	(hl)			; then a <-- index - limit
+	ld	a,d			
+	inc	hl			
+	sbc	a,(hl)			
+	jp	xloo3			
+
+xloo2:					
+	ld	a,(hl)			; else  a <-- limit - index
+	sub	e			
+	inc	hl			
+	ld	a,(hl)			
+	sbc	a,d			
+;					; if a < 0
+xloo3:					
+	jp	m,bran1			; then loop again
+	inc	hl			; else done
+	ld	(rpp),hl		; discard r1 & r2
+	inc	bc			; skip branch offset
+	inc	bc			
+	jnext				
+;
+;
+	defb	84h			;  (DO)
+	defc	'(DO)'			
+	defw	xploo-0ah		
+xdo:					
+	defw	$+2			
+	pop	de			;  de <-- initial index
+	ld	hl,(rpp)		;  hl <-- rp
+	dec	hl			
+	dec	hl			
+	;pop	(hl)			;/ r2 <-- limit
+	DEFB	0DDH
+	pop	BC
+	dec	hl			
+	dec	hl			
+	;ldw	(hl),de			;/ r1 <-- initial index
+	DEFB	0EDh,1Eh
+	ld	(rpp),hl		;  rp -= 4
+	jnext				
+;
+;
+	defb	81h			; I
+	defc	'I'			
+	defw	xdo-7			
+ido:					
+	defw	$+2			
+	ld	hl,(rpp)		
+	;push	(hl)			;/ s1 <-- r1, r1 unchanged
+	DEFB	0DDH
+	push	BC
+	jnext				
+;
+;
+	defb	85h			; DIGIT
+	defc	'DIGIT'			
+	defw	ido-4			
+digit:					
+	defw	$+2			
+	pop	hl			; l <-- s1.lb = base value
+	pop	de			; e <-- s2.lb = chr to be converted
+	ld	a,e			; a <-- chr
+	sub	'0'			; >= 0?
+	jr	c,digi2			;/ < 0 is invalid
+	cp	0ah			; > 9?
+	jr	c,digi1			;/ no, test base value
+	sub	07h			; gap between '9' & 'A', nw 'A'=0ah
+	cp	0ah			; >= 'A'?
+	jr	c,digi2			;/ chrs btwn '9' & 'A' are invalid
+digi1:					
+	cp	l			; < base value?
+	jr	nc,digi2		;/ no, invalid
+	ld	e,a			; s2 <-- de = converted digit
+	ld	hl,0001h		; s1 <-- true
+	jp	dpush			
+;
+digi2:					
+	ld	l,h			; hl <-- false
+	jhpush				; s1 <-- false
+;
+;
+	defb	86h			; (FIND) (2-1)FAILURE
+	defc	'(FIND)'		;        (2-3)SUCCESS
+	defw	digit-8			
+pfind:					
+	defw	$+2			
+	pop	de			; de <-- nfa
+pfin1:					
+	pop	hl			; hl <-- string addr
+	push	hl			; save for next iteration
+	ld	a,(de)			
+	xor	(hl)			; filter differences
+	and	3fh			; mask msb & precedence bit
+	jr	nz,pfin4		; lengths differ
+pfin2:					
+	inc	hl			; hl --> next string chr
+	inc	de			; de --> next name field chr
+	ld	a,(de)			
+	xor	(hl)			; filter differences
+	add	a,a			; shift msbit into carry
+	jr	nz,pfin3		; no match
+	jr	nc,pfin2		; match so far, loop agn
+	ld	hl,0005h		; string matches
+	add	hl,de			; (sp) <-- pfa
+	ex	(sp),hl			
+pfin6:					
+	dec	de			; de --> nfa
+	ld	a,(de)			
+	or	a			; msb=1? =length byte
+	jp	p,pfin6			; no, try next chr
+	ld	e,a			; e <-- length byte
+	ld	d,00h			
+	ld	hl,0001h		; hl <-- true
+	jp	dpush			; name field found, return
+;
+; above name field not a match, try next one
+;
+pfin3:					
+	jr	c,pfin5			; carry=end of name field
+pfin4:					
+	inc	de			; find name field end
+	ld	a,(de)			
+	or	a			; msb=1?
+	jp	p,pfin4			; no, loop
+pfin5:					
+	inc	de			; de <-- lfa
+	ex	de,hl			
+	;ldw	de,(hl)			;/ de <-- lfa
+	DEFB	0EDh,16h
+	ld	a,d			
+	or	e			; end of dictionary (lfa = 0)?
+	jr	nz,pfin1		; no, try previous definition
+	pop	hl			; drop string address
+	ld	hl,0			; hl <-- false
+	jhpush				; no match found, return
+;
+;
+	defb	87h			; ENCLOSE
+	defc	'ENCLOSE'		
+	defw	pfind-9			
+encl:					
+	defw	$+2			
+	pop	de			; de <-- s1 = delimiter chr
+	pop	hl			; hl <-- s2 = addr of text to scan
+	push	hl			; s4 <-- addr
+	ld	a,e			
+	ld	d,a			; d <-- delim chr
+	ld	e,-1			; init chr offset counter
+	dec	hl			; hl <-- addr - 1
+encl1:					
+	inc	hl			; skip over leading delim chrs
+	inc	e			
+	cp	(hl)			; delim chr?
+	jr	z,encl1			; yes, loop
+	ld	d,0			
+	push	de			; s3 <-- e = offset to 1st non delim
+	ld	d,a			; d <-- delim chr
+	ld	a,(hl)			
+	and	a			; 1st non-delim=null?
+	jr	nz,encl2		; no
+	ld	d,0			; yes
+	inc	e			
+	push	de			; s2 <-- offset to byte following null
+	dec	e			
+	push	de			; s1 <-- offset to null
+	jnext				
+;
+encl2:					
+	ld	a,d			; A <-- delim chr
+	inc	hl			; hl <-- next chr's address
+	inc	e			; e <-- offset to next chr
+	cp	(hl)			; delim chr?
+	jr	z,encl4			; yes
+	ld	a,(hl)			
+	and	a			; null?
+	jr	nz,encl2		; no, continue scan
+encl3:					
+	ld	d,0			
+	push	de			; s2 <-- offset to null
+	push	de			; s1 <-- offset to null
+	jnext				
+;
+encl4:					
+	ld	d,0			
+	push	de			; s2 <-- offset to byte following text
+	inc	e			
+	push	de			; s1 <-- offset 2 bytes aft end of word
+	jnext				
+;
+;
+	defb	84h			; EMIT
+	defc	'EMIT'			
+	defw	encl-0ah		
+emit:					
+	defw	docol			
+	defw	pemit			
+	defw	one,outt		
+	defw	pstor,semis		
+;
+;
+	defb	83h			; KEY
+	defc	'KEY'			
+	defw	emit-7			
+key:					
+	defw	$+2			
+	jp	pkey			
+;
+;
+	defb	89h			; ?TERMINAL
+	defc	'?TERMINAL'		
+	defw	key-6			
+qterm:					
+	defw	$+2			
+	ld	hl,0			
+	jp	pqter			
+;
+;
+	defb	82h			; CR
+	defc	'CR'			
+	defw	qterm-0ch		
+cr:					
+	defw	$+2			
+	jp	pcr			
+;
+;
+	defb	85h			; CMOVE
+	defc	'CMOVE'			
+	defw	cr-5			
+cmove:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			;  bc <-- s1 = # of chrs
+	pop	de			;  de <-- s2 = dest addr
+	pop	hl			;/ hl <-- s3 = source addr
+	ld	a,b			
+	or	c			;  bc=0?
+	jr	z,cmove1		;  yes, nothing to move
+	ldir				;/ xfer string
+cmove1:					
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	86h			;/   -CMOVE    ( from to count --- )
+	defc	'-CMOVE'		
+	defw	cmove-8			
+bcmov:					
+	defw	$+2			
+	exx				; save ip
+	pop	bc			; bc <-- count
+	pop	de			; de <-- destination
+	pop	hl			; hl <-- source
+	ld	a,b			
+	or	c			; bc =0?
+	jr	z,bcmov1		; yes, nothing to move
+	add	hl,bc			
+	dec	hl			; hl --> hi end of source block
+	ex	de,hl			
+	add	hl,bc			
+	dec	hl			
+	ex	de,hl			; de --> hi end of dest. block
+	lddr				; (de) <-- (hl), --hl,bc until bc=0
+bcmov1:					
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	82h			; U*   16*16 unsigned multiply
+	defc	'U*'			;      with 32 bit result
+	defw	bcmov-9			
+ustar:					
+	defw	$+2			
+	pop	de			; de <-- multiplier
+	pop	hl			; hl <-- multiplicant
+	;multuw	hl,de			;/
+	DEFB	0EDH,0D3h
+	ex	de,hl			;/ de <-- product.lw, hl <-- product.hw
+	jp	dpush			; s2,s1 <-- product.lw,hw
+;
+;
+	defb	82h			; U/   ( ud u1 -- urem uq )
+	defc	'U/'			
+	defw	ustar-5			
+uslas:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			; bc <-- divisor
+	pop	hl			; hl <-- dividend.hw
+	pop	de			; de <-- dividend.lw
+	;cpw	hl,bc			;/ dividend.hw >= divisor?
+	DEFB	0EDH,0C7h
+	jr	c,usla1			; no, go ahead
+	ld	hl,0ffffh		; yes, overflow
+	ld	d,h			
+	ld	e,l			;/ set rem & quot to max
+	jr	usla2			
+usla1:					
+	ex	de,hl			;/ de,hl <-- dividend.hw,lw
+	;divuw	dehl,bc			;/ de <-- remainder, hl <-- quotient
+	DEFB	0EDH,0CBh
+usla2:					
+	push	de			;/ s2 <-- remainder
+	push	hl			;/ s1 <-- quotient
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	83h			; AND
+	defc	'AND'			
+	defw	uslas-5			
+andd:					
+	defw	$+2			; s1 <-- s1 AND s2
+	pop	de			
+	pop	hl			
+	ld	a,e			
+	and	l			
+	ld	l,a			
+	ld	a,d			
+	and	h			
+	ld	h,a			
+	jhpush				
+;
+;
+	defb	82h			; OR
+	defc	'OR'			
+	defw	andd-6			
+orr:					
+	defw	$+2			; s1 <-- s1 OR s2
+	pop	de			
+	pop	hl			
+	ld	a,e			
+	or	l			
+	ld	l,a			
+	ld	a,d			
+	or	h			
+	ld	h,a			
+	jhpush				
+;
+;
+	defb	83h			; XOR
+	defc	'XOR'			
+	defw	orr-5			
+xorr:					
+	defw	$+2			; s1 <-- s1 XOR s2
+	pop	de			
+	pop	hl			
+	ld	a,e			
+	xor	l			
+	ld	l,a			
+	ld	a,d			
+	xor	h			
+	ld	h,a			
+	jhpush				
+;
+;
+	defb	83h			; SP@
+	defc	'SP@'			
+	defw	xorr-6			
+spat:					
+	defw	$+2			
+	ld	hl,0			
+	add	hl,sp			; hl <-- sp
+	jhpush				; s1 <-- sp
+;
+;
+	defb	83h			; SP!
+	defc	'SP!'			
+	defw	spat-6			
+spsto:					
+	defw	$+2			; sp <-- s0  (user variable)
+	ld	hl,(up)			; hl <-- user variables base address
+	ld	de,6			
+	add	hl,de			; hl --> s0
+	;ldw	sp,(hl)			;/ sp <-- s0
+	DEFB	0EDh,36h
+	jnext				
+;
+;
+	defb	83h			; RP@
+	defc	'RP@'			
+	defw	spsto-6			
+rpat:					
+	defw	$+2			
+	ld	hl,(rpp)		
+	jhpush				; s1 <-- rp
+;
+;
+	defb	83h			; RP!
+	defc	'RP!'			
+	defw	rpat-6			
+rpsto:					
+	defw	$+2			; rp <-- r0 (user variable)
+	ld	hl,(up)			; hl <-- user variables base address
+	ld	de,0008h		
+	add	hl,de			; hl --> r0
+	;ldw	hl,(hl)			;/ hl <-- r0
+	DEFB	0EDh,26h
+	ld	(rpp),hl		;/ rp <-- r0
+	jnext				
+;
+;
+	defb	82h			; ;S
+	defc	';S' 
+	defw	rpsto-6 
+semis:					
+	defw	$+2			; ip <-- r1 
+	ld	hl,(rpp)		
+	;ldw	bc,(hl)			;/ bc <-- r1
+	DEFB	0EDh,06h
+	inc	hl			
+	inc	hl			
+	ld	(rpp),hl		; rp += 2
+	jnext				
+;
+;
+	defb	85h			; LEAVE
+	defc	'LEAVE'			
+	defw	semis-5			
+leave:					
+	defw	$+2			; limit <-- index
+	ld	hl,(rpp)		
+	;ldw	de,(hl)			;/ de <-- r1 (= index)
+	DEFB	0EDh,16h
+	inc	hl			
+	inc	hl			
+	;ldw	(hl),de			;/ r2 (= limit) <-- index
+	DEFB	0EDh,1Eh
+	jnext				
+;
+;
+	defb	82h			; >R
+	defc	'>R'			
+	defw	leave-8			
+tor:					
+	defw	$+2			
+	ld	hl,(rpp)		
+	dec	hl			
+	dec	hl			
+	;pop	(hl)			;/ r1 <-- s1
+	DEFB	0DDH
+	pop	BC
+	ld	(rpp),hl		;  rp -= 2
+	jnext				
+;
+;
+	defb	82h			; R>
+	defc	'R>'			
+	defw	tor-5			
+fromr:					
+	defw	$+2			
+	ld	hl,(rpp)		
+	;push	(hl)			;/ s1 <-- r1
+	DEFB	0DDH
+	push	BC
+	inc	hl			
+	inc	hl			
+	ld	(rpp),hl		; rp += 2
+	jnext				
+;
+;
+	defb	81h			; R
+	defc	'R'			
+	defw	fromr-5			
+rr:					
+	defw	ido+2			
+;
+;
+	defb	82h			; 0=
+	defc	'0='			
+	defw	rr-4			
+zequ:					
+	defw	$+2			
+	pop	de			
+	ld	hl,0			
+	;cpw	hl,de			;/
+	DEFB	0EDH,0D7h
+	jr	nz,zequ1		
+	inc	l			; hl <-- true
+zequ1:					
+	jhpush				
+;
+;
+	defb	83h			;/ 0<>
+	defc	'0<>'			
+	defw	zequ-5			
+znequ:					
+	defw	$+2			
+	pop	de			
+	ld	hl,0			
+	;cpw	hl,de			;/
+	DEFB	0EDH,0D7h
+	jr	z,znequ1		
+	inc	l			; hl <-- true
+znequ1:					
+	jhpush				
+;
+;
+	defb	82h			; 0<
+	defc	'0<'			
+	defw	znequ-6			
+zless:					
+	defw	$+2			
+	pop	af			;/ a <-- s1.hb
+	rla				;/ carry <-- bit 7
+	ld	hl,0			;  hl <-- false
+	rl	l			;/ bit 0 <-- carry
+	jhpush				
+;
+;
+	defb	82h			;/ 0>
+	defc	'0>'			
+	defw	zless-5			
+zgt:					
+	defw	$+2			
+	pop	de			
+	ld	hl,0			
+	;cpw	hl,de			;/
+	DEFB	0EDH,0D7h
+	jp	p,zgt1			;/ <= 0
+	jp	pe,zgt1			;/ 8000h special case
+	inc	l			;/ hl <-- true
+zgt1:					
+	jhpush				
+;
+;
+	defb	81h		;+
+	defc	'+'		
+	defw	zgt-5		
+plus:					
+	defw	$+2		
+	pop	de		
+	pop	hl		
+	add	hl,de		
+	jhpush			
+;
+;
+	defb	82h			; D+ ( d1l d1h d2l d2h -- d3l d3h)
+	defc	'D+'			
+	defw	plus-4			
+dplus:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			;  bc <-- d2.hw
+	pop	hl			;  hl <-- d2.lw
+	pop	af			;d af <-- d1.hw
+	pop	de			;  de <-- d1.lw
+	push	af			;/ s1 <-- d1.hw
+	add	hl,de			;  hl <-- d2.lw + d1.lw (= d3.lw)
+	ex	de,hl			;  de <-- d3.lw
+	pop	hl			;  hl <-- d1.hw
+	adc	hl,bc			;/ hl <-- d1.hw + d2.hw +carry (=d3.hw)
+	push	de			;  s2 <-- d3.lw
+	push	hl			;/ s1 <-- d3.hw
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	85h			; MINUS
+	defc	'MINUS'			
+	defw	dplus-5			
+minus:					
+	defw	$+2			
+	pop	hl			;/
+	;neg	hl			;/
+	DEFB	0EDH,4Ch
+	jhpush				
+;
+;
+	defb	86h			; DMINUS
+	defc	'DMINUS'		
+	defw	minus-8			
+dminu:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	de			;/ de <-- d1.hw
+	pop	bc			;/ bc <-- d1.lw
+	ld	hl,0			;/
+	;subw	hl,bc			;/
+	DEFB	0EDH,0CEh
+	push	hl			; s2 <-- d2.lw
+	ld	hl,0			;/
+	sbc	hl,de			;/
+	push	hl			; s1 <-- d2.hw
+	exx				;/
+	jnext				
+;
+;
+	defb	84h			; OVER
+	defc	'OVER'			
+	defw	dminu-9			
+over:					
+	defw	$+2			
+	;ldw	hl,(sp+2)		;/
+	DEFB	0EDh,04h
+	DEFW	+2
+	jhpush				;/
+;
+;
+	defb	84h			; DROP
+	defc	'DROP'			
+	defw	over-7			
+drop:					
+	defw	$+2			
+	inc	sp			
+	inc	sp			;/ faster on z280 than dummy pop
+	jnext				
+;
+;
+	defb	84h			; SWAP
+	defc	'SWAP'			
+	defw	drop-7			
+swap:					
+	defw	$+2			
+	pop	hl			
+	ex	(sp),hl			
+	jhpush				
+;
+;
+	defb	83h			; DUP
+	defc	'DUP'			
+	defw	swap-7			
+dup:					
+	defw	$+2			
+	;ldw	hl,(sp+0)		;/
+	DEFB	0EDh,04h
+	DEFW	+0
+	jhpush				
+;
+;
+	defb	84h			;/ TUCK     ( n1 n2 --- n2 n1 n2)
+	defc	'TUCK'			
+	defw	dup-6			
+tuck:					
+	defw	$+2			
+	pop	hl			;/ hl <-- s1
+	pop	de			;/ de <-- s2
+	push	hl			;/ s3 <-- hl
+	jp	dpush			
+;
+;
+	defb	83h			;/ NIP      ( n1 n2 --- n2)
+	defc	'NIP'			
+	defw	tuck-7			
+nip:					
+	defw	$+2			
+	pop	hl			; hl <-- s1
+	;ldw	(sp+0),hl		;/ s1 <-- hl
+	DEFB	0EDh,05h
+	DEFW	+0
+	jnext				
+;
+;
+	defb	84h			;/ -ROT     ( n1 n2 n3 --- n3 n1 n2)
+	defc	'-ROT'			
+	defw	nip-6			
+mrot:					
+	defw	$+2			
+	pop	hl			
+	pop	de			
+	ex	(sp),hl			
+	ex	de,hl			
+	jp	dpush			
+;
+;
+	defb	85h			;/ CSWAP   ( n1 --- n1, bytes swapped)
+	defc	'CSWAP'			
+	defw	mrot-7			
+cswap:					
+	defw	$+2			
+	pop	hl			
+	;ex	h,l			;/
+	DEFB	0EDH,0EFh
+	jhpush				
+;
+;
+	defb	84h			;/ PICK   ( nn...n0 k --- nn..n0 nk)
+	defc	'PICK'			
+	defw	cswap-8			
+pick:					
+	defw	$+2			
+	pop	hl			; hl <-- depth
+	add	hl,hl			; adjust to word size
+	add	hl,sp			; offset into stack
+	;push	(hl)			;/
+	DEFB	0DDH
+	push	BC
+	jnext				
+;
+;
+	defb	84h			; 2DUP
+	defc	'2DUP'			
+	defw	pick-7			
+tdup:					
+	defw	$+2			
+	pop	hl			
+	pop	de			
+	push	de			
+	push	hl			
+	jp	dpush			
+;
+;
+	defb	82h			; +!
+	defc	'+!'			
+	defw	tdup-7			
+pstor:					
+	defw	$+2			
+	pop	hl			; hl --> variable
+	pop	de			; de <-- number
+	ld	a,(hl)			
+	add	a,e			
+	ld	(hl),a			
+	inc	hl			
+	ld	a,(hl)			
+	adc	a,d			
+	ld	(hl),a			; (hl) += number
+	jnext				
+;
+;
+	defb	86h			; TOGGLE
+	defc	'TOGGLE'		
+	defw	pstor-5			
+toggl:					
+	defw	$+2			
+	pop	de			; e <-- bit pattern
+	pop	hl			; hl --> address
+	ld	a,(hl)			
+	xor	e			
+	ld	(hl),a			
+	jnext				
+;
+;
+	defb	81h			; @
+	defc	'@'			
+	defw	toggl-9			
+at:					
+	defw	$+2			
+	pop	hl			
+	;push	(hl)			;/
+	DEFB	0DDH
+	push	BC
+	jnext				
+;
+;
+	defb	82h			; C@
+	defc	'C@'			
+	defw	at-4			
+cat:					
+	defw	$+2			
+	pop	hl			
+	ld	l,(hl)			
+	ld	h,0			
+	jhpush				
+;
+;
+	defb	82h			; 2@
+	defc	'2@'			
+	defw	cat-5			
+tat:					
+	defw	$+2			
+	pop	hl			;  hl --> address
+	;ldw	de,(hl)			;/ de <-- d.hw
+	DEFB	0EDh,16h
+	inc	hl			
+	inc	hl			;  hl --> d.lw
+	;push	(hl)			;/ s2 <-- d.lw
+	DEFB	0DDH
+	push	BC
+	push	de			;/ s1 <-- d.hw
+	jnext				
+;
+;
+	defb	81h			; !
+	defc	'!'			
+	defw	tat-5			
+store:					
+	defw	$+2			
+	pop	hl			; hl --> address
+	;pop	(hl)			;/
+	DEFB	0DDH
+	pop	BC
+	jnext				
+;
+;
+	defb	82h			; C!
+	defc	'C!'			
+	defw	store-4			
+cstor:					
+	defw	$+2			
+	pop	hl			; hl --> address
+	pop	de			; e <-- char
+	ld	(hl),e			
+	jnext				
+;
+;
+	defb	82h			; 2!
+	defc	'2!'			
+	defw	cstor-5			
+tstor:					
+	defw	$+2			
+	pop	hl			; hl --> address
+	;pop	(hl)			;/ store d.hw
+	DEFB	0DDH
+	pop	BC
+	inc	hl			
+	inc	hl			
+	;pop	(hl)			;/ store d.lw
+	DEFB	0DDH
+	pop	BC
+	jnext				
+;
+;
+	defb	0c1h			; :
+	defc	':'			
+	defw	tstor-5			
+colon:					
+	defw	docol			
+	defw	qexec			
+	defw	scsp			
+	defw	curr			
+	defw	at			
+	defw	cont			
+	defw	store			
+	defw	creat			
+	defw	rbrac			
+	defw	pscod			
+docol:					
+	ld	hl,(rpp)		
+	dec	hl			
+	dec	hl			
+	;ldw	(hl),bc			;/ save return address
+	DEFB	0EDh,0Eh
+	ld	(rpp),hl		
+	inc	de			
+	ld	c,e			
+	ld	b,d			
+	jnext				
+;
+;
+	defb	0c1h			; ;
+	defc	';' 
+	defw	colon-4 
+semi:					
+	defw	docol 
+	defw	qcsp 
+	defw	comp 
+	defw	semis 
+	defw	smudg 
+	defw	lbrac 
+	defw	semis 
+;
+;
+	defb	84h			; NOOP
+	defc	'NOOP'			
+	defw	semi-4			
+noop:					
+	defw	docol			
+	defw	semis			
+;
+;
+	defb	88h			; CONSTANT
+	defc	'CONSTANT'		
+	defw	noop-7			
+con:					
+	defw	docol			
+	defw	creat			
+	defw	smudg			
+	defw	comma			
+	defw	pscod			
+docon:					
+	inc	de			
+	ex	de,hl			
+	;push	(hl)			;/
+	DEFB	0DDH
+	push	BC
+	jnext				
+;
+;
+	defb	88h			; VARIABLE
+	defc	'VARIABLE'		
+	defw	con-0bh			
+var:					
+	defw	docol			
+	defw	con			
+	defw	pscod			
+dovar:					
+	inc	de			
+	push	de			
+	jnext				
+;
+;
+	defb	84h			; USER
+	defc	'USER'			
+	defw	var-0bh			
+user:					
+	defw	docol			
+	defw	con			
+	defw	pscod			
+douse:					
+	inc	de			
+	ex	de,hl			
+	ld	l,(hl)			;/
+	ld	h,0			;/
+	;addw	hl,(up)			;/
+	DEFB	0DDH
+	DEFB	0EDH,0D6h
+	DEFW	UP
+	jhpush				
+;
+;
+	defb	81h			; 0
+	defc	'0'			
+	defw	user-7			
+zero:					
+	defw	$+2			;/
+	;push	0000h			;/
+	DEFB	0FDH
+	push	AF
+	DEFW	0000H                                   
+	jnext				
+;
+;
+	defb	81h			; 1
+	defc	'1'			
+	defw	zero-4			
+one:					
+	defw	$+2			;/
+	;push	0001h			;/
+	DEFB	0FDH
+	push	AF
+	DEFW	0001H                                   
+	jnext				
+;
+;
+	defb	81h			; 2
+	defc	'2'			
+	defw	one-4			
+two:					
+	defw	$+2			;/
+	;push	0002h			;/
+	DEFB	0FDH
+	push	AF
+	DEFW	0002H                                   
+	jnext				
+;
+;
+	defb	81h			; 3
+	defc	'3'			
+	defw	two-4			
+three:					
+	defw	$+2			;/
+	;push	0003h			;/
+	DEFB	0FDH
+	push	AF
+	DEFW	0003H                                   
+	jnext				
+;
+;
+	defb	82h			; BL
+	defc	'BL'			
+	defw	three-4			
+bl:					
+	defw	docon			
+	defw	20h			
+;
+;
+	defb	83h			; C/L
+	defc	'C/L'			
+	defw	bl-5			
+csll:					
+	defw	docon			
+	defw	64			
+;
+;
+	defb	85h			; FIRST
+	defc	'FIRST'			
+	defw	csll-6			
+first:					
+	defw	docon			
+	defw	0			;/ set by CLD
+;
+;
+	defb	85h			; LIMIT
+	defc	'LIMIT'			
+	defw	first-8			
+limit:					
+	defw	docon			
+	defw	0			;/ set by CLD
+;
+;
+	defb	85h			; B/BUF
+	defc	'B/BUF'			
+	defw	limit-8			
+bbuf:					
+	defw	docon			
+	defw	kbbuf			
+;
+;
+	defb	85h			; B/SCR
+	defc	'B/SCR'			
+	defw	bbuf-8			
+bscr:					
+	defw	docon			
+	defw	400h/kbbuf		
+;
+;
+	defb	87h			; +ORIGIN
+	defc	'+ORIGIN'		
+	defw	bscr-8			
+porig:					
+	defw	docol			
+	defw	lit			
+	defw	orig			
+	defw	plus			
+	defw	semis			
+;
+;	USER VARIABLES
+;
+	defb	82h			; S0
+	defc	'S0'			
+	defw	porig-0ah		
+szero:					
+	defw	douse			
+	defw	6			
+;
+;
+	defb	82h			; R0
+	defc	'R0'			
+	defw	szero-5			
+rzero:					
+	defw	douse			
+	defw	8			
+;
+;
+	defb	83h			; TIB
+	defc	'TIB'			
+	defw	rzero-5			
+tib:					
+	defw	douse			
+	defb	0ah			
+;
+;
+	defb	85h			; WIDTH
+	defc	'WIDTH'			
+	defw	tib-6			
+width:					
+	defw	douse			
+	defb	0ch			
+;
+;
+	defb	87h			; WARNING
+	defc	'WARNING'		
+	defw	width-8			
+warn:					
+	defw	douse			
+	defb	0eh			
+;
+;
+	defb	85h			; FENCE
+	defc	'FENCE'			
+	defw	warn-0ah		
+fence:					
+	defw	douse			
+	defb	10h			
+;
+;
+	defb	82h			; DP
+	defc	'DP'			
+	defw	fence-8			
+dp:					
+	defw	douse			
+	defb	12h			
+;
+;
+	defb	88h			; VOC-LINK
+	defc	'VOC-LINK'		
+	defw	dp-5			
+vocl:					
+	defw	douse			
+	defw	14h			
+;
+;
+	defb	83h			; BLK
+	defc	'BLK'			
+	defw	vocl-0bh		
+blk:					
+	defw	douse			
+	defb	16h			
+;
+;
+	defb	82h			; IN
+	defc	'IN'			
+	defw	blk-6			
+inn:					
+	defw	douse			
+	defb	18h			
+;
+;
+	defb	83h			; OUT
+	defc	'OUT'			
+	defw	inn-5			
+outt:					
+	defw	douse			
+	defb	1ah			
+;
+;
+	defb	83h			; SCR
+	defc	'SCR'			
+	defw	outt-6			
+scr:					
+	defw	douse			
+	defb	1ch			
+;
+;
+	defb	86h			; OFFSET
+	defc	'OFFSET'		
+	defw	scr-6			
+ofset:					
+	defw	douse			
+	defb	1eh			
+;
+;
+	defb	87h			; CONTEXT
+	defc	'CONTEXT'		
+	defw	ofset-9			
+cont:					
+	defw	douse			
+	defb	20h			
+;
+;
+	defb	87h			; CURRENT
+	defc	'CURRENT'		
+	defw	cont-0ah		
+curr:					
+	defw	douse			
+	defb	22h			
+;
+;
+	defb	85h			; STATE
+	defc	'STATE'			
+	defw	curr-0ah		
+state:					
+	defw	douse			
+	defb	24h			
+;
+;
+	defb	84h			; BASE
+	defc	'BASE'			
+	defw	state-8			
+base:					
+	defw	douse			
+	defb	26h			
+;
+;
+	defb	83h			; DPL
+	defc	'DPL'			
+	defw	base-7			
+dpl:					
+	defw	douse			
+	defb	28h			
+;
+;
+	defb	83h			; FLD
+	defc	'FLD'			
+	defw	dpl-6			
+fld:					
+	defw	douse			
+	defb	2ah			
+;
+;
+	defb	83h			; CSP
+	defc	'CSP'			
+	defw	fld-6			
+cspp:					
+	defw	douse			
+	defb	2ch			
+;
+
+	defb	82h			; R#
+	defc	'R#'			
+	defw	cspp-6			
+rnum:					
+	defw	douse			
+	defb	2eh			
+;
+
+	defb	83h			; HLD
+	defc	'HLD'			
+	defw	rnum-5			
+hld:					
+	defw	douse			
+	defw	30h			
+;
+;	END OF USER VARIABLES
+;
+	defb	82h			; 1+
+	defc	'1+'			
+	defw	hld-6			
+onep:					
+	defw	$+2			;/
+	pop	hl			;/
+	inc	hl			;/
+	jhpush				;/
+;
+;
+	defb	82h			; 2+
+	defc	'2+'			
+	defw	onep-5			
+twop:					
+	defw	$+2			;/
+	pop	hl			;/
+	inc	hl			;/
+	inc	hl			;/
+	jhpush				;/
+;
+;
+	defb	82h			;/ 1-
+	defc	'1-'			;/
+	defw	twop-5			;/
+onemin:					
+	defw	$+2			;/
+	pop	hl			;/
+	dec	hl			;/
+	jhpush				;/
+;
+;
+	defb	82h			;/ 2-
+	defc	'2-'			;/
+	defw	onemin-5		;/
+twomin:					
+	defw	$+2			;/
+	pop	hl			;/
+	dec	hl			;/
+	dec	hl			;/
+	jhpush				;/
+;
+;
+	defb	82h			;/ 2*
+	defc	'2*'			;/
+	defw	twomin-5		;/
+twosta:					
+	defw	$+2			;/
+	pop	hl			;/
+	add	hl,hl			;/ asl hl
+	jhpush				;/
+;
+;
+	defb	82h			;/ 2/
+	defc	'2/'			;/
+	defw	twosta-5		;/
+twosla:					
+	defw	$+2			;/
+	pop	hl			;/
+	bit	7,h			;/ negative?
+	jr	z,twosl1		;/ no
+	inc	hl			;/ yes, add 1
+twosl1:					
+	sra	h			;/
+	rr	l			;/ asr hl
+	jhpush				;/
+;
+;
+	defb	84h			; HERE
+	defc	'HERE'			
+	defw	twosla-5		
+here:					
+	defw	docol			
+	defw	dp			
+	defw	at			
+	defw	semis			
+;
+;
+	defb	85h			; ALLOT
+	defc	'ALLOT'			
+	defw	here-7			
+allot:					
+	defw	docol			
+	defw	dp			
+	defw	pstor			
+	defw	semis			
+;
+;
+	defb	81h			; ,
+	defc	','			
+	defw	allot-8			
+comma:					
+	defw	docol			
+	defw	here			
+	defw	store			
+	defw	two			
+	defw	allot			
+	defw	semis			
+;
+
+	defb	82h			; C,
+	defc	'C,'			
+	defw	comma-4			
+ccomm:					
+	defw	docol			
+	defw	here			
+	defw	cstor			
+	defw	one			
+	defw	allot			
+	defw	semis			
+;
+;
+	defb	81h			; -
+	defc	'-'			
+	defw	ccomm-5			
+subb:					
+	defw	$+2			
+	pop	de			
+	pop	hl			
+	;subw	hl,de			;/
+	DEFB	0EDH,0DEh
+	jhpush				
+;
+;
+	defb	81h			; =
+	defc	'='			
+	defw	subb-4			
+equal:					
+	defw	$+2			;/
+	pop	de			;/
+	pop	hl			;/
+	;subw	hl,de			;/
+	DEFB	0EDH,0DEh
+	ld	hl,0			;  hl <-- false
+	jr	nz,equal1		
+	inc	l			;/ hl <-- true
+equal1:					
+	jhpush				
+;
+;
+	defb	81h			;  <
+	defc	'<'			
+	defw	equal-4			
+less:					
+	defw	$+2			
+	pop	de			
+	pop	hl			; hl de <
+	ld	a,d			
+	xor	h			; one operand negative?
+	jp	m,less1			; yes, determine which
+	;subw	hl,de			;/
+	DEFB	0EDH,0DEh
+less1:					
+	bit	7,h			;/ h negative?
+	ld	hl,0			; hl <-- false
+	jr	z,less2			
+	inc	l			;/ hl <-- true
+less2:					
+	jhpush				
+;
+;
+	defb	82h			; U<
+	defc	'U<'			
+	defw	less-4			
+uless:					
+	defw	$+2			
+	pop	de			
+	pop	hl			;/ hl de U<
+	;subw	hl,de			;/
+	DEFB	0EDH,0DEh
+	ld	hl,0			; hl <-- false
+	rl	l			;/ bit 0 <-- carry
+uless1:					
+	jhpush				
+;
+;
+	defb	81h			; >
+	defc	'>'			
+	defw	uless-5			
+great:					
+	defw	$+2			
+	pop	hl			;/
+	pop	de			;/ hl de >    (= de hl < )
+	ld	a,d			
+	xor	h			; one operand negative?
+	jp	m,great1		; yes, determine which
+	;subw	hl,de			;/
+	DEFB	0EDH,0DEh
+great1:					
+	bit	7,h			;/ h negative?
+	ld	hl,0			; hl <-- false
+	jr	z,great2		
+	inc	l			;/ hl <-- true
+great2:					
+	jhpush				
+;
+;
+	defb	83h			; ROT     ( n1 n2 n3 --- n2 n3 n1)
+	defc	'ROT'			
+	defw	great-4			
+rot:					
+	defw	$+2			
+	pop	de			; de <-- n3
+	pop	hl			; hl <-- n2
+	ex	(sp),hl			; s1 <-- n2, hl <-- n1
+	jp	dpush			; s2 <-- n3, s3 <-- n1
+;
+;
+	defb	85h			; SPACE
+	defc	'SPACE'			
+	defw	rot-6			
+space:					
+	defw	docol			
+	defw	bl			
+	defw	emit			
+	defw	semis			
+;
+;
+	defb	84h			; -DUP
+	defc	'-DUP'			
+	defw	space-8			
+ddup:					
+	defw	$+2			;/
+	;ldw	hl,(sp+0)		;/
+	DEFB	0EDh,04h
+	DEFW	+0
+	ld	a,h			;/
+	or	l			;/ hl = 0?
+	jr	z,ddup1			;/ yes, don't dup
+	push	hl			;/
+ddup1:					
+	jnext				
+;
+;
+	defb	88h			; TRAVERSE
+	defc	'TRAVERSE'		
+	defw	ddup-7			
+trav:					
+	defw	docol			
+	defw	swap			
+trav1:					
+	defw	over			; begin
+	defw	plus			
+	defw	lit			
+	defw	7fh			
+	defw	over			
+	defw	cat			
+	defw	less			
+	defw	zbran			; until
+	defw	trav1-$			
+	defw	swap			
+	defw	drop			
+	defw	semis			
+;
+;
+	defb	86h			; LATEST
+	defc	'LATEST'		
+	defw	trav-0bh		
+lates:					
+	defw	docol			
+	defw	curr			
+	defw	at			
+	defw	at			
+	defw	semis			
+;
+;
+	defb	83h			; LFA
+	defc	'LFA'			
+	defw	lates-9			
+lfa:					
+	defw	$+2			
+	pop	hl			;/ hl <-- pfa
+	;subw	hl,4			;/
+	DEFB	0FDH
+	DEFB	0EDH,0FEh
+	DEFW	4                                       
+	jhpush				;/ s1 <-- lfa
+;
+;
+	defb	83h			; CFA
+	defc	'CFA'			
+	defw	lfa-6			
+cfa:					
+	defw	docol			
+	defw	twomin			;/
+	defw	semis			
+;
+;
+	defb	83h			; NFA
+	defc	'NFA'			
+	defw	cfa-6			
+nfa:					
+	defw	docol			
+	defw	lit			
+	defw	5			
+	defw	subb			
+	defw	lit			
+	defw	-1			
+	defw	trav			
+	defw	semis			
+;
+;
+	defb	83h			; PFA
+	defc	'PFA'			
+	defw	nfa-6			
+pfa:					
+	defw	docol			
+	defw	one			
+	defw	trav			
+	defw	lit			
+	defw	5			
+	defw	plus			
+	defw	semis			
+;
+;
+	defb	84h			; !CSP
+	defc	'!CSP'			
+	defw	pfa-6			
+scsp:					
+	defw	docol			
+	defw	spat			
+	defw	cspp			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	86h			; ?ERROR
+	defc	'?ERROR'		
+	defw	scsp-7			
+qerr:					
+	defw	docol			
+	defw	swap			
+	defw	zbran			; if
+	defw	qerr1-$			
+	defw	error			
+	defw	bran			; else
+	defw	qerr2-$			
+qerr1:					
+	defw	drop			; endif
+qerr2:					
+	defw	semis			
+;
+;
+	defb	85h			; ?COMP
+	defc	'?COMP'			
+	defw	qerr-9			
+qcomp:					
+	defw	docol			
+	defw	state			
+	defw	at			
+	defw	zequ			
+	defw	lit			
+	defw	11h			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	85h			; ?EXEC
+	defc	'?EXEC'			
+	defw	qcomp-8			
+qexec:					
+	defw	docol			
+	defw	state			
+	defw	at			
+	defw	lit			
+	defw	12h			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	86h			; ?PAIRS
+	defc	'?PAIRS'		
+	defw	qexec-8			
+qpair:					
+	defw	docol			
+	defw	subb			
+	defw	lit			
+	defw	13h			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	84h			; ?CSP
+	defc	'?CSP'			
+	defw	qpair-9			
+qcsp:					
+	defw	docol			
+	defw	spat			
+	defw	cspp			
+	defw	at			
+	defw	subb			
+	defw	lit			
+	defw	14h			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	88h			; ?LOADING
+	defc	'?LOADING'		
+	defw	qcsp-7			
+qload:					
+	defw	docol			
+	defw	blk			
+	defw	at			
+	defw	zequ			
+	defw	lit			
+	defw	16h			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	87h			; COMPILE
+	defc	'COMPILE'		
+	defw	qload-0bh		
+comp:					
+	defw	docol			
+	defw	qcomp			
+	defw	fromr			
+	defw	dup			
+	defw	twop			
+	defw	tor			
+	defw	at			
+	defw	comma			
+	defw	semis			
+;
+;
+	defb	0c1h			; [
+	defc	'['			
+	defw	comp-0ah		
+lbrac:					
+	defw	docol			
+	defw	zero			
+	defw	state			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	81h			; ]
+	defc	']'			
+	defw	lbrac-4			
+rbrac:					
+	defw	docol			
+	defw	lit,0c0h		
+	defw	state,store		
+	defw	semis			
+;
+;
+	defb	86h			; SMUDGE
+	defc	'SMUDGE'		
+	defw	rbrac-4			
+smudg:					
+	defw	docol			
+	defw	lates			
+	defw	lit			
+	defw	20h			
+	defw	toggl			
+	defw	semis			
+;
+;
+	defb	83h			; HEX
+	defc	'HEX'			
+	defw	smudg-9			
+hex:					
+	defw	docol			
+	defw	lit			
+	defw	10h			
+	defw	base			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	87h			; DECIMAL
+	defc	'DECIMAL'		
+	defw	hex-6			
+dec:					
+	defw	docol			
+	defw	lit			
+	defw	0ah			
+	defw	base			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	87h			; (;CODE)
+	defc	'(;CODE)' 
+	defw	dec-0ah 
+pscod:					
+	defw	docol 
+	defw	fromr 
+	defw	lates 
+	defw	pfa 
+	defw	cfa 
+	defw	store 
+	defw	semis 
+;
+;
+	defb	0c5h			; ;CODE
+	defc	';CODE' 
+	defw	pscod-0ah 
+semic:					
+	defw	docol 
+	defw	qcsp 
+	defw	comp 
+	defw	pscod 
+	defw	lbrac 
+semi1:					
+	defw	noop			; assembler
+	defw	semis			
+;
+;
+	defb	87h			; <BUILDS
+	defc	'<BUILDS'		
+	defw	semic-8			
+build:					
+	defw	docol			
+	defw	zero			
+	defw	con			
+	defw	semis			
+;
+;
+	defb	85h			; DOES>
+	defc	'DOES>'			
+	defw	build-0ah		
+does:					
+	defw	docol			
+	defw	fromr			
+	defw	lates			
+	defw	pfa			
+	defw	store			
+	defw	pscod			
+dodoe:					
+	ld	hl,(rpp)		
+	dec	hl			
+	dec	hl			
+	;ldw	(hl),bc			;/
+	DEFB	0EDh,0Eh
+	ld	(rpp),hl		
+	inc	de			
+	ex	de,hl			
+	;ldw	bc,(hl)			;/
+	DEFB	0EDh,06h
+	inc	hl			
+	inc	hl			
+	jhpush				
+;
+;
+	defb	85h			; COUNT
+	defc	'COUNT'			
+	defw	does-8			
+count:					
+	defw	docol			
+	defw	dup			
+	defw	onep			
+	defw	swap			
+	defw	cat			
+	defw	semis			
+;
+;
+	defb	84h			; TYPE
+	defc	'TYPE'			
+	defw	count-8			
+type:					
+	defw	docol			
+	defw	ddup			
+	defw	zbran			; if
+	defw	type1-$			
+	defw	over			
+	defw	plus			
+	defw	swap			
+	defw	xdo			; do
+type2:					
+	defw	ido			
+	defw	cat			
+	defw	emit			
+	defw	xloop			; loop
+	defw	type2-$			
+	defw	bran			; else
+	defw	type3-$			
+type1:					
+	defw	drop			; endif
+type3:					
+	defw	semis			
+;
+;
+	defb	89h			; -TRAILING
+	defc	'-TRAILING'		
+	defw	type-7			
+dtrai:					
+	defw	docol			
+	defw	dup			
+	defw	zero			
+	defw	xdo			; do
+dtra1:					
+	defw	tdup			;/
+	defw	plus			
+	defw	onemin			;/
+	defw	cat			
+	defw	bl			
+	defw	subb			
+	defw	zbran			; if
+	defw	dtra2-$			
+	defw	leave			
+	defw	bran			; else
+	defw	dtra3-$			
+dtra2:					
+	defw	onemin			;/
+dtra3:					
+	defw	xloop			; loop
+	defw	dtra1-$			
+	defw	semis			
+;
+;
+	defb	84h			; (.")
+	defc	'(.")'			
+	defw	dtrai-0ch		
+pdotq:					
+	defw	docol			
+	defw	rr			
+	defw	count			
+	defw	dup			
+	defw	onep			
+	defw	fromr			
+	defw	plus			
+	defw	tor			
+	defw	type			
+	defw	semis			
+;
+;
+	defb	0c2h			; ."
+	defc	'."'			
+	defw	pdotq-7			
+dotq:					
+	defw	docol			
+	defw	lit			
+	defw	22h			
+	defw	state			
+	defw	at			
+	defw	zbran			; if
+	defw	dotq1-$			
+	defw	comp			
+	defw	pdotq			
+	defw	word			
+	defw	here			
+	defw	cat			
+	defw	onep			
+	defw	allot			
+	defw	bran			; else
+	defw	dotq2-$			
+dotq1:					
+	defw	word			
+	defw	here			
+	defw	count			
+	defw	type			; endif
+dotq2:					
+	defw	semis			
+;
+;
+	defb	86h			; EXPECT
+	defc	'EXPECT'		
+	defw	dotq-5			
+expec:					
+	defw	docol			
+	defw	over			
+	defw	plus			
+	defw	over			
+	defw	xdo			; do
+expe1:					
+	defw	key			
+	defw	dup			
+	defw	lit			
+	defw	0eh			
+	defw	porig			
+	defw	at			
+	defw	equal			
+	defw	zbran			; if
+	defw	expe2-$			
+	defw	drop			
+	defw	dup			
+	defw	ido			
+	defw	equal			
+	defw	dup			
+	defw	fromr			
+	defw	twomin			;/
+	defw	plus			
+	defw	tor			
+	defw	zbran			; if
+	defw	expe6-$			
+	defw	lit			
+	defw	bell			
+	defw	bran			; else
+	defw	expe7-$			
+expe6:					
+	defw	lit			
+	defw	bsout			; endif
+expe7:					
+	defw	bran			; else
+	defw	expe3-$			
+expe2:					
+	defw	dup			
+	defw	lit			
+	defw	acr			;/
+	defw	equal			
+	defw	zbran			; if
+	defw	expe4-$			
+	defw	leave			
+	defw	drop			
+	defw	bl			
+	defw	zero			
+	defw	bran			; else
+	defw	expe5-$			
+expe4:					
+	defw	dup			; endif
+expe5:					
+	defw	ido			
+	defw	cstor			
+	defw	zero			
+	defw	ido			
+	defw	onep			
+	defw	store			; endif
+expe3:					
+	defw	emit			
+	defw	xloop			; loop
+	defw	expe1-$			
+	defw	drop			
+	defw	semis			
+;
+;
+	defb	85h			; QUERY
+	defc	'QUERY'			
+	defw	expec-9			
+query:					
+	defw	docol			
+	defw	tib			
+	defw	at			
+	defw	lit			
+	defw	50h			
+	defw	expec			
+	defw	zero			
+	defw	inn			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	0c1h			; NULL
+	defb	80h			
+	defw	query-8			
+null:					
+	defw	docol			
+	defw	blk			
+	defw	at			
+	defw	zbran			; if
+	defw	null1-$			
+	defw	one			
+	defw	blk			
+	defw	pstor			
+	defw	zero			
+	defw	inn			
+	defw	store			
+	defw	blk			
+	defw	at			
+	defw	bscr			
+	defw	onemin			;/
+	defw	andd			
+	defw	zequ			
+	defw	zbran			; if
+	defw	null2-$			
+	defw	qexec			
+	defw	fromr			
+	defw	drop			; endif
+null2:					
+	defw	bran			; else
+	defw	null3-$			
+null1:					
+	defw	fromr			
+	defw	drop			; endif
+null3:					
+	defw	semis			
+;
+	defb	84h			; FILL
+	defc	'FILL'			
+	defw	null-4			
+fill:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	de			;/ e <-- byte
+	pop	bc			;  bc <-- quantity
+	pop	hl			;/ hl <-- address
+fill1:					
+	ld	a,b			
+	or	c			;  qty == 0?
+	jr	z,fill2			;  yes, nothing (more) to fill
+	ld	(hl),e			;/ (hl) <-- byte
+	inc	hl			;  inc pointer
+	dec	bc			;  dec counter
+	jp	fill1			;/
+fill2:					
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	85h			; ERASE
+	defc	'ERASE'			
+	defw	fill-7			
+erasee:					
+	defw	docol			
+	defw	zero			
+	defw	fill			
+	defw	semis			
+;
+;
+	defb	86h			; BLANKS
+	defc	'BLANKS'		
+	defw	erasee-8		
+blank:					
+	defw	docol			
+	defw	bl			
+	defw	fill			
+	defw	semis			
+;
+;
+	defb	84h			; HOLD
+	defc	'HOLD'			
+	defw	blank-9			
+hold:					
+	defw	docol			
+	defw	lit			
+	defw	-1			
+	defw	hld			
+	defw	pstor			
+	defw	hld			
+	defw	at			
+	defw	cstor			
+	defw	semis			
+;
+;
+	defb	83h			; PAD
+	defc	'PAD'			
+	defw	hold-7			
+pad:					
+	defw	docol			
+	defw	here			
+	defw	lit			
+	defw	44h			
+	defw	plus			
+	defw	semis			
+;
+;
+	defb	84h			; WORD
+	defc	'WORD'			
+	defw	pad-6			
+word:					
+	defw	docol			
+	defw	blk			
+	defw	at			
+	defw	zbran			; if
+	defw	word1-$			
+	defw	blk			
+	defw	at			
+	defw	block			
+	defw	bran			; else
+	defw	word2-$			
+word1:					
+	defw	tib			
+	defw	at			; endif
+word2:					
+	defw	inn			
+	defw	at			
+	defw	plus			
+	defw	swap			
+	defw	encl			
+	defw	here			
+	defw	lit			
+	defw	22h			
+	defw	blank			
+	defw	inn			
+	defw	pstor			
+	defw	over			
+	defw	subb			
+	defw	tor			
+	defw	rr			
+	defw	here			
+	defw	cstor			
+	defw	plus			
+	defw	here			
+	defw	onep			
+	defw	fromr			
+	defw	cmove			
+	defw	semis			
+;
+;
+	defb	88h			; (NUMBER)
+	defc	'(NUMBER)'		
+	defw	word-7			
+pnumb:					
+	defw	docol			
+pnum1:					
+	defw	onep			; begin
+	defw	dup			
+	defw	tor			
+	defw	cat			
+	defw	base			
+	defw	at			
+	defw	digit			
+	defw	zbran			; while
+	defw	pnum2-$			
+	defw	swap			
+	defw	base			
+	defw	at			
+	defw	ustar			
+	defw	drop			
+	defw	rot			
+	defw	base			
+	defw	at			
+	defw	ustar			
+	defw	dplus			
+	defw	dpl			
+	defw	at			
+	defw	onep			
+	defw	zbran			; if
+	defw	pnum3-$			
+	defw	one			
+	defw	dpl			
+	defw	pstor			; endif
+pnum3:					
+	defw	fromr			
+	defw	bran			; repeat
+	defw	pnum1-$			
+pnum2:					
+	defw	fromr			
+	defw	semis			
+;
+;
+	defb	86h			; NUMBER
+	defc	'NUMBER'		
+	defw	pnumb-0bh		
+numb:					
+	defw	docol			
+	defw	zero			
+	defw	zero			
+	defw	rot			
+	defw	dup			
+	defw	onep			
+	defw	cat			
+	defw	lit			
+	defw	2dh			
+	defw	equal			
+	defw	dup			
+	defw	tor			
+	defw	plus			
+	defw	lit			
+	defw	-1			
+numb1:					
+	defw	dpl			; begin
+	defw	store			
+	defw	pnumb			
+	defw	dup			
+	defw	cat			
+	defw	bl			
+	defw	subb			
+	defw	zbran			; while
+	defw	numb2-$			
+	defw	dup			
+	defw	cat			
+	defw	lit			
+	defw	2eh			
+	defw	subb			
+	defw	zero			
+	defw	qerr			
+	defw	zero			
+	defw	bran			; repeat
+	defw	numb1-$			
+numb2:					
+	defw	drop			
+	defw	fromr			
+	defw	zbran			; if
+	defw	numb3-$			
+	defw	dminu			; endif
+numb3:					
+	defw	semis			
+;
+;
+	defb	85h			; -FIND (0-3) SUCCESS
+	defc	'-FIND'			;       (0-1) FAILURE
+	defw	numb-9			
+dfind:					
+	defw	docol			
+	defw	bl			
+	defw	word			
+	defw	here			
+	defw	cont			
+	defw	at			
+	defw	at			
+	defw	pfind			
+	defw	dup			
+	defw	zequ			
+	defw	zbran			; if
+	defw	dfin1-$			
+	defw	drop			
+	defw	here			
+	defw	lates			
+	defw	pfind			; endif
+dfin1:					
+	defw	semis			
+;
+;
+	defb	87h			; (ABORT)
+	defc	'(ABORT)'		
+	defw	dfind-8			
+pabor:					
+	defw	docol			
+	defw	abort			
+	defw	semis			
+;
+	defb	85h			; ERROR
+	defc	'ERROR'			
+	defw	pabor-0ah		
+error:					
+	defw	docol			
+	defw	warn			
+	defw	at			
+	defw	zless			
+	defw	zbran			; if
+	defw	erro1-$			
+	defw	pabor			; endif
+erro1:					
+	defw	here			
+	defw	count			
+	defw	type			
+	defw	pdotq			
+	defb	2			
+	db	'? '			
+	defw	mess			
+	defw	spsto			
+;	CHANGE FROM fig MODEL
+;	defw	inn,at,blk,at
+	defw	blk,at			
+	defw	ddup			
+	defw	zbran,erro2-$		; if
+	defw	inn,at			
+	defw	swap			; endif
+erro2:					
+	defw	quit			
+;
+;
+	defb	83h			; ID.
+	defc	'ID.'			
+	defw	error-8			
+iddot:					
+	defw	docol			
+	defw	pad			
+	defw	lit			
+	defw	20h			
+	defw	blank			;/
+	defw	dup			
+	defw	pfa			
+	defw	lfa			
+	defw	over			
+	defw	subb			
+	defw	dup			;/ change frm MODEL
+	defw	tor			;/ to suppress BIT 7
+	defw	pad			
+	defw	swap			
+	defw	cmove			
+	defw	pad			
+	defw	fromr			;/ for terminals
+	defw	pad			;/ with an 8 bit
+	defw	plus			;/ ASCII character set.
+	defw	onemin			;/
+	defw	dup			;/
+	defw	at			;/
+	defw	lit			;/
+	defw	7fh			;/
+	defw	andd			;/
+	defw	swap			;/
+	defw	store			;/
+	defw	count			
+	defw	lit			
+	defw	1fh			;  WIDTH
+	defw	andd			
+	defw	type			
+	defw	space			
+	defw	semis			
+;
+	defb	86h			; CREATE
+	defc	'CREATE'		
+	defw	iddot-6			
+creat:					
+	defw	docol			
+	defw	dfind			
+	defw	zbran			; if
+	defw	crea1-$			
+	defw	drop			
+	defw	nfa			
+	defw	iddot			
+	defw	lit			
+	defw	4			
+	defw	mess			
+	defw	space			; endif
+crea1:					
+	defw	here			
+	defw	dup			
+	defw	cat			
+	defw	width			
+	defw	at			
+	defw	min			
+	defw	onep			
+	defw	allot			
+	defw	dup			
+	defw	lit			
+	defw	0a0h			
+	defw	toggl			
+	defw	here			
+	defw	onemin			
+	defw	lit			
+	defw	80h			
+	defw	toggl			
+	defw	lates			
+	defw	comma			
+	defw	curr			
+	defw	at			
+	defw	store			
+	defw	here			
+	defw	twop			
+	defw	comma			
+	defw	semis			
+;
+;
+	defb	0c9h			; [COMPILE]
+	defc	'[COMPILE]'		
+	defw	creat-9			
+bcomp:					
+	defw	docol			
+	defw	dfind			
+	defw	zequ			
+	defw	zero			
+	defw	qerr			
+	defw	drop			
+	defw	cfa			
+	defw	comma			
+	defw	semis			
+;
+;
+	defb	0c7h			; LITERAL
+	defc	'LITERAL'		
+	defw	bcomp-0ch		
+liter:					
+	defw	docol			
+	defw	state			
+	defw	at			
+	defw	zbran			; if
+	defw	lite1-$			
+	defw	comp			
+	defw	lit			
+	defw	comma			; endif
+lite1:					
+	defw	semis			
+;
+;
+	defb	0c8h			; DLITERAL
+	defc	'DLITERAL'		
+	defw	liter-0ah		
+dlite:					
+	defw	docol			
+	defw	state			
+	defw	at			
+	defw	zbran			; if
+	defw	dlit1-$			
+	defw	swap			
+	defw	liter			
+	defw	liter			; endif
+dlit1:					
+	defw	semis			
+;
+;
+	defb	86h			; ?STACK
+	defc	'?STACK'		
+	defw	dlite-0bh		
+qstac:					
+	defw	docol			
+	defw	spat			
+	defw	szero			
+	defw	at			
+	defw	swap			
+	defw	uless			
+	defw	one			
+	defw	qerr			
+	defw	spat			
+	defw	here			
+	defw	lit			
+	defw	80h			
+	defw	plus			
+	defw	uless			
+	defw	lit			
+	defw	7			
+	defw	qerr			
+	defw	semis			
+;
+;
+	defb	89h			; INTERPRET
+	defc	'INTERPRET'		
+	defw	qstac-9			
+inter:					
+	defw	docol			
+inte1:					
+	defw	dfind			; begin
+	defw	zbran			; if
+	defw	inte2-$			
+	defw	state			
+	defw	at			
+	defw	less			
+	defw	zbran			; if
+	defw	inte3-$			
+	defw	cfa			
+	defw	comma			
+	defw	bran			; else
+	defw	inte4-$			
+inte3:					
+	defw	cfa			
+	defw	exec			; endif
+inte4:					
+	defw	qstac			
+	defw	bran			; else
+	defw	inte5-$			
+inte2:					
+	defw	here			
+	defw	numb			
+	defw	dpl			
+	defw	at			
+	defw	onep			
+	defw	zbran			; if
+	defw	inte6-$			
+	defw	dlite			
+	defw	bran			; else
+	defw	inte7-$			
+inte6:					
+	defw	drop			
+	defw	liter			; endif
+inte7:					
+	defw	qstac			; endif
+inte5:					
+	defw	bran			; again
+	defw	inte1-$			
+;
+;
+	defb	89h			; IMMEDIATE
+	defc	'IMMEDIATE'		
+	defw	inter-0ch		
+immed:					
+	defw	docol			
+	defw	lates			
+	defw	lit			
+	defw	40h			
+	defw	toggl			
+	defw	semis			
+;
+;
+	defb	8ah			; VOCABULARY
+	defc	'VOCABULARY'		
+	defw	immed-0ch		
+vocab:					
+	defw	docol			
+	defw	build			
+	defw	lit			
+	defw	0a081h			
+	defw	comma			
+	defw	curr			
+	defw	at			
+	defw	cfa			
+	defw	comma			
+	defw	here			
+	defw	vocl			
+	defw	at			
+	defw	comma			
+	defw	vocl			
+	defw	store			
+	defw	does			
+dovoc:					
+	defw	twop			
+	defw	cont			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	0c5h			; FORTH
+	defc	'FORTH'			
+	defw	vocab-0dh		
+forth:					
+	defw	dodoe			
+	defw	dovoc			
+	defw	0a081h			
+	defw	task-7			; cold start value only
+;					  changed aech time a def is appended
+;					  to the FORTH vocabulary
+	defw	0			; end of vocabulary list
+;
+;
+	defb	8bh			; DEFINITIONS
+	defc	'DEFINITIONS'		
+	defw	forth-8			
+defin:					
+	defw	docol			
+	defw	cont			
+	defw	at			
+	defw	curr			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	0c1h			; (
+	defc	'('			
+	defw	defin-0eh		
+paren:					
+	defw	docol			
+	defw	lit			
+	defw	29h			
+	defw	word			
+	defw	semis			
+;
+;
+	defb	84h			; QUIT
+	defc	'QUIT'			
+	defw	paren-4			
+quit:					
+	defw	docol			
+	defw	zero			
+	defw	blk			
+	defw	store			
+	defw	lbrac			
+quit1:					
+	defw	rpsto			; begin
+	defw	cr			
+	defw	query			
+	defw	inter			
+	defw	state			
+	defw	at			
+	defw	zequ			
+	defw	zbran			; if
+	defw	quit2-$			
+	defw	pdotq			
+	defb	2			
+	db	'ok'			; endif
+quit2:					
+	defw	bran			; again
+	defw	quit1-$			
+;
+;
+	defb	85h			; ABORT
+	defc	'ABORT'			
+	defw	quit-7			
+abort:					
+	defw	docol			
+	defw	spsto			
+	defw	dec			
+	defw	qstac			
+	defw	cr			
+	defw	dotcpu			
+	defw	pdotq			
+	defb	0eh			; count of chrs to follow
+	db	'fig-FORTH '		
+	defb	figrel+30h,adot,figrev+30h,usrver 
+	defw	forth			
+	defw	defin			
+	defw	quit			
+;
+;
+wrm:	ld	bc,wrm1			
+	jnext				
+wrm1:	defw	warm			
+;
+;
+	defb	84h			; WARM
+	defc	'WARM'			
+	defw	abort-8			
+warm:					
+	defw	docol			
+	defw	mtbuf			
+	defw	abort			
+;
+;
+cld:					
+	ld	hl,(bdoss+1)		;/
+	ld	l,0			;/ hl <-- fbase
+	ld	(limit+2),hl		;/ set limit
+	ld	de,bufsiz		;/ de <-- total disc buffer size
+	;subw	hl,de			;/ hl <-- addr. of 1st disc buffer
+	DEFB	0EDH,0DEh
+	ld	(first+2),hl		;/ set FIRST
+	ld	(use+2),hl		;/ set USE
+	ld	(prev+2),hl		;/ set PREV
+	ld	(buf1),hl		;/
+	ld	de,us			;/ de <-- user variable space
+	;subw	hl,de			;/ hl <-- initr0
+	DEFB	0EDH,0DEh
+	ld	(upinit),hl		;/
+	ld	(r0init),hl		;/
+	ld	(up),hl			;/
+	ld	(rpp),hl		;/
+	ld	de,rts			;/ de <-- rtn stack & term. buf space
+	;subw	hl,de			;/ hl <-- inits0
+	DEFB	0EDH,0DEh
+	ld	(s0init),hl		;/
+	ld	(tibini),hl		;/
+	ld	sp,hl			;/
+	ld	bc,cld1			
+	ld	ix,next			; pointer to next
+	ld	iy,hpush		; pointer to hpush
+	jnext				
+;
+;
+cld1:	defw	cold			
+;
+	defb	84h			; COLD
+	defc	'COLD'			
+	defw	warm-7			
+cold:					
+	defw	docol			
+	defw	mtbuf			
+	defw	one,recadr		; AvdH
+	defw	store			
+	defw	lit,buf1		
+	defw	at			;/
+	defw	use,store		
+	defw	lit,buf1		
+	defw	at			;/
+	defw	prev,store		
+	defw	drzer			
+	defw	zero			;/
+	defw	lit,eprint		
+	defw	cstor			;/
+;
+	defw	lit			
+	defw	orig+12h		
+	defw	lit			
+	defw	up			
+	defw	at			
+	defw	lit			
+	defw	6			
+	defw	plus			
+	defw	lit			
+	defw	10h			
+	defw	cmove			
+	defw	lit			
+	defw	orig+0ch		
+	defw	at			
+	defw	lit			
+	defw	forth+6			
+	defw	store			
+	defw	fcb			;/A
+	defw	lit,opnfil		;/A open mass storage
+	defw	bdos			;/A
+	defw	lit,0ffh		;/A
+	defw	equal			;/A file present?
+	defw	zbran,cld2-$		;/A
+	defw	zero			;/A
+	defw	warn,store		;/A
+	defw	cr,pdotq		;/A
+	defb	7			;/A
+	db	'No file'		;/A
+cld2:					
+	defw	abort			
+;
+;
+	defb	84h			; S->D
+	defc	'S->D'			
+	defw	cold-7			
+stod:	defw	$+2			
+	pop	hl			;/
+	;exts	hl			;/ de <-- h(7)
+	DEFB	0EDH,6Ch
+	ex	de,hl			;/
+	jp	dpush			; ( n1 -- d1L d1H)
+;
+;
+	defb	82h			; +-
+	defc	'+-'			
+	defw	STOD-7			
+pm:					
+	defw	docol			
+	defw	zless			
+	defw	zbran			; if
+	defw	pm1-$			
+	defw	minus			; endif
+pm1:					
+	defw	semis			
+;
+;
+	defb	83h			; D+-
+	defc	'D+-'			
+	defw	pm-5			
+dpm:					
+	defw	docol			
+	defw	zless			
+	defw	zbran			; if
+	defw	dpm1-$			
+	defw	dminu			; endif
+dpm1:					
+	defw	semis			
+;
+;
+	defb	83h			; ABS
+	defc	'ABS'			
+	defw	dpm-6			
+abs:					
+	defw	docol			
+	defw	dup			
+	defw	pm			
+	defw	semis			
+;
+;
+	defb	84h			; DABS
+	defc	'DABS'			
+	defw	abs-6			
+dabs:					
+	defw	docol			
+	defw	dup			
+	defw	dpm			
+	defw	semis			
+;
+;
+	defb	83h			; MIN
+	defc	'MIN'			
+	defw	dabs-7			
+min:					
+	defw	docol			
+	defw	tdup			
+	defw	great			
+	defw	zbran			; if
+	defw	min1-$			
+	defw	swap			; endif
+min1:					
+	defw	drop			
+	defw	semis			
+;
+;
+	defb	83h			; MAX
+	defc	'MAX'			
+	defw	min-6			
+max:	defw	docol			
+	defw	tdup			
+	defw	less			
+	defw	zbran			; if
+	defw	max1-$			
+	defw	swap			; endif
+max1:					
+	defw	drop			
+	defw	semis			
+;
+;
+	defb	82h			; M*   ( n1 n2 --- d)
+	defc	'M*'			
+	defw	max-6			
+mstar:					
+	defw	$+2			;/
+	pop	de			; de <-- multiplicator
+	pop	hl			; hl <-- multiplicant
+	;multw	hl,de			;/ dehl <-- hl * de
+	DEFB	0EDH,0D2h
+	ex	de,hl			;/
+	jp	dpush			;/ ( n1 n2 --- d1l d1h)
+;
+;
+	defb	82h			;/ M/   ( d n1 --- nrem nquot)
+	defc	'M/'			
+	defw	mstar-5			
+mslas:					
+	defw	$+2			; ( d n1 --- n2 n3)
+	exx				; save ip
+	pop	hl			; divisor
+	ld	a,h			
+	and	80h			; filter sign
+	jr	z,mslas1		; positive
+	;neg	hl			; make positive
+	DEFB	0EDH,4Ch
+mslas1:					
+	ld	b,h			
+	ld	c,l			; bc <-- divisor
+	pop	hl			; dividend.hw
+	pop	de			; dividend.lw
+	bit	7,h			; negative?
+	jr	z,mslas2		; no
+	inc	a			; dividend sign flag
+	push	hl			
+	ld	hl,0			
+	;subw	hl,de			; neg dividend.lw
+	DEFB	0EDH,0DEh
+	pop	de			; dividend.hw
+	push	hl			
+	ld	hl,0			
+	sbc	hl,de			; neg dividend.hw
+	pop	de			; dividend.lw
+mslas2:					
+	;cpw	hl,bc			; dividend.hw >= divisor
+	DEFB	0EDH,0C7h
+	jr	c,mslas3		; no overflow, continue
+	ld	hl,0ffffh		
+	ld	d,h			
+	ld	e,l			; set rem & quot to max.
+	jr	mslas5			
+;
+mslas3:					
+	ex	de,hl			; dehl <-- dividend.hw,lw
+	;divuw	dehl,bc			; de <-- remainder, hl <-- quotient
+	DEFB	0EDH,0CBh
+	ex	de,hl			; hl <-- remainder
+	bit	0,a			; was dividend negative
+	jr	z,mslas4		; no
+	;neg	hl			;/ yes, negate remainder
+	DEFB	0EDH,4Ch
+mslas4:					
+	ex	de,hl			; hl <-- quotient
+	or	a			
+	jr	z,mslas5		; neither operand negative
+	cp	81h			; both operands negative?
+	jr	z,mslas5		; yes, quotient stays positive
+	;neg	hl			;/ no, negate quotient
+	DEFB	0EDH,4Ch
+mslas5:					
+	push	de			; remainder
+	push	hl			; quotient
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	81h			; *   ( n1 n2 --- nproduct)
+	defc	'*'			
+	defw	mslas-5			
+star:					
+	defw	$+2			
+	pop	de			
+	pop	hl			
+	;multw	hl,de			;/ dehl <-- product
+	DEFB	0EDH,0D2h
+	jhpush				
+;
+;
+	defb	84h			; /MOD   ( n1 n2 --- nrem nquot)
+	defc	'/MOD'			
+	defw	star-4			
+slmod:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			;/ divisor
+	pop	hl			;  dividend
+	ld	a,b			
+	or	c			;/ div by 0?
+	jr	nz,slmod1		;/ no, continue
+	ld	de,0ffffh		
+	ld	h,d			
+	ld	l,e			;/ set remainder & quotient to max.
+	jr	slmod3			
+slmod1:					
+	;cpw	hl,8000h		;/ special case -32768 -1 /
+	DEFB	0FDH
+	DEFB	0EDH,0F7h
+	DEFW	8000H                                   
+	jr	nz,slmod2		;/ continue
+	ld	a,b			
+	cp	0ffh			
+	jr	nz,slmod2		
+	cp	c			;/ lo byte also 0ffh?
+	jr	nz,slmod2		;/ no, go & divide
+	ld	de,0			;/ remainder
+	jr	slmod3			;/ exit with dividend unchanged
+slmod2:					
+	;exts	hl			;/ de <-- dividend.hw
+	DEFB	0EDH,6Ch
+	;divw	dehl,bc			;/ de <-- remainder, hl <-- quotient
+	DEFB	0EDH,0CAh
+slmod3:					
+	push	de			
+	push	hl			
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	81h			; /
+	defc	'/'			
+	defw	slmod-7			
+slash:					
+	defw	$+2			
+	exx				;/ save ip
+	pop	bc			;/ divisor
+	pop	hl			;  dividend
+	ld	a,b			
+	or	c			;/ division by 0?
+	jr	nz,slash1		;/ no, continue
+	ld	hl,0ffffh		;/ set quotient to max.
+	jr	slash3			
+slash1:					
+	;cpw	hl,8000h		;/ special case -32768 -1 /
+	DEFB	0FDH
+	DEFB	0EDH,0F7h
+	DEFW	8000H                                   
+	jr	nz,slash2		;/ dividend not -32768
+	ld	a,b			
+	cp	0ffh			
+	jr	nz,slash2		;/ divisor not -1
+	cp	c			
+	jr	z,slash3		;/ return with dividend unchanged
+slash2:					
+	;exts	hl			;/ de <-- dividend.hw
+	DEFB	0EDH,6Ch
+	;divw	dehl,bc			;/ hl <-- quotient
+	DEFB	0EDH,0CAh
+slash3:					
+	push	hl			;/ quotient
+	exx				;/ restore ip
+	jnext				
+;
+;
+	defb	83h			;/ MOD
+	defc	'MOD'			
+	defw	slash-4			
+modd:					
+	defw	$+2			
+	exx				; save ip
+	pop	bc			; divisor
+	pop	hl			;  dividend
+	ld	a,b			
+	or	c			; division by 0?
+	jr	nz,modd1		; no, continue
+	ld	de,0ffffh		; set remainder to max
+	jr	modd3			
+modd1:					
+	;cpw	hl,8000h		;/ special case -32768 -1 /
+	DEFB	0FDH
+	DEFB	0EDH,0F7h
+	DEFW	8000H                                   
+	jr	nz,modd2		; dividend not -32768
+	ld	a,b			
+	cp	0ffh			
+	jr	nz,modd2		; divisor not -1
+	cp	c			
+	jr	nz,modd2		; go & divide
+	ld	de,0			; remainder
+	jr	modd3			
+modd2:					
+	;exts	hl			; de <-- dividend.hw
+	DEFB	0EDH,6Ch
+	;divw	dehl,bc			; de <-- remainder
+	DEFB	0EDH,0CAh
+modd3:					
+	push	de			; remainder
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	85h			;/ */MOD
+	defc	'*/MOD'			
+	defw	modd-6			
+ssmod:					
+	defw	$+2			
+	exx				; save ip
+	pop	hl			; divisor
+	ld	a,h			
+	and	80h			; filter sign
+	jr	z,ssmod1		; positive
+	;neg	hl			; make positive
+	DEFB	0EDH,4Ch
+ssmod1:					
+	ld	b,h			
+	ld	c,l			; bc <-- divisor
+	pop	hl			; multipicator
+	pop	de			; multiplicant
+	ex	af,af' 			; save sign flag 
+	;multw	hl,de			; dehl <-- product (= dividend)
+	DEFB	0EDH,0D2h
+	ex	af,af' 			; restore sign flag 
+	ex	de,hl			; de <-- dividend.lw
+	bit	7,h			; dividend negative?
+	jr	z,ssmod2		; no
+	inc	a			; dividend sign flag
+	push	hl			
+	ld	hl,0			
+	;subw	hl,de			; neg dividend.lw
+	DEFB	0EDH,0DEh
+	pop	de			; dividend.hw
+	push	hl			
+	ld	hl,0			
+	sbc	hl,de			; neg dividend.hw
+	pop	de			; dividend.lw
+ssmod2:					
+	;cpw	hl,bc			; dividend.hw >= divisor?
+	DEFB	0EDH,0C7h
+	jr	c,ssmod3		; no overflow, continue
+	ld	hl,0ffffh		
+	ld	d,h			
+	ld	e,l			; set rem & quot to max
+	jr	ssmod5			
+;
+ssmod3:					
+	ex	de,hl			; dehl <-- dividend.hw,lw
+	;divuw	dehl,bc			; de <-- remainder, hl <-- quotient
+	DEFB	0EDH,0CBh
+	ex	de,hl			; hl <-- remainder
+	bit	0,a			; was dividend negative?
+	jr	z,ssmod4		; no
+	;neg	hl			; yes, negate remainder
+	DEFB	0EDH,4Ch
+ssmod4:					
+	ex	de,hl			; hl <-- quotient
+	or	a			
+	jr	z,ssmod5		; neither operand negative
+	cp	81h			; both operands negative?
+	jr	z,ssmod5		; yes, quotient stays positive
+	;neg	hl			; no, negate quotient
+	DEFB	0EDH,4Ch
+ssmod5:					
+	push	de			; remainder
+	push	hl			; quotient
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	82h			; */
+	defc	'*/'			
+	defw	ssmod-8			
+ssla:					
+	defw	$+2			;/
+	exx				; save ip
+	pop	hl			; divisor
+	ld	a,h			
+	and	80h			; filter sign
+	jr	z,ssla1			; positive
+	;neg	hl			; make positive
+	DEFB	0EDH,4Ch
+ssla1:					
+	ld	b,h			
+	ld	c,l			; bc <-- divisor
+	pop	hl			; multipicator
+	pop	de			; multiplicant
+	ex	af,af' 			; save sign flag 
+	;multw	hl,de			; dehl <-- product (= dividend)
+	DEFB	0EDH,0D2h
+	ex	af,af' 			; restore sign flag 
+	ex	de,hl			; de <-- dividend.lw
+	bit	7,h			; dividend negative?
+	jr	z,ssla2			; no
+	inc	a			; dividend sign flag
+	push	hl			
+	ld	hl,0			
+	;subw	hl,de			; neg dividend.lw
+	DEFB	0EDH,0DEh
+	pop	de			; dividend.hw
+	push	hl			
+	ld	hl,0			
+	sbc	hl,de			; neg dividend.hw
+	pop	de			; dividend.lw
+ssla2:					
+	;cpw	hl,bc			; dividend.hw >= divisor?
+	DEFB	0EDH,0C7h
+	jr	c,ssla3			; no overflow, continue
+	ld	hl,0ffffh		; set quotient to max
+	jr	ssla4			
+;
+ssla3:					
+	ex	de,hl			; dehl <-- dividend.hw,lw
+	;divuw	dehl,bc			; de <-- remainder, hl <-- quotient
+	DEFB	0EDH,0CBh
+	or	a			
+	jr	z,ssla4			; neither operand negative
+	cp	81h			; both operands negative?
+	jr	z,ssla4			; yes, quotient stays positive
+	;neg	hl			; no, negate quotient
+	DEFB	0EDH,4Ch
+ssla4:					
+	push	hl			; quotient
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	85h			; M/MOD
+	defc	'M/MOD'			
+	defw	ssla-5			
+msmod:					
+	defw	docol			
+	defw	tor			
+	defw	zero			
+	defw	rr			
+	defw	uslas			
+	defw	fromr			
+	defw	swap			
+	defw	tor			
+	defw	uslas			
+	defw	fromr			
+	defw	semis			
+;
+;
+;	Block moved down 2 pages
+;
+	defb	86h			; (LINE)
+	defc	'(LINE)'		
+	defw	msmod-8			
+pline:					
+	defw	docol			
+	defw	tor			
+	defw	lit			
+	defw	40h			
+	defw	bbuf			
+	defw	ssmod			
+	defw	fromr			
+	defw	bscr			
+	defw	star			
+	defw	plus			
+	defw	block			
+	defw	plus			
+	defw	lit			
+	defw	40h			
+	defw	semis			
+;
+;
+	defb	85h			; .LINE
+	defc	'.LINE'			
+	defw	pline-9			
+dline:					
+	defw	docol			
+	defw	pline			
+	defw	dtrai			
+	defw	type			
+	defw	semis			
+;
+;
+	defb	87h			; MESSAGE
+	defc	'MESSAGE'		
+	defw	dline-8			
+mess:					
+	defw	docol			
+	defw	warn			
+	defw	at			
+	defw	zbran			; if
+	defw	mess1-$			
+	defw	ddup			
+	defw	zbran			; if
+	defw	mess2-$			
+	defw	lit			
+	defw	4			; 1st message screen
+	defw	ofset			
+	defw	at			
+	defw	bscr			
+	defw	slash			
+	defw	subb			
+	defw	dline			
+	defw	space			; endif
+mess2:					
+	defw	bran			; else
+	defw	mess3-$			
+mess1:					
+	defw	pdotq			
+	defb	6			
+	db	'MSG # '		
+	defw	dot			; endif
+mess3:	defw	semis			
+;
+;
+	defb	82h			; P@
+	defc	'P@'			
+	defw	mess-0ah		
+ptat:					
+	defw	$+2			
+	exx				;d save registers
+	pop	bc			;d bc <-- port#
+	in	l,(c)			;d l <-- data byte
+	ld	h,0			
+	push	hl			
+	exx				;d restore registers
+	jnext				
+;
+;
+	defb	82h			; P!
+	defc	'P!'			
+	defw	ptat-5			
+ptsto:					
+	defw	$+2			
+	exx				;d save registers
+	pop	bc			;d c <-- port#
+	pop	hl			;d L <-- date byte
+	out	(c),l			
+	exx				;d restore registers
+	jnext				
+;
+;
+	page				
+include	DISCIO.Z80			
+	page				
+include	CONPRTIO.Z80			
+	page				
+;
+	defb	0c1h			; ' (tick)
+	defb	0a7h			
+	defw	arrow-6			
+tick:					
+	defw	docol			
+	defw	dfind			
+	defw	zequ			
+	defw	zero			
+	defw	qerr			
+	defw	drop			
+	defw	liter			
+	defw	semis			
+;
+;
+	defb	86h			; FORGET
+	defc	'FORGET'		
+	defw	tick-4			
+forg:					
+	defw	docol			
+	defw	curr			
+	defw	at			
+	defw	cont			
+	defw	at			
+	defw	subb			
+	defw	lit			
+	defw	18h			
+	defw	qerr			
+	defw	tick			
+	defw	dup			
+	defw	fence			
+	defw	at			
+	defw	uless			;/ FORGET >8000h nw o.k.
+	defw	lit			
+	defw	15h			
+	defw	qerr			
+	defw	dup			
+	defw	nfa			
+	defw	dp			
+	defw	store			
+	defw	lfa			
+	defw	at			
+	defw	cont			
+	defw	at			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	84h			; BACK
+	defc	'BACK'			
+	defw	forg-9			
+back:					
+	defw	docol			
+	defw	here			
+	defw	subb			
+	defw	comma			
+	defw	semis			
+;
+;
+	defb	0c5h			; BEGIN
+	defc	'BEGIN'			
+	defw	back-7			
+begin:					
+	defw	docol			
+	defw	qcomp			
+	defw	here			
+	defw	one			
+	defw	semis			
+;
+;
+	defb	0c5h			; ENDIF
+	defc	'ENDIF'			
+	defw	begin-8			
+endiff:					
+	defw	docol			
+	defw	qcomp			
+	defw	two			
+	defw	qpair			
+	defw	here			
+	defw	over			
+	defw	subb			
+	defw	swap			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	0c4h			; THEN
+	defc	'THEN'			
+	defw	endiff-8		
+then:	defw	docol			
+	defw	endiff			
+	defw	semis			
+;
+;
+	defb	0c2h			; DO
+	defc	'DO'			
+	defw	then-7			
+do:					
+	defw	docol			
+	defw	comp			
+	defw	xdo			
+	defw	here			
+	defw	three			
+	defw	semis			
+;
+;
+	defb	0c4h			; LOOP
+	defc	'LOOP'			
+	defw	do-5			
+loop:					
+	defw	docol			
+	defw	three			
+	defw	qpair			
+	defw	comp			
+	defw	xloop			
+	defw	back			
+	defw	semis			
+;
+;
+	defb	0c5h			; +LOOP
+	defc	'+LOOP'			
+	defw	loop-7			
+ploop:					
+	defw	docol			
+	defw	three			
+	defw	qpair			
+	defw	comp			
+	defw	xploo			
+	defw	back			
+	defw	semis			
+;
+;
+	defb	0c5h			; UNTIL
+	defc	'UNTIL'			
+	defw	ploop-8			
+until:					
+	defw	docol			
+	defw	one			
+	defw	qpair			
+	defw	comp			
+	defw	zbran			
+	defw	back			
+	defw	semis			
+;
+;
+	defb	0c3h			; END
+	defc	'END'			
+	defw	until-8			
+endd:					
+	defw	docol			
+	defw	until			
+	defw	semis			
+;
+;
+	defb	0c5h			; AGAIN
+	defc	'AGAIN'			
+	defw	endd-6			
+again:					
+	defw	docol			
+	defw	one			
+	defw	qpair			
+	defw	comp			
+	defw	bran			
+	defw	back			
+	defw	semis			
+;
+;
+	defb	0c6h			; REPEAT
+	defc	'REPEAT'		
+	defw	again-8			
+repea:					
+	defw	docol			
+	defw	tor			
+	defw	tor			
+	defw	again			
+	defw	fromr			
+	defw	fromr			
+	defw	twomin			;/
+	defw	endiff			
+	defw	semis			
+;
+;
+	defb	0c2h			; IF
+	defc	'IF'			
+	defw	repea-9			
+iff:					
+	defw	docol			
+	defw	comp			
+	defw	zbran			
+	defw	here			
+	defw	zero			
+	defw	comma			
+	defw	two			
+	defw	semis			
+;
+;
+	defb	0c4h			; ELSE
+	defc	'ELSE'			
+	defw	iff-5			
+elsee:					
+	defw	docol			
+	defw	two			
+	defw	qpair			
+	defw	comp			
+	defw	bran			
+	defw	here			
+	defw	zero			
+	defw	comma			
+	defw	swap			
+	defw	two			
+	defw	endiff			
+	defw	two			
+	defw	semis			
+;
+;
+	defb	0c5h			; WHILE
+	defc	'WHILE'			
+	defw	elsee-7			
+while:					
+	defw	docol			
+	defw	iff			
+	defw	twop			
+	defw	semis			
+;
+;
+	defb	86h			; SPACES
+	defc	'SPACES'		
+	defw	while-8			
+spacs:					
+	defw	docol			
+	defw	zero			
+	defw	max			
+	defw	ddup			
+	defw	zbran			; if
+	defw	spax1-$			
+	defw	zero			
+	defw	xdo			; do
+spax2:					
+	defw	space			
+	defw	xloop			; loop endif
+	defw	spax2-$			
+spax1:					
+	defw	semis			
+;
+;
+	defb	82h			; <#
+	defc	'<#'			
+	defw	spacs-9			
+bdigs:					
+	defw	docol			
+	defw	pad			
+	defw	hld			
+	defw	store			
+	defw	semis			
+;
+;
+	defb	82h			; #>
+	defc	'#>'			
+	defw	bdigs-5			
+edigs:					
+	defw	docol			
+	defw	drop			
+	defw	drop			
+	defw	hld			
+	defw	at			
+	defw	pad			
+	defw	over			
+	defw	subb			
+	defw	semis			
+;
+;
+	defb	84h			; SIGN
+	defc	'SIGN'			
+	defw	edigs-5			
+sign:					
+	defw	docol			
+	defw	rot			
+	defw	zless			
+	defw	zbran			; if
+	defw	sign1-$			
+	defw	lit			
+	defw	2dh			
+	defw	hold			; endif
+sign1:					
+	defw	semis			
+;
+;
+	defb	81h			; #
+	defc	'#'			
+	defw	sign-7			
+dig:					
+	defw	docol			
+	defw	base			
+	defw	at			
+	defw	msmod			
+	defw	rot			
+	defw	lit			
+	defw	9			
+	defw	over			
+	defw	less			
+	defw	zbran			; if
+	defw	dig1-$			
+	defw	lit			
+	defw	7			
+	defw	plus			; endif
+dig1:	defw	lit			
+	defw	30h			
+	defw	plus			
+	defw	hold			
+	defw	semis			
+;
+;
+	defb	82h			; #S
+	defc	'#S'			
+	defw	dig-4			
+digs:					
+	defw	docol			
+digs1:					
+	defw	dig			; begin
+	defw	tdup			;/
+	defw	orr			
+	defw	zequ			
+	defw	zbran			; until
+	defw	digs1-$			
+	defw	semis			
+;
+;
+	defb	83h			; D.R
+	defc	'D.R'			
+	defw	digs-5			
+ddotr:					
+	defw	docol			
+	defw	tor			
+	defw	swap			
+	defw	over			
+	defw	dabs			
+	defw	bdigs			
+	defw	digs			
+	defw	sign			
+	defw	edigs			
+	defw	fromr			
+	defw	over			
+	defw	subb			
+	defw	spacs			
+	defw	type			
+	defw	semis			
+;
+;
+	defb	82h			; .R
+	defc	'.R'			
+	defw	ddotr-6			
+dotr:					
+	defw	docol			
+	defw	tor			
+	defw	stod			
+	defw	fromr			
+	defw	ddotr			
+	defw	semis			
+;
+;
+	defb	82h			; D.
+	defc	'D.'			
+	defw	dotr-5			
+ddot:					
+	defw	docol			
+	defw	zero			
+	defw	ddotr			
+	defw	space			
+	defw	semis			
+;
+;
+	defb	81h			; .
+	defc	'.'			
+	defw	ddot-5			
+dot:					
+	defw	docol			
+	defw	stod			
+	defw	ddot			
+	defw	semis			
+;
+;
+	defb	81h			; ?
+	defc	'?'			
+	defw	dot-4			
+ques:					
+	defw	docol			
+	defw	at			
+	defw	dot			
+	defw	semis			
+;
+;
+	defb	82h			; U.
+	defc	'U.'			
+	defw	ques-4			
+udot:	defw	docol			
+	defw	zero			
+	defw	ddot			
+	defw	semis			
+;
+
+	defb	85h			; VLIST
+	defc	'VLIST'			
+	defw	udot-5			
+vlist:					
+	defw	docol			
+	defw	lit			
+	defw	80h			
+	defw	outt			
+	defw	store			
+	defw	cont			
+	defw	at			
+	defw	at			
+vlis1:					
+	defw	outt			; begin
+	defw	at			
+	defw	csll			
+	defw	great			
+	defw	zbran			; if
+	defw	vlis2-$			
+	defw	cr			
+	defw	zero			
+	defw	outt			
+	defw	store			; endif
+vlis2:					
+	defw	dup			
+	defw	iddot			
+	defw	space			
+	defw	space			
+	defw	pfa			
+	defw	lfa			
+	defw	at			
+	defw	dup			
+	defw	zequ			
+	defw	qterm			
+	defw	orr			
+	defw	zbran			; until
+	defw	vlis1-$			
+	defw	drop			
+	defw	semis			
+;
+;
+	defb	83h			; BYE
+	defc	'BYE'			
+	defw	vlist-8			
+bye:					
+	defw	docol			;/A
+	defw	flush			;/A
+	defw	fcb,lit			;/E
+	defw	10h,bdos		;/E close file
+	defw	drop			;/E discard directory code
+	defw	zero,zero		;/A
+	defw	bdos			;/A return to CP/M
+	defw	semis			;/A won't get this far, just for pretty
+;
+;
+	defb	84h			; LIST
+	defc	'LIST'			
+	defw	bye-6			
+list:					
+	defw	docol,dec		
+	defw	cr,dup			
+	defw	scr,store		
+	defw	pdotq			
+	defb	6			
+	db	'SCR # '		
+	defw	dot			
+	defw	lit,10h			
+	defw	zero,xdo		
+list1:					
+	defw	cr,ido			
+	defw	three			;/ was lit,3
+	defw	dotr,space		
+	defw	ido,scr			
+	defw	at,dline		
+	defw	qterm			
+	defw	zbran,list2-$		; if
+	defw	leave			
+list2:					
+	defw	xloop,list1-$		; endif
+	defw	cr			
+	defw	semis			
+;
+;
+	defb	85H		;INDEX
+	defc	'INDEX'		
+	defw	list-7		
+index:					
+	defw	docol		
+	defw	lit,ff		
+	defw	emit		
+	defw	cr		
+	defw	onep,swap	
+	defw	xdo		
+inde1:					
+	defw	cr,ido		
+	defw	three			;/ was lit,3
+	defw	dotr,space		
+	defw	zero,ido		
+	defw	dline,qterm		
+	defw	zbran,inde2-$		; if
+	defw	leave			; endif
+inde2:					
+	defw	xloop,inde1-$		
+	defw	semis			
+;
+;
+	defb	85h			; TRIAD
+	defc	'TRIAD'			
+	defw	index-8			
+triad:					
+	defw	docol			
+	defw	lit,ff			
+	defw	emit			
+	defw	three			;/ was lit,3
+	defw	slash			
+	defw	three			;/ was lit,3
+	defw	star			
+	defw	three			;/ was lit,3
+	defw	over,plus		
+	defw	swap,xdo		
+tria1:					
+	defw	cr,ido			
+	defw	list			
+	defw	qterm			
+	defw	zbran,tria2-$		; if
+	defw	leave			
+tria2:					
+	defw	xloop,tria1-$		; endif
+	defw	cr			
+	defw	lit,15			
+	defw	mess,cr			
+	defw	semis			
+;
+;
+	defb	84h			; .CPU
+	defc	'.CPU'			
+	defw	triad-8			
+dotcpu:					
+	defw	docol			
+	defw	base,at			
+	defw	lit,36			
+	defw	base,store		
+	defw	lit,22h			
+	defw	porig,tat		
+	defw	ddot			
+	defw	base,store		
+	defw	semis			
+;
+;
+	defb	86h			; setclk
+	defc	'setclk'		
+	defw	dotcpu-7		
+setclk:					
+	defw	$+2			
+	exx				; save ip
+	ld	c,iopreg		
+	;ldctl	hl,(c)			; l <-- current i/o page
+	DEFB	0EDh,66h
+	ld	a,l			
+	ex	af,af' 			; save i/o page 
+	ld	l,0feh			
+	;ldctl	(c),hl			; select i/o page 0feh
+	DEFB	0EDh,6Eh
+	xor	a			
+	out	(cntrl0),a		; disable c/t 0
+	out	(cntrl1),a		; disable c/t 1
+	out	(config1),a		
+	ld	hl,0ffffh		
+	ld	a,10h			
+	out	(config0),a		; cascade c/t 0 - c/t 1
+	ld	c,tcon0			
+	;outw	(c),hl			; load c/t 0 time constant
+	DEFB	0EDH,0BFh
+	ld	c,tcon1			
+	;outw	(c),hl			; load c/t 1 time constatnt
+	DEFB	0EDH,0BFh
+	ld	a,80h			
+	out	(config1),a		; continous mode
+	ld	a,0e0h			
+	out	(cntrl1),a		; start 32bit counter
+	ex	af,af' 			; std. accu 
+	ld	l,a			; l <-- previous i/o page
+	ld	c,iopreg		
+	;ldctl	(c),hl			; restore i/o page
+	DEFB	0EDh,6Eh
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	86h			; getclk
+	defc	'getclk'		
+	defw	setclk-9		
+getclk:					
+	defw	$+2			
+	exx				; save ip
+	ld	c,iopreg		
+	;ldctl	hl,(c)			; l <-- current i/o page
+	DEFB	0EDh,66h
+	ld	a,l			
+	ex	af,af' 			; save current i/o page 
+	ld	l,0feh			
+	;ldctl	(c),hl			; select i/o page 0feh
+	DEFB	0EDh,6Eh
+	ld	a,80h			
+	out	(cntrl1),a		; halt 32bit counter
+	ld	c,count1		
+	;inw	hl,(c)			
+	DEFB	0EDH,0B7h
+	ld	d,h			
+	ld	e,l			; de <-- count1
+	ld	c,count0		
+	;inw	hl,(c)			; hl <-- count0
+	DEFB	0EDH,0B7h
+	ld	c,0			
+	ld	a,c			; a <-- 0
+	sub	l			; 0 - l
+	ld	l,a			; l <-- neg(l)
+	ld	a,c			; a <-- 0
+	sbc	a,h			
+	ld	h,a			; h <-- neg(h)
+	ld	a,c			; a <-- 0
+	sbc	a,e			
+	ld	e,a			; e <-- neg(e)
+	ld	a,c			; a <-- 0
+	sbc	a,d			
+	ld	d,a			; d <-- neg(d), dehl <-- neg(dehl)
+	;divuw	dehl,25000		; scale to 1/100 secs
+	DEFB	0FDH
+	DEFB	0EDH,0FBh
+	DEFW	25000                                   
+	push	hl			; result
+	ex	af,af' 			; std. accu 
+	ld	l,a			; l <-- previous i/o page
+	ld	c,iopreg		
+	;ldctl	(c),hl			; restore i/o page
+	DEFB	0EDh,6Eh
+	exx				; restore ip
+	jnext				
+;
+;
+	defb	84h			; TASK
+	defc	'TASK'			
+	defw	getclk-9		
+;	defw	dotcpu-7
+task:					
+	defw	docol			
+	defw	semis			
+;
+;
+initdp:					
+	defw	0			
+;
+	end	orig			
+defw	getclk-9		
+;	defw	dotcpu-7
+task:					
+	defw	docol		

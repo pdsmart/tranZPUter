@@ -1,0 +1,191 @@
+	TITLE	"ZCNFG Configuration file for ZXD Ver 1.66"
+;---------------------------------------------------------
+;  ZXD.COM Patch offsets
+
+IUSR    EQU    16H	;  0 = List only files in logged User area
+			; FF = List files in all User areas on disk
+IFMT    EQU    17H	;  0 = List in Vertical file sequence
+			; FF = List in Horizontal file sequence
+IFF     EQU    18H	;  0 = No FormFeed and end of Printer List
+			; FF = Send FormFeed at end of Printer List
+ISORT   EQU    19H	;  0 = Sort by File Name then Type
+			; FF = Sort by File Type then Name
+INDATE  EQU    1AH	;  0 = Print WITH Dates Per WIDE flag
+			; FF = Print File Specs with NO Dates
+			;       with 3 columns per screen
+WIDE    EQU    1BH	;  0 = List only "Last Modified" Date/Times
+			;       with two columns per screen
+			; FF = List "Created" and "Last Modified"
+			;       Date/Times with one column per screen
+STMODE  EQU    1CH	;  0 = List ZSDOS (CP/M+) File Stamps
+			; FF = List DateStamper File Stamps reverting
+			;       to ZSDOS on DateStamper error
+USEUR   EQU    1DH	;  0 = Display Dates in US Format (MM/DD/YY)
+			; FF = Display Dates in European (DD.MM.YY)
+IATT    EQU    1EH	; 80 = Display Non-SYStem files Only
+			; 40 = Display SYStem files Only
+			; C0 = Display both SYStem and Non-SYStem files
+BLNKYR  EQU    1FH	;  0 = Always print Year digits
+			; FF = Blank Year digits if same as current
+
+; BIT offsets in IATT
+
+DIRFLG	EQU	7		;bits are numbered 0...7
+SYSFLG	EQU	6
+
+;---------------------------------------------------------
+
+	INCLUDE CNFGDEF.LIB
+
+;************************************************************
+;	S T A R T    O F    O V E R L A Y    C O D E
+;************************************************************
+; The next 13 bytes must remain in this location.
+
+	RST	0		; For safety - file won't execute
+	DEFW	MENU1		; for relocation of addresses, this
+				; points to the NEXT location.
+; First MENU list must be here. All names are local.
+
+MENU1:	DEFW	MENU1, MENU1, SCRN1, CASE1, HELP1	; Menu A
+
+;=========================================================
+; The case table used for ZXD, main and only menu.
+;=========================================================
+
+CASE1:	DEFB	(CASE1X-CASE11) / (CASE12-CASE11)    ; Number of cases
+	DEFB	CASE12 - CASE11			     ; Length of each record
+
+;	macro	.single char menu selector
+;	|	|	.function (see above)
+;	|	|	|	.offset in cnfg block
+;	|	|	|	|	.function dependant data
+;	|	|	|	|	|	.screen location
+;	|	|	|	|	|	|
+;acse1:	bitmap	0,	switch,	obyte0,	crtflg,	ascrl0,	yndata
+;							/
+;	    Address of data structure used by function.|
+
+CASE11:	VECTOR	U,	TOGLTF,	IUSR,	1,	USCR,	UMSG
+CASE12:	VECTOR	H,	TOGLTF,	IFMT,	1,	HSCR,	HMSG
+	VECTOR	F,	TOGLTF,	IFF,	1,	FSCR,	FMSG
+	VECTOR	S,	TOGLTF,	ISORT,	1,	SSCR,	SMSG
+	VECTOR	N,	TOGLTF,	INDATE,	1,	NSCR,	NMSG
+	VECTOR	W,	TOGLTF,	WIDE,	1,	WSCR,	WMSG
+	VECTOR	T,	TOGLTF,	STMODE,	1,	TSCR,	TMSG
+	VECTOR	D,	TOGLTF,	USEUR,	1,	DSCR,	DMSG
+	BITMAP	A,	SWITCH,	IATT,	DIRFLG,	ASCR,	AMSG
+	BITMAP	B,	SWITCH,	IATT,	SYSFLG,	BSCR,	BMSG
+	VECTOR	Y,	TOGLTF,	BLNKYR,	1,	YSCR,	YMSG
+
+CASE1X:			; Label used to calc number of entries
+
+;=========================================================
+
+SCRN1:				; Screen image for first screen
+	DB CR,LF		; Ensure clean top of screen
+
+;Title line - Start line count here ..
+
+	DB LF,HT,HT,HT,'ZXD Configuration Options',CR,LF
+	DB LF			; Blank lines for screen format
+
+	DB HT,HT,'A)  '
+ASCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'B)  '
+BSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'U)  '
+USCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'H)  '
+HSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'F)  '
+FSCR:	DB '                                        '
+	DB	CR,LF,LF
+
+	DB HT,HT,'S)  '
+SSCR:	DB '                                        '
+	DB	CR,LF,LF
+
+	DB HT,HT,'N)  '
+NSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'W)  '
+WSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'T)  '
+TSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'D)  '
+DSCR:	DB '                                        '
+	DB	CR,LF
+
+	DB HT,HT,'Y)  '
+YSCR:	DB '                                        '
+	DB	CR,LF,LF
+
+;make 19 lines for a 24 line screen
+
+	DB	CR,LF,LF
+	DB	0		;terminator
+
+;-----------------------------------
+;	FUNCTION DATA LIST
+
+; Data Pair for representing Bit values in screen image
+; Can also be used for Function 8 display (True/False).
+; The first of each pair is for TRUE option value,
+; the second for False.
+; These are Null-terminated strings.  Note the "DZ"
+
+UMSG:	DEFZ 'List files in all User areas on disk    '
+	DEFZ 'List only files in logged User area     '
+HMSG:	DEFZ 'List in Horizontal file sequence        '
+	DEFZ 'List in Vertical file sequence          '
+FMSG:	DEFZ 'Send FormFeed at end of Printer List    '
+	DEFZ 'No FormFeed at end of Printer List      '
+SMSG:	DEFZ 'Sort by File Type then Name             '
+	DEFZ 'Sort by File Name then Type             '
+NMSG:	DEFZ 'Print File Specs with NO Dates          '
+	DEFZ 'Print WITH Dates Per WIDE flag          '
+WMSG:	DEFZ 'List "Created" and "Last Modified"      '
+	DEFZ 'List only "Last Modified" Date/Times    '
+TMSG:	DEFZ 'List DateStamper File Stamps            '
+	DEFZ 'List ZSDOS (CP/M+) File Stamps          '
+DMSG:	DEFZ 'Display Dates in European (DD.MM.YY)    '
+	DEFZ 'Display Dates in US Format (MM/DD/YY)   '
+AMSG:	DEFZ 'Display Non-SYStem files                '
+	DEFZ 'Don''t display Non-SYStem files         '
+BMSG:	DEFZ 'Display SYStem files                    '
+	DEFZ 'Don''t display SYStem files             '
+YMSG:	DEFZ 'Blank Year digits if same as current    '
+	DEFZ 'Always print Year digits                '
+
+;=========================================================
+; Help screen for menu A
+
+HELP1:	DB CR,LF		;ensure clean top of screen
+	DB LF,HT,'HELP for ZXD Configuration',CR,LF,LF
+	DB 'The display shows the current default options for ZXD.',CR,LF
+	DB 'Typing a menu selection letter causes the option to be',CR,LF
+	DB 'toggled to its alternate condition.',CR,LF,LF
+	DB 'When the T menu item is toggled to DATESTAMPER, ZXD will',CR,LF
+	DB 'first search for DateStamper style stamps, defaulting to',CR,LF
+	DB 'DosDisk and P2DOS stamps if unable to validate Date-',CR,LF
+	DB 'Stamper or its file.  When set to P2DOS, only DosDisk',CR,LF
+	DB 'and P2DOS Stamps will be located.',CR,LF
+	DB 0
+
+;=========================================================
+	END
+

@@ -1,0 +1,1846 @@
+
+
+;******************************************************
+;     Z-19 Screen Handler			      *
+;						      *
+;     This module contains all code necessary for     *
+;     full screen buffering on a serial (VT-52)       *
+;     terminal.                                       *
+;     Note: assumes m_alloc in XIOS header has been   *
+;           initialized to reserve space for screen   *
+;           images.                                   *
+;     The Z19 screen memory comes after the PC board  *
+;	    memory if the board is present	      *
+;     Last changed : 11/03/84                         *
+;                                                     *
+;******************************************************
+    
+
+eject
+
+        dseg
+
+extrn   mem_alloc:word
+extrn	contable:byte
+extrn   ocdesctbl:word
+extrn	icdesctbl:word
+extrn	vccb_tbl:word
+extrn	vrtl_phy:byte
+extrn	f30_tbl:word
+extrn	pcbuffer:word
+
+
+        cseg
+
+ public vs_init
+ public vs_conout
+ public vs_switch
+ public conin_0
+ public	vs_statline
+ public set_up_bx
+ public serial_out
+ extrn  conout1:near
+ extrn	serial_in:near
+ extrn	usart_on:near
+ extrn	supif:near
+
+;************************************************                              
+;        VIRTUAL   SCREEN   INITIALIZATION      *
+;************************************************
+
+;==========
+vs_init:
+;==========
+                                        
+    mov ax, mem_alloc                    ; segment address given by GENCCPM
+    add ax, word ptr pcbuffer		 ; PC buffers always come first
+    mov bx, offset scrn_image0           ; get first screen image
+    xor ch,ch
+    mov cl, nvcons                       ; do init for each virtual console
+
+init_scrn:                               ; init each structure with the segment
+    mov vs_screen_seg,ax                 ; address of its char/attrib buffer
+    add bx, vs_struc_len
+    add ax,((crt_size + 15) shr 4) * 2
+    loop init_scrn
+
+    mov ah, vsa_normal                   ; attribute = normal
+    mov al, blank                        ; char =  blank
+    mov bx, offset scrn_image0           ; with normal attribute byte
+    mov cl, nvcons
+    push es
+
+clear_scrn:                              ; do one clear for each virtual console
+    push cx
+    mov es, vs_screen_seg                ; get segment address back
+    sub di,di
+    mov cx, crt_size                     ; get screen size
+    rep stosw                            ; paint screen with blanks
+    pop cx
+    add bx,vs_struc_len                  ; index to next screen structure
+    loop clear_scrn    
+    pop es                               ; we're done
+    ret
+
+
+eject
+;******************************************************
+;                                                     *
+;       ENTRY POINT FOR VIRTUAL SCREEN UPDATES        *
+;                                                     *
+;******************************************************
+
+;===========
+vs_conout:
+;===========
+
+    mov bx,dx                         ; BL = virtual console #
+    shl bx,1
+    mov bx,screen_image_tbl[bx]       ; get virtual screen structure
+    mov al,cl ! mov ah,dl             ; Set up AX for subroutines
+    mov cx,0  ! push ax               ; AH = console #, AL = character 
+    call vs_escape_rt                 ; This is the escape handler if in middle 
+                                      ; of a sequence. Default is CONOUT01.
+    cmp cx,0 ! jne conout01           ; CX = 0    if in escape sequence
+                                      ;    = ffff if regular char
+
+other_char:                           ; Either we're in the middle of an 
+                                      ; escape sequence or it's a special char.
+    pop cx ! mov dl,ch                ; Fall through to physical output.
+    xor ch,ch                         ; Virtual update has been done.
+     jmp conout1
+
+conout01:
+    mov di, offset spec_char_tab      ; check if special char (CR,LF,BS,ESC)
+    mov si, offset spec_func_tab      ; if so, co_look_up jmps to corresponding
+    call co_look_up                   ; function
+      jcxz conout02                   ; else,update image with simple character                 
+      jmp other_char                    
+
+conout02:                             ; simple character handling
+   pop cx ! mov dl,ch ! xor ch,ch     ; restore console # and char
+   mov di,vs_cursor                   ; starting point of single char copy
+
+   push es                            ; BX = virtual screen structure
+   mov es,vs_screen_seg               ; ES = segment of virtual screen
+   mov ah,vs_attrib                   ; AH -> current attribute
+
+   mov al,cl                          ; CL,AL -> new char
+   stosw
+   pop es                             ; DI pts to next attribute/char word
+
+   cmp vs_column,crt_col - 1          ; see if we need a CR-LF
+     jb inc_col                       ; no, go move cursor one to the right
+   test vs_mode,vsm_no_wrap           ; if in wrap mode, don't do CR-LF
+     jz conout03                      ; and continue on to physical output
+   call carriage_return               ; else update virtual cursor,col & row
+   call line_feed
+
+conout03:
+   jmp conout1
+
+inc_col:
+   call r_right                       ; updates cursor by one (to the right)
+     jmp conout1
+               
+
+
+;************************************************
+;                                               *
+;        SPECIAL CHARACTER OUTPUT ROUTINES      *
+;                                               *
+;************************************************
+
+;----------------
+carriage_return:
+;----------------
+;        entry: BX = screen structure
+;        exit : BX preserved
+
+         push dx
+         xor dx,dx
+         xchg vs_column,dl               ; set column to zero
+         shl dx,1                        ; back up cursor
+         sub vs_cursor,dx
+         pop dx
+         ret
+   
+;----------------
+line_feed:
+;----------------
+;        entry: BX = screen structure
+;        exit : BX preserved
+
+         cmp vs_row, crt_row - 1
+         je lf_scroll                  ; are we at bottom of screen?
+            jmp d_down                 ; no, move cursor down a line
+lf_scroll:
+         push dx
+         xor dl,dl                     ; yes, adjust top & bottom pointers
+         mov dh, crt_row - 1
+         call scroll_up
+         pop dx
+         jmp erase_line
+
+;-----------------
+back_space:
+;-----------------
+;        entry: BX = screen structure
+;        exit : BX = preserved
+
+         mov di,vs_cursor    
+         test di,di                    ; are we at home position ?
+           jz bs_ret                   ; yes, ignore backspace
+         cmp vs_column,0               ; are we at the beginning of a line ?
+           je bs_row                   ; yes, try previous line
+         dec vs_column                 ; else, simple case : dec # cols
+           jmps bs_set_cursor
+bs_row:
+         test vs_mode,vsm_no_wrap      ; if in nowrap mode, don't back up to
+           jnz bs_ret                  ; previous line
+         dec vs_row                    ; else, dec current row and
+         mov vs_column,crt_col - 1     ; show column at end of line
+bs_set_cursor:
+         sub di,2                      ; DI = cursor
+         mov vs_cursor,di
+bs_ret:
+         ret
+
+
+
+
+;*******************************************************
+;
+;        ESCAPE SEQUENCE ROUTINES
+;
+;*******************************************************
+
+
+;----------
+co_look_up:
+;----------
+;          entry: BX = address of screen structure
+;                 AH = device number
+;                 AL = char to scan for
+;                 DI = ptr to lookup table
+;                 SI = function table
+;          exit : CX = 0ffffh if special char found
+;                      0 if no spec char found
+;                 if not spec function, AX & BX preserved
+
+           mov bp,es ! mov dx,ds 
+           mov es,dx
+           xor cx,cx ! mov cl,[di]    ; first byte of di is length of table
+           mov dx,cx ! inc di
+           repne scasb                ; cruise through table for match
+           mov es,bp                  ; restore ES
+            je lookup_func            ; got a match, go get function
+               ret                    ; else, return with CX = 0
+lookup_func:
+           inc cx                     ; CX = number matched on
+           sub dx,cx  ! shl dx,1      ; function number
+           add si,dx
+           call word ptr [si]
+           xor cx,cx ! dec cx         ; return with CX = 0ffffh
+             ret
+
+;----------
+escape_rt:
+;----------
+;          entry: BX = screen structure
+;                 AL = current byte in esc sequence          
+;          exit : vs_escape_rt = address of next routine to execute 
+;                 in this sequence
+
+           mov vs_escape_rt,offset escape1
+             ret                               
+escape1:
+           mov vs_escape_rt, offset default_esc      ; assume done with escape
+           mov di, offset esc_tbl                    ; if more to do, this field
+           mov si, offset esc_func_tbl               ; will be set by handler
+           push cx                                   ; save CX to show in esc
+           call co_look_up                           ; sequence
+           pop cx
+           ret
+
+;----------
+home:                               ; ESC  H
+;----------
+
+   xor ax,ax
+   mov vs_cursor,ax
+   mov vs_column,al
+   mov vs_row,al
+   ret
+
+;----------
+right:                             ; ESC C
+;----------
+
+   cmp vs_column,crt_col - 1       ; if at end of screen, ignore it
+    jb r_right
+      ret
+r_right:
+   add vs_cursor,2
+   inc vs_column        
+   ret
+
+;----------
+left:                              ; ESC D
+;----------
+
+   cmp vs_column,0                 ; if at beginning of screen, ignore it
+    ja l_left
+      ret   
+l_left:
+   sub vs_cursor,2
+   dec vs_column    
+   ret
+
+;----------
+down:                              ; ESC B
+;----------
+
+   cmp vs_row,crt_row - 1          ; if at bottom of screen, ignore it
+    jb d_down
+      ret
+d_down:
+   add vs_cursor,crt_col * 2
+   inc vs_row    
+   ret
+
+;----------
+up:                               ; ESC A
+;----------
+
+   cmp vs_row,0                   ; if at top of screen, ignore it
+    ja d_up
+      ret
+d_up:
+   sub vs_cursor,crt_col * 2
+   dec vs_row    
+   ret   
+   
+
+;---------------
+up_with_scroll:                   ; ESC I
+;---------------
+
+   cmp vs_row,0                   ; if not on the top line, mov the cursor
+     ja up                        ; to the top only
+   push dx
+   xor dl,dl                      ; else, scroll it up
+   mov dh,crt_row - 1             ; start row = 0, end row = screen bottom
+   call scroll_down               ; cursor stays the same
+   pop dx
+     jmp erase_line             
+
+;----------
+save:                             ; ESC j
+;----------
+
+   mov ah,vs_row                  ; save row and col in xy
+   mov al, vs_column
+   mov vs_xy,ax
+   mov ax,vs_cursor               ; save cursor
+   mov vs_oldcursor,ax
+   ret
+
+;----------
+restore:                         ; ESC k
+;----------
+
+   mov ax,vs_xy
+   mov vs_column,al
+   mov vs_row,ah
+   mov ax,vs_oldcursor
+   mov vs_cursor,ax
+   ret
+
+;-----------
+x_and_y:                        ; ESC Y
+;-----------
+
+   mov vs_escape_rt,offset xy_row       ; wait for row
+   ret
+xy_row:
+   sub al,32
+   cmp al,crt_row - 1
+    jbe row_ok
+   mov vs_escape_rt,offset xy_ret    
+   ret
+row_ok:
+   mov vs_row,al
+   mov vs_escape_rt,offset xy_col       ; wait for column
+   ret
+xy_col:
+   sub al,32
+   cmp al,crt_col - 1
+    jbe xy_set_col
+      mov al,crt_col - 1
+xy_set_col:
+   mov vs_column,al                 ; Set the new column #
+   push cx ! push dx
+   xor ax,ax
+   mov al,vs_row                    ; Use new row and column to compute
+   mov cx,crt_col * 2               ; new cursor position.
+   mul cx
+   xor cx,cx
+   mov cl,vs_column    
+   shl cx,1
+   add ax,cx
+   mov vs_cursor,ax
+   pop dx ! pop cx 
+   
+xy_ret:
+   mov vs_escape_rt, offset default_esc
+   ret
+
+;---------------
+erase_screen:                       ; ESC E
+;---------------
+
+   push es ! push cx
+   mov es, vs_screen_seg            ; get virtual screen segment
+   mov ax, 0720H                    ; put normal attribute with blank
+   mov cx, crt_size                 ; do entire screen
+   xor di,di                        ; start at position zero
+   rep stosw
+   pop cx ! pop es
+   ret
+
+;---------------
+erase_begin:                        ; ESC B
+;---------------
+
+   push es ! push cx
+   mov es, vs_screen_seg            ; get virtual screen segment
+   mov ax,vs_cursor                 ; get number of words to erase from
+   shr ax,1                         ; beginning of screen
+   mov cx,ax
+   mov ax, 0720h                    ; give them all normal atrributes
+   xor di,di                        ; start at top of screen
+   rep stosw
+   pop cx ! pop es
+   ret 
+
+;---------------
+erase_end:                          ; ESC J
+;---------------
+
+   push es ! push cx
+   mov es,vs_screen_seg             ; get virtual screen segment
+   mov ax,vs_cursor    
+   mov di,ax                        ; erase from cursor to the end
+   shr ax,1
+   mov cx,crt_size
+   sub cx,ax                        ; CX = total # words to erase
+   mov ax,0720h                     ; given them all normal attributes
+   rep stosw
+   pop cx ! pop es
+   ret
+
+;---------------
+erase_line:                         ; ESC l
+;---------------
+
+   push es ! push cx ! push dx
+   mov es,vs_screen_seg             ; get virtual screen segment
+   xor ax,ax
+   mov al,vs_row        
+   mov cx,crt_col
+   mul cx                           ; get word offset of current row
+   shl ax,1                         ; make it a byte offset
+   mov di,ax                        ; start erasing here
+   mov ax,0720h                     ; give them all normal attributes
+   rep stosw
+   pop dx ! pop cx ! pop es
+   ret
+
+;---------------
+erase_bol:                          ; ESC o
+;---------------
+
+   push es! push cx ! push dx       ; erase from beginning of line
+   mov es,vs_screen_seg    
+   xor ax,ax
+   mov al,vs_row                    ; current row
+   mov cx,crt_col * 2
+   mul cx
+   mov di,ax                        ; beginning offset - word
+   xor cx,cx
+   mov cl,vs_column                 ; number of words to erase
+   inc cx                           ; on this line
+   mov ax,0720h                     ; give them all normal attributes
+   rep stosw
+   pop dx ! pop cx ! pop es
+   ret
+
+;---------------
+erase_eol:                          ; ESC K
+;---------------
+
+   push es ! push cx                ; erase to end of line
+   mov es,vs_screen_seg             ; get virtual screen segment
+   mov di,vs_cursor                 ; start to erase here
+   mov cx,crt_col
+   sub cl,vs_column                 ; number of words to erase on this line
+   mov ax,0720h                     ; give them all normal attributes
+   rep stosw
+   pop cx ! pop es
+   ret
+
+;---------------
+insert_line:                        ; ESC L
+;---------------
+
+   push ax ! push dx
+   mov dl,vs_row                    ; start row
+   mov dh,crt_row - 1               ; ending row
+   call scroll_down                 ; make room for the new line
+   call erase_line                  ; erase the old one
+   xor ax,ax                        
+   xchg al,vs_column                ; set cursor
+   shl ax,1
+   sub vs_cursor,ax   
+   pop dx ! pop ax
+   ret
+
+;---------------
+delete_line:                        ; ESC M
+;---------------
+;  
+;  ENTRY : BX -> screen structure
+;  EXIT  : BX _> same
+
+   push ax ! push dx
+   mov dl,vs_row                        ; scroll up first
+   mov dh,crt_row - 1
+   call scroll_up
+   mov vs_row[bx], crt_row - 1
+   call erase_line                      ; then erase the line
+   call carriage_return
+   pop dx ! pop ax
+   ret
+
+;---------------
+delete_char:                        ; ESC N
+;---------------
+
+   push es ! push cx
+   mov es,vs_screen_seg             ; get virtual screen segment
+   mov di,vs_cursor    
+   mov si,di
+   add si,2
+   xor cx,cx
+   mov cl,crt_col - 1
+   sub cl,vs_column    
+   push ds ! push es ! pop ds
+   rep movsw
+   mov 0[di],0720h                 ; put a blank in last column
+   pop ds ! pop cx ! pop es
+   ret
+
+;---------------
+enter_reverse:                     ; ESC p
+;---------------
+
+   push ax ! push es ! push di
+   ;mov es, vs_screen_seg
+   mov al, vs_mode
+   or al,vsa_reverse 
+   mov vs_mode, al   
+   ;mov di, vs_cursor
+   ;mov ax, es:[di]
+   ;mov ah,vsa_reverse
+   ;mov es:[di],ax   
+   mov al, vsa_reverse   
+   mov vs_attrib,al
+   pop di ! pop es ! pop ax 
+   ret
+
+
+;---------------
+exit_reverse:                      ; ESC q
+;---------------
+
+   push ax ! push es ! push di
+   ;mov es, vs_screen_seg
+   mov al, vs_mode
+   and al, not vsa_reverse
+   mov vs_mode, al
+   ;mov di, vs_cursor
+   ;mov ax, es:[di]
+   ;mov ah, vsa_normal
+   ;mov es:[di],ax
+   mov al, vsa_normal
+   mov vs_attrib,al
+   pop di ! pop es ! pop ax
+   ret
+
+;---------------
+enter_blink:                       ; ESC s
+;---------------
+
+   ret
+
+;---------------
+exit_blink:                        ; ESC t
+;---------------
+
+   ret
+
+;---------------
+enter_bright:                      ; ESC r
+;---------------
+
+   ret
+
+;---------------
+exit_bright:                       ; ESC u
+;---------------
+
+   ret
+
+;---------------
+enable_cursor:                     ; ESC e
+;---------------
+
+   ret
+
+;---------------
+disable_cursor:                    ; ESC f
+;---------------
+
+   ret
+
+;---------------
+enable_wrap:                       ; ESC v
+;---------------
+
+   and vs_mode,not vsm_no_wrap
+   ret
+
+;---------------
+disable_wrap:                      ; ESC w
+;---------------
+
+   or vs_mode,vsm_no_wrap
+   ret
+
+
+;***********************************************************
+;
+;        SUBROUTINES FOR VIRTUAL SCREEN UPDATES
+;
+;***********************************************************
+
+;----------
+scroll_up:                         ; scroll up in the range given in AX
+;----------                           
+;          entry: AH = virtual screen #
+;                 BX = screen structure
+;                 DL = starting row - 0 relative
+;                 DH = ending row - 0 relative
+;          exit : AX,BX,ES preserved
+           
+    push es ! push cx ! push dx
+    mov es,vs_screen_seg            ; DX = start,end rows  AL = virt. console #
+    mov cx,dx                       ; save copy of start,end rows
+    xor ax,ax  ! mov al,dl          ; set up SI,DI
+    mov dx,crt_col * 2         
+    mul dx  ! mov di,ax             ; DX,AX = byte offset starting row 
+    add ax,crt_col * 2              
+    mov si,ax  ! mov ax,cx          ; SI = first word to copy from
+    sub ah,al  ! xor al,al
+    xchg al,ah                      ; set up CX for # words to copy
+    mov dx,crt_col
+    mul dx  ! mov cx,ax
+    push ds ! push es! pop ds
+    rep movsw
+    pop ds ! pop dx ! pop cx ! pop es
+    ret
+
+;----------
+scroll_down:
+;----------
+;          entry: AH = virtual console number
+;                 BX = screen structure
+;                 DL = start row
+;                 DH = end row
+;          exit : AX,BX,ES preserved
+
+   push ax ! push cx ! push es
+   mov es,vs_screen_seg    
+   mov cx,dx
+   xor ax,ax
+   mov al,dh
+   inc al
+   push dx
+   mov dx,crt_col * 2
+   mul dx
+   sub ax,2
+   mov di,ax
+   sub ax,crt_col * 2
+   mov si,ax
+   std
+   mov ax,cx
+   sub ah,al
+   xor al,al
+   xchg al,ah
+   mov dx,crt_col
+   mul dx
+   mov cx,ax
+   pop dx
+   push ds ! push es ! pop ds
+   rep movsw
+   pop ds ! pop es ! pop cx ! pop ax
+   cld
+   ret
+
+;----------
+default_esc:
+;----------
+;           entry : CX = 0
+;           exit  : CX = ffffh - flag for simple char
+;                   CX = 0 for escape or backspace
+
+    dec cx
+    ret
+
+eject
+;**********************************************************
+;                                                         *
+;        SCREEN    SWITCH    ROUTINES                     *
+;                                                         *
+;**********************************************************
+
+;=========
+vs_switch:	; Switch Screen with full screen buffering
+;=========
+;
+;	input:	dl = Vcon to switch to
+;		dh = Pcon to do the switch on
+;               
+
+switch_init:
+
+        mov bx, dx
+        xor bh, bh
+        shl bx,1 
+        mov bx, screen_image_tbl[bx]           ;; BX -> screen structure
+        mov es, vs_screen_seg                  ;; ES -> screen image buffer
+        
+        push word ptr vs_mode
+        push word ptr vs_column                ;; save row and col for cursor
+        push word ptr vs_row                   ;; restore.
+
+set_up:
+        call set_up_bx                         ;; BX -> output Q ctl structure
+        call ser_home                          ;; home physical cursor
+        call ser_clear                         ;; clear physical screen
+        call ser_ex_rev                        ;; just to be safe
+
+        xor di,di                              ;; DI -> our cursor
+        xor dh,dh                              ;; DL -> # columns done so far
+        mov dl, 0ffh
+        mov al, vsa_normal                     ;; AL -> attribute
+        xor ah,ah                              ;; Default attribute is normal.
+
+switch_loop:
+        mov cx, es:[di]                        ;; CX -> new atrribute, char
+        cmp al,ch                              ;; new attribute ?
+         je switch_loop1                       ;; no, send the char
+
+send_esc_seq:
+        push dx ! push cx 
+        test ch, vsa_reverse
+         jnz ent_rev
+        call ser_ex_rev
+          jmp done_esc
+
+ent_rev: 
+        call ser_ent_rev
+
+done_esc:
+        pop cx ! pop dx
+        xor ah,ah
+        mov al,ch                              ;; update attribute
+
+switch_loop1:
+        push dx ! push ax 
+        xor ch,ch
+        call serial_out                        ;; send the char
+        inc di ! inc di                        ;; DI -> curr char count
+        pop ax ! pop dx                        
+        inc dl                                 ;; DL -> column count
+
+total_check:
+        push di ! dec di ! dec di
+        cmp di,(crt_size * 2) - 2              ;; DI -> total chars sent so far
+        pop di  
+         jae redo_cursor                       
+
+line_check:
+        cmp dl, crt_col - 1                    ;; are we at the end of line ?
+          jb switch_loop                       ;; no, do total chars check
+        call car_ret                           ;; do the CR/LF
+        mov dl, 0ffh                           ;; reset col count to 0
+          jmps switch_loop                       
+
+redo_cursor:
+        pop ax ! pop dx                        ;; AL -> row, DL -> col
+        call restore_cursor
+
+chk_wrap:
+        pop dx                                 ;; get mode back
+        test dl, vsm_no_wrap                   ;; check for wrap-around mode
+          jnz dis_wrap
+        call ser_en_wrap
+          jmps chk_rev
+dis_wrap:
+        call ser_dis_wrap      
+
+chk_rev:
+        test dl, vsa_reverse                   ;; check for inverse video
+          jz ex_rev
+        call ser_ent_rev 
+          jmps curr_vc
+
+ex_rev:
+       call ser_ex_rev
+
+curr_vc:
+       ret                                     ;; back to switch module
+       
+
+;-----------
+set_up_bx:
+;-----------
+
+	xor bx, bx
+	mov bl, dh		               ;; use Pcon to index into the Xmit Q's
+	mov bl,contable[bx]		       ;; get usart number
+	shl bx, 1
+	mov bx, ocdesctbl[bx]	               ;; bx -> Xmit Q control
+        ret
+
+
+ser_ent_rev:
+;-----------
+;   Sends Z-29/19 escape sequence for Enter Reverse Mode
+;   
+;   Entry : BX -> Xmit Q control structure
+;
+    mov oesc_cnt[bx], 2
+    mov cl, esc
+    call serial_out
+    mov cl, 'p'
+    call serial_out
+    ret
+
+ser_ex_rev:
+;----------
+;  Sends Z-29/19 escape sequence for Exit Reverse Mode
+;
+;  Entry : BX -> Xmit Q control structure
+;
+   mov oesc_cnt[bx], 2
+   mov cl, esc
+   call serial_out
+   mov cl, 'q'
+   call serial_out
+   ret
+
+ser_en_wrap:
+;-----------
+;  Sends Z-29/19 escape sequence for Enable Wrap Mode
+;
+;  Entry : BX -> Xmit Q control structure
+;
+   mov oesc_cnt[bx], 2
+   mov cl, esc
+   call serial_out
+   mov cl, 'v'
+   call serial_out
+   ret
+
+ser_dis_wrap:
+;-----------
+;  Sends Z-29/19 escape sequence for Disable Wrap Mode
+;
+;  Entry: BX -> Xmit Q control structure
+;
+   mov oesc_cnt[bx], 2
+   mov cl, esc
+   call serial_out
+   mov cl, 'w'
+   call serial_out
+   ret
+
+ser_home:
+;--------
+;  Sends Z-29/19 escape sequence for Home Cursor
+;
+;  Entry : BX -> Xmit Q control structure
+;
+   mov oesc_cnt[bx], 2
+   mov cl, esc
+   call serial_out
+   mov cl, 'H'
+   call serial_out
+   ret
+
+ser_clear:
+;---------
+;  Sends Z-29/19 escape sequence for Clear Screen
+;
+;  Entry : BX -> Xmit Q control structure
+;
+   mov oesc_cnt[bx], 2
+   mov cl, esc
+   call serial_out
+   mov cl, 'E'
+   call serial_out
+   ret
+
+
+car_ret:
+;-----------
+;  Sends a carriage return/ linefeed to Z-29/19 .
+;
+;
+  push ax ! push si
+  mov cl, 0ah
+  call serial_out
+  mov cl, 0dh
+  call serial_out
+  pop si ! pop ax
+  ret
+
+
+restore_cursor:
+;--------------
+;  Sends Z-29/19 escape sequence to reposition cursor
+;
+;  Entry : BX -> Xmit Q control structure
+;
+   push dx ! push ax
+   mov oesc_cnt[bx],4
+   mov cl, esc
+   call serial_out
+   mov cl, 'Y'
+   call serial_out
+   pop ax                                      ;; row #
+   add al, 32                                  ;; normalize for terminal
+   mov cl,al                                   
+   call serial_out
+   pop dx                                      ;; col #
+   add dl, 32                                  ;; move cursor 1 char past last char                                  
+   mov cl,dl                                    
+   call serial_out
+   ret
+
+
+;************************************************
+;						*
+;        Console input Routine			*
+;						*
+;************************************************
+
+conin_0:
+;------
+;	ENTRY:	bx = addr of the Q control block
+;	EXIT:	ah = 0 if characters are being returned.
+;		ah = 0FFH if this is a screen switch code being returned
+
+
+	push bx			; save the Q control addr
+	call serial_in		; get the character
+	pop bx			; restore the Q control addr
+	cmp al, ESC 
+	 je esc_now
+        mov ah, 0		; set ah as a character code
+	  ret
+esc_now:	                ; delay for 16 ms, check for another character
+	push bx			; save the Q control addr
+	push ax
+	mov dx, DELAY_16MS	; delay for 16 ms
+	mov cl, P_DELAY
+	call supif
+	pop ax
+	pop bx			; restore the Q control addr
+	test Q_STATE[bx], CHAR_AVAIL
+	 jnz esc_seq           
+                                ; it must be a lone escape character
+        mov al, ESC		; al = the return character ( ESC )
+	mov ah, 0		; ah = character being returned code
+	  ret
+esc_seq:
+	mov ESC_BUFF[bx],al	; save the ESC
+	push bx			; save the Q ctl addr	
+	call serial_in		; get the next char
+	pop bx			; restore the Q ctl addr
+        cmp al, '?' 
+         je exit_st0		; ignore alt keypad
+        cmp al, 'S' 
+	 jb exit_st0		; check for screen switch
+        cmp al, 'S'+vcoff-1	; check for max. allowed screen
+	 ja exit_st0		; ignore out-of-range function keys
+
+	                        ; this is a screen switch command
+        sub al, 'S'		; normalize the screen number to 0
+	mov ah, 0FFH		; set the screen switch return code
+        mov dh, P_CON[bx]	; Check if we're in the middle of an
+  	mov dl, dh		; escape sequence.
+        push bx			; If so, don't allow screen switch key to
+          call set_up_bx	; return to PIN until sequence is finished.
+        cmp OESC_CNT[bx],0
+        pop bx
+          je exit_st1
+
+        or Q_STATE[bx], SWITCH_PEND                
+        xor dh,dh
+        add dl, SWITCH_BIAS
+        mov cl, f_flagwait
+        push ax
+         call supif
+        pop ax
+	jmps exit_st1
+
+exit_st0:
+	xchg al,ESC_BUFF[bx]	; trade second char in sequence for ESC 
+				; and change input routine to pick up
+				; second character in sequence
+	mov C_STATE[bx],offset conin_1
+	mov ah,0
+
+exit_st1:
+	ret
+
+
+;Alternate state of the console input function. Used to pick up the 
+; Character in a non-switching ESC sequence.
+;	Entry bx = address of Q control structure
+;
+;	Exit  al = second character in ESC sequence
+;	      ah = 0
+;	      State is switched back to conin_0
+
+conin_1:
+	mov al,ESC_BUFF[bx]	; Get the character
+	mov ah,0		; Set return code
+	mov C_STATE[bx],offset conin_0
+	ret
+
+;********************************************************
+;							*
+; Serial output routine					*
+;							*
+;********************************************************
+serial_out:
+;
+;	ENTRY:	cl = character to send out
+;		bx -> Queue control struct
+;
+;	EXIT:	the character is :
+;               1] either sent to the USART, 
+;               2] or put in the output buffer,	
+;               3] or, the process is flagwaited until there is room
+;		in the output buffer .
+;	Also counts characters in the terminal dependent esc sequences
+;	to determine when a switch can occur.
+
+	pushf				 
+	push bx
+	cli				
+	push cx				;; save the character
+	mov cx, OMSGCNT[bx]		;; cx = number of chars in the Q
+	cmp cx, ONMSGS			;; is there room in the Q ?
+	  jb con1
+	or OFLAG[bx], PROC_WAITING	;; no, set a local process-waiting flag
+	pop cx 			        
+	pop bx
+	popf				;; turn interrupts back on
+	push cx			        ;; save the character
+	push bx			        ;; save the Q ctl structure
+
+	mov dl,OFLAGN[bx]		;; do the global flagwait
+	mov cl,F_FLAGWAIT
+	  call supif
+	cmp ax, ERROR			;; was there an error ?
+	  jne con0
+	                                ;; It might have been a flag overrun.
+        mov cl, P_DISPATCH              ;; Dispatch the process, and try again.
+          call supif
+
+con0:
+        pop bx			        ;; BX -> Q ctl structure
+        pop cx			        ;; restore the char
+	  jmps serial_out
+
+con1:                                   ;; There's  room in the Xmit Q.
+	cmp OESC_CNT[bx], 0		;; Check the esc count
+	  jz not_esc
+	push bx
+        cmp OESC_CNT[bx], 1             ;; Are we at the end of the sequence?
+	  je check_switch		;; Yes, see if PIN is waiting.
+
+check_xy:
+	cmp OESC_CNT[bx], 3		;; See if this is a 4-char sequence.
+	  jne dec_esc			;; We're at first or third char.
+        pop bx ! pop ax 
+	push ax ! push bx 		;; AX -> char , BX -> Output Q ctl
+        cmp ax, 'Y'			;; ESC Y is only 4-char sequence.
+	  je dec_esc
+
+check_switch:
+        pop bx ! pop ax 
+	mov OESC_CNT[bx], 0		;; Clear escape count.
+         call con2			;; Send the last char in the sequence
+        xor ah,ah			;; before doing the flag set, if any.
+        mov al, CUR_VCON[bx]
+        mov bx,ax
+        mov bl, vrtl_phy[bx]		;; get the physical console #
+        xor bh,bh
+	mov bl,contable[bx]		;; get usart number
+        shl bx, 1
+        mov bx, icdesctbl[bx]		;; get the Input Q control structure
+        test Q_STATE[bx],SWITCH_PEND    ;; Is PIN waiting for an escape
+          jz exit 			;; sequence to end ?
+
+flag_set:
+        push bx ! push cx ! push si
+        xor dh, dh
+        mov dl, P_CON[bx]
+        add dl, SWITCH_BIAS		;; Flag # = virtual console + bias
+        mov cl, f_flagset		;; Wake up the PIN waiting to do
+         call supif			;; a screen switch.
+        pop si ! pop cx ! pop bx
+        and Q_STATE[bx], not SWITCH_PEND
+	  jmps exit
+not_esc:
+	pop ax
+	call con2
+	 jmps exit
+dec_esc:
+        pop bx  ! pop ax
+	dec OESC_CNT[bx]
+	call con2
+
+exit:
+	pop bx
+	popf
+	 ret
+
+con2:	                                ;; put the character in the Xmit Q
+	mov si, OMSGOUT[bx]		;; get the output index
+	add si, cx			;; add to it the number of chars
+	and si,ONMSGS - 1		;; in the buffer, mod( buff size )
+	mov OBUFFER[bx+si],al		;; put it in the Q
+	inc cx				;; inc Q char count
+	mov OMSGCNT[bx],cx		
+	                                ;; if 1st char in Q, start USART Xmit
+	dec cx				;; cx = chars in Q -1 
+	  jnz con4
+	test OFLAG[bx], XON_XOFF_MODE   ;; Is it supporting Xon/Xoff protocol ?
+	  jz con3
+	test OFLAG[bx], XOFF_PENDING    ;; Is there an Xoff pending ?
+	    jnz con4                    
+	                                ;; The character is in the buffer and 
+con3:                                   ;; the usart int system is turned off.
+	call usart_on                   ;; Start the Usart's Xmitter.
+con4:
+	ret
+
+
+;************************************************	
+;						*
+;		Status line Routine		*
+;						*
+;************************************************
+
+
+vs_statline:
+;
+;	CCP/M's entry point for status line updates
+;	
+;	ENTRY:	DL = physical console 
+;
+
+
+	;fill in status line info here !!
+
+	push es				; save the UDA
+	push dx				; save the Pcon
+
+	mov ax,ds			; set up for subsequent string
+	mov es,ax			; moves
+
+
+
+	xor bx, bx			; get the Xmit Q control stucture
+	mov bl, dl
+	mov bl,contable[bx]		; get usart number
+	shl bx, 1
+	mov bx, ocdesctbl[bx]		; bx -> Xmit Q control Structure
+
+	mov	bl, CUR_VCON[bx]	; al = current Vcon for this Pcon
+	xor	bh,bh
+	shl	bx,1
+;	and al, 0fh
+
+	mov	ax,f30_tbl[bx]
+	test	ax,0010H		; no update if in gen. graphic mode
+	jz	update
+;
+	pop	dx
+	pop	es
+	ret
+
+;    Going to update status line
+
+update:				;*** fill in console owner name
+	mov si, vccb_tbl[bx]		; si -> VCCB for this Pcon's 
+					; current Vcon
+
+	mov si, [si]			; get pd addr from ccb
+	add si, P_NAME			; move console owners
+	mov di, offset st_name		; name into status line
+
+	mov cx,4
+	cld
+	rep movsw
+
+				;*** update Vcon field
+	shr	bx,1			; get back Vcon number
+	and 	bl,vcoff-1		; make console relative
+	add 	bl,'0'
+	mov 	vcon_numb,bl
+
+
+
+	mov al, dl		;*** fill in the physical console
+	xor ah,ah
+	mov bl,10
+	div bl				; Convert to decimal value
+	add ax,03030h			; Make value acsii
+	mov pcon_numb, ax
+
+
+
+	mov di,offset st_open	;*** fill in open file drive letters
+	mov cx, 6			; 6 drives
+	mov al,' '			; clear open file string
+	rep stosb
+
+	mov dx,open_vector
+	mov di,offset st_open
+update0:
+	shr dx,1! jnc update1
+	  mov al,cl
+	  add al,'A'
+	  stosb				;store drive letter
+update1:
+	inc cx
+	or dx,dx
+	jnz update0			;any more drives?
+
+	mov bx,offset time		;Point to place to put time
+	mov al,tod_hr			;Get the hour (BCD)
+	call bcd_asc			;Convert to ASCII (in ax)
+	mov [bx],ax			;Store it
+	
+	mov al,tod_min			;Get the minutes
+	call bcd_asc			;Convert to ASCII
+	mov 3[bx],ax
+
+
+;
+;    Send the status line to the console 
+;
+
+	pop dx				; get the Pcon back
+	pushf
+	cli
+
+	; check for room in the con-out circular buffer
+	; if ( omsgs - omsgcnt > st_len ) display the status line
+	; also check for not being in the middle of an escape sequence
+
+	; get the physical Q control structure
+
+	xor dh, dh			; clear the high byte
+	mov bx, dx
+	mov bl,contable[bx]
+	shl bx, 1
+	mov bx, ocdesctbl[bx]		; bx -> Xmit Queue control
+
+	mov ax, ONMSGS
+	sub ax, OMSGCNT[bx]
+	cmp ax, ST_LEN ! jb stl_ret 
+	  cmp OESC_CNT[bx], 0 ! jne stl_ret
+
+stl_now:
+	mov cx, ST_LEN - 1		; length of the status line
+	mov si, offset st_line		; addr of the status line
+	mov dx, OMSGCNT[bx]		; the chars in Q
+	mov bp, OMSGOUT[bx]		; current output pointer
+
+st_line_lp:
+	mov di, bp			; current char ptr => index reg
+	add di, dx			; add in the number of chars waiting
+	and di, (ONMSGS - 1)		; circular buffer...
+	lodsb				; get a char from the st line
+	mov OBUFFER[di+bx], al		; stuff the character
+	inc dx				; bump char waiting count
+	loop st_line_lp			; do it until the entire status line
+					; is moved into the con out buffer
+
+	mov OMSGCNT[bx], dx		; put the updated number of chars
+					; waiting to go out into the Q 
+					; control structure.
+
+	test OFLAG[bx],XON_XOFF_MODE	; See if this Usart uses XON/XOFF
+	jz stl1				; Continue if not
+	test OFLAG[bx],XOFF_PENDING	; Check for pending XOFF
+	jnz stl_ret			; Leave Interrupts off if XOFF pending
+stl1:
+	call usart_on			; start the engine ( if necessary )
+
+stl_ret:
+	popf
+	pop es				; es = UDA
+
+	ret
+
+;Utility routine to convert BCD value in al to ASCII
+;Result is returned in AX (Low Byte in ah)
+
+bcd_asc:
+	mov ah,al
+	and ax,0ff0h			;Isolate nibbles
+	mov cl,4
+	shr al,cl			;Move lower nibble into place
+	add ax,03030h			;Make ASCII
+	ret				
+
+
+
+         dseg
+
+
+;***************************************************************
+;                                                              *
+;                    SPECIAL OUTPUT CHARACTER TABLES           *
+;                                                              *
+;***************************************************************
+
+   spec_char_tab     db      4
+                     db      cr,lf,backsp,escape
+
+   spec_func_tab     dw      carriage_return
+                     dw      line_feed
+                     dw      back_space
+                     dw      escape_rt
+
+;***************************************************************
+;                                                              *
+;                    ESCAPE SEQUENCE TABLES                    *
+;                                                              *
+;***************************************************************
+
+  esc_tbl            db       28
+
+                     db       'H','C','D','S','A'
+                     db       'I','j','k','Y','E'
+                     db       'b','J','l','o','K'
+                     db       'L','M','N','p','q'
+                     db       'r','u','s','t','a'
+                     db       'f','v','w'
+
+esc_func_tbl         dw        home
+                     dw        right
+                     dw        left 
+                     dw        down  
+                     dw        up  
+                     dw        up_with_scroll    
+
+                     dw        save
+                     dw        restore  
+                     dw        x_and_y
+
+                     dw        erase_screen
+                     dw        erase_begin
+                     dw        erase_end
+                     dw        erase_line
+                     dw        erase_bol
+                     dw        erase_eol
+
+                     dw        insert_line
+                     dw        delete_line
+                     dw        delete_char
+
+                     dw        enter_reverse
+                     dw        exit_reverse
+                     dw        enter_bright
+                     dw        exit_bright
+                     dw        enter_blink
+                     dw        exit_blink
+
+                     dw        enable_cursor
+                     dw        disable_cursor
+                     dw        enable_wrap
+                     dw        disable_wrap
+
+
+;*****************************************************************
+;                                                                *
+;       VIRTUAL   SCREEN   IMAGE TABLE                           *
+;                                                                *
+;*****************************************************************
+
+
+screen_image_tbl   dw   scrn_image0
+                   dw   scrn_image1
+                   dw   scrn_image2
+                   dw   scrn_image3
+                   dw   scrn_image4
+                   dw   scrn_image5
+                   dw   scrn_image6
+                   dw   scrn_image7
+                   dw   scrn_image8
+                   dw   scrn_image9
+                   dw   scrn_image10
+                   dw   scrn_image11
+                   dw   scrn_image12
+                   dw   scrn_image13
+                   dw   scrn_image14
+                   dw   scrn_image15
+                   dw   scrn_image16
+                   dw   scrn_image17
+                   dw   scrn_image18
+                   dw   scrn_image19
+                   dw   scrn_image20
+                   dw   scrn_image21
+                   dw   scrn_image22
+                   dw   scrn_image23
+                   dw   scrn_image24
+                   dw   scrn_image25
+                   dw   scrn_image26
+                   dw   scrn_image27
+                   dw   scrn_image28
+                   dw   scrn_image29
+                   dw   scrn_image30
+                   dw   scrn_image31
+                   dw   scrn_image32
+                   dw   scrn_image33
+                   dw   scrn_image34
+                   dw   scrn_image35
+                   dw   scrn_image36
+                   dw   scrn_image37
+                   dw   scrn_image38
+                   dw   scrn_image39
+                   dw   scrn_image40
+                   dw   scrn_image41
+                   dw   scrn_image42
+                   dw   scrn_image43
+                   dw   scrn_image44
+                   dw   scrn_image45
+                   dw   scrn_image46
+                   dw   scrn_image47
+                   dw   scrn_image48
+                   dw   scrn_image49
+                   dw   scrn_image50
+                   dw   scrn_image51
+                   dw   scrn_image52
+                   dw   scrn_image53
+                   dw   scrn_image54
+                   dw   scrn_image55
+
+scrn_image0        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image1        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image2        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image3        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image4        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image5        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image6        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image7        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image8        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image9        dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image10       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image11       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image12       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image13       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image14       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image15       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image16       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image17       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image18       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image19       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image20       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image21       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image22       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image23       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image24       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image25       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image26       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image27       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image28       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image29       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image30       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image31       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image32       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image33       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image34       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image35       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image36       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image37       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image38       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image39       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image40       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image41       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image42       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image43       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image44       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image45       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image46       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image47       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image48       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image49       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image50       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image51       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image52       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image53       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image54       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+scrn_image55       dw   0,0                   ;cursor, oldcursor
+                   db   0,0,2                 ;col, row, mode
+                   db   vsa_normal            ;attribute
+                   dw   0,0,0                 ;xy, oldxy, screen segment
+                   dw   offset default_esc    ;default: first char = reg char
+
+
+
+;****************************************************************
+;								*
+;		Status Line Data				*
+;								*
+;****************************************************************
+
+
+st_line	db	esc,'j'		;save cursor position
+	db	0,0,0,0		; wait for the Z 19
+
+	db	esc,'x1'	;enable status line
+	db	esc,'Y'		;direct cursor address
+	db	31+25,31+1	; line 25, column 1
+
+	db	'Pcon='
+pcon_numb dw	3030h		;ascii Pcon number
+	db	'  '		; visual delimiter
+
+	db	'Vcon='
+	db	'0'		
+vcon_numb db	'0'		; ascii Vcon number
+	db	'  '		; visual delimiter
+
+st_name	db	'        '	;console owner process name
+	db	'  '		; visual delimiter
+
+st_open	db	'xxxxxx'	;drives with open files
+
+;	db	;additional bytes for status line
+
+	db	'          ' 
+	db	'          '
+	db	'          '
+
+time	db	0,0		;Hours
+	db	':'
+	db	0,0		;Minutes
+
+	db	esc,'k'		;restore cursor position
+	db	0,0,0,0
+	db	0ffh
+st_len	equ	(offset $-1) - (offset st_line)
+
+;	table to indicate if special status line is being displayed currently
+
+
+	end
+

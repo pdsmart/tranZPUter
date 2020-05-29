@@ -1,0 +1,953 @@
+title	'Virtual Screen Handler'
+; LAST updated 11/13/84
+
+;Select the virtual screen handler module given by the equate
+; given in the global.equ file.
+
+nolist
+include system.lib
+include sysdat.lib
+include global.equ
+include vscreen.equ
+include	chrcomm.equ
+include serdata.equ
+include flags.equ
+list
+
+	if z19
+include vscz19.a86
+	endif
+
+	if not z19
+;All the remaining non-buffered terminal types use the routines given
+;below. The data necessary to handle the terminal interface are specified
+;in the headentr module. This makes it possible to specify a new terminal 
+;without reassembling this module.
+
+;Terminal definition values
+
+	dseg
+
+extrn	nvcns:byte		;Number of virtual consoles
+extrn	vcphy:byte		;Number of vcons per pcon
+extrn	vmask:byte		;Vcphy -1
+extrn	page0:byte		;Terminal value for addressing page 0
+extrn	home:byte		;Terminal values for row 1, column 1
+extrn	func0:byte		;String sent by function key assigned to
+				;0th virtual console.
+extrn	keylock:byte		;String to lock terminal keyboard
+extrn	clear_home:byte		;String to clear the screen and home the cursor
+extrn	read_cursor:byte	;String to request current cursor position
+extrn	cur_read_len:word	;Length of string sent by terminal for cursor read
+extrn	set_cursor:byte		;Beginning of string to set cursor position
+				; (page,row,column)
+extrn	keyunlock:byte		;String to unlock keyboard
+
+extrn	sec_in_four:byte	;Table of values for the second char in 4 char
+				; esc sequences.
+extrn	sec_in_three:byte
+
+extrn	userline:byte		;True if status line in use
+extrn	stat_send:byte		;String to send status line to terminal
+extrn	stat_display:byte	;String to display status line (if necessary)
+
+
+;******************************************************
+;						      *
+;     Virtual screen handler			      *
+;						      *
+;     Last changed : 11/1/84                          *
+;                                                     *
+;******************************************************
+    
+
+eject
+
+        dseg
+
+extrn   mem_alloc:word
+extrn	contable:byte
+extrn   ocdesctbl:word
+extrn	icdesctbl:word
+extrn	vccb_tbl:word
+extrn	vrtl_phy:byte
+extrn	f30_tbl:word
+
+        cseg
+
+ public vs_init
+ public vs_conout
+ public vs_switch
+ public conin_0
+ public	vs_statline
+ public set_up_bx
+ public serial_out
+ extrn  conout1:near
+ extrn	serial_in:near
+ extrn	usart_on:near
+ extrn	supif:near
+
+;************************************************                              
+;        VIRTUAL   SCREEN   INITIALIZATION      *
+;************************************************
+
+;==========
+vs_init:
+;==========
+                                        
+;Initialize the virtual screen structures (SCR's) for correct
+;virtual to physical console correspondence. Also set up the 
+;string to send as the status line.
+
+	push	es
+	mov ax,ds ! mov es,ax
+
+	cmp	page0,0ffh		;See if screen buffering is in use
+	je	vs_init1		;Skip if not
+vs_init0:
+	mov	ax,Word Ptr home	;Point to home coordinates (row,column)
+	mov	di,Offset scr0		;Point to first screen structure
+	mov	dh,vcphy		;Get vcons per pcon
+	dec	dh			;Convert to mask value
+	mov	dl,0			;Start at vcon=0
+	mov	cl,nvcns		;Number to set
+	xor	ch,ch
+vs_iloop:
+	mov	bl,dl
+	and	bl,dh			;Calculate relative vcons for this pcon
+	add	bl,Byte Ptr page0	;Convert to terminal relative value
+	mov	[di],bl			;Save the page
+	inc	di
+		stosw			;Set row,column at home
+	inc	dl			;Point to next vcon
+	loop 	vs_iloop
+
+vs_init1:
+	cmp	userline,true		;See if we are using a status line
+	jne	vs_inexit
+	mov	si,Offset stat_send	;Point to string to send status line
+	mov	di,Offset st_line	;Location to place it in message
+	mov	cl,[si]			;Length of move
+	xor	ch,ch
+	jCXz	vs_inexit		;If 0 length string
+	inc 	si			;Point to string
+	rep	movsb			;Set string into message
+	mov	si,Offset stat_display	;Point to string to display status line
+	mov	di,Offset display	;Place to store it in message
+	mov	cl,[si]			;Length of string
+	jCXz	vs_inexit		;Quit if zero length
+	inc	si			;Point to string
+	rep	movsb
+
+vs_inexit:
+	pop	es
+	ret
+
+
+
+;******************************************************
+;                                                     *
+;       ENTRY POINT FOR VIRTUAL SCREEN UPDATES        *
+;                                                     *
+;******************************************************
+
+;===========
+vs_conout:
+;===========
+
+     jmp conout1			;Since all buffering is carried out
+					;by the terminal, we simply send it 
+					;the characters directly
+
+;************************************************
+;						*
+;	Console Switch Routine			*
+;						*
+;************************************************
+;
+;	Switch screen by changing pages of memory
+;	in the terminal
+;	Entry: dl=Vcon to switch to
+;	       dh=Pcon to do the switch on
+;
+
+vs_switch:
+	xor bx,bx
+	mov bl,dh
+	mov bl,contable[bx]		;Get usart number
+	shl bx,1
+	mov bx,ocdesctbl[bx]		;Point to output Q descriptor
+	mov al,CUR_VCON[bx]		;Value of current Vcon
+	xor ah,ah
+	mov di,ax			
+	shl di,1			;Create table index for old Vcon
+	mov al,dl
+	mov si,ax
+	shl si,1			;Create table index for new Vcon
+
+	push dx
+	push di
+
+	mov si,screen_tbl[si]		;Get address of screen structure
+					;for new Vcon
+	push si				;Save pointer
+	mov di,Offset keylock		;Command to lock the keyboard
+	call swo_loop			;Send it
+	cmp page0,0ffh			;Check for multi-page terminal
+	jne sw_rd			;If have extra memory
+	mov di,Offset clear_home	;If no extra memory, then just clear
+	call swo_loop			; the screen, home the cursor
+	pop si				;Recover pointer (not used if no extra
+	jmps sw_unlock			; pages of memory)
+sw_rd:	mov di,Offset read_cursor	;Ask the terminal for the cursor position
+	call swo_loop
+	mov di,Offset set_cursor	;Send cursor positioning command
+	call swo_loop
+	pop di				;Get screen pointer back
+	mov cx,3
+	call swo_lp1			;Send page, row, column
+sw_unlock:
+	mov di,Offset keyunlock		;Unlock the keyboard
+	call swo_loop
+
+	pop di				;Recover old Vcon pointer
+	pop dx				;Recover Pcon, Vcon
+	cmp page0,0ffh
+	je sw_exit			;If no extra memory then all done
+
+	xor bx,bx
+	mov bl,dh
+	mov bl,contable[bx]
+	shl bx,1
+	mov bx,icdesctbl[bx]		;Point to input Q descriptor
+	mov di,screen_tbl[di]		;Get address of new Vcon structure
+					;Coordinates
+	inc di				;Skip over page number
+	mov cx,CUR_READ_LEN		;Number of bytes to read
+	xor dl,dl			;Zero the count
+
+swi_loop:
+	push di
+	push cx
+	push dx
+	call serial_in
+	pop dx
+	pop cx
+	pop di
+	cmp dl,2			;Only first two characters read are useful
+	jae swi_skip
+;??????????? STOSB ????????
+	mov [di],al
+	inc di
+swi_skip:
+	inc dl
+	loop swi_loop
+	
+sw_exit:
+	ret
+
+;Utility routine to send a string of characters to the terminal.
+;	Entry = DI points to a string of the form (length,string)
+;		BX points to output queue descriptor
+
+swo_loop:
+	xor cx,cx
+	mov cl,[di]			;Get length of string
+	jCXz swo_exit			;If no chars to send
+	inc di				;Point to first char.
+swo_lp1:
+	push di
+	push cx
+	mov cl,[di]
+	call serial_out
+	pop cx
+	pop di
+	inc di
+	loop swo_lp1
+swo_exit:
+	ret
+
+
+;-----------
+set_up_bx:
+;-----------
+
+	xor bx, bx
+	mov bl, dh		       ;; use Pcon to index into the Xmit Q's
+	mov bl,contable[bx]	       ;; get usart number
+	shl bx, 1
+	mov bx, ocdesctbl[bx]	       ;; bx -> Xmit Q control
+        ret
+
+
+
+;************************************************
+;						*
+;        Console input Routine			*
+;						*
+;************************************************
+
+conin_0:
+;------
+;	ENTRY:	bx = addr of the Q control block
+;	EXIT:	ah = 0 if characters are being returned.
+;		ah = 0FFH if this is a screen switch code being returned
+
+
+	mov si,Offset func0	;Point to function key string for console 0 
+	push si
+	push bx			; save the Q control addr
+	call serial_in		; get the character
+	pop bx			; restore the Q control addr
+	pop si
+	cmp al, ESC 
+	 je esc_now
+	cmp al, 1[si]		; also a possible switch code
+	 je esc_now
+        mov ah, 0		; set ah as a character code
+	  ret
+esc_now:	                ; delay for 16 ms, check for another character
+	push ax			; save the character
+	push bx			; save the Q control addr
+	push si			; save function key code pointer
+	mov dx, DELAY_16MS	; delay for 16 ms
+	mov cl, P_DELAY
+	call supif
+	pop si
+	pop bx			; restore the Q control addr
+	pop ax			; restore the character
+	test Q_STATE[bx], CHAR_AVAIL
+	 jnz esc_seq           
+                                ; it must be a lone escape character 
+	mov ah, 0		; ah = character being returned code
+	  ret
+esc_seq:
+	mov ESC_BUFF[bx],al	; save the first character in the string
+	push bx			; save the Q ctl addr	
+	push si			; save function key code pointer
+	call serial_in		; get the next char
+	pop si
+	pop bx			; restore the Q ctl addr
+	mov cl,2[si]		; get base character for switch function keys
+	cmp al,cl		; see if in range for switch
+	jb exit_st0
+	add cl,vmask		; calculate max. switch value for this pcon
+	cmp al,cl		; max. legal value
+	ja exit_st0
+	                        ; this is a screen switch command
+        sub al,2[si]		; normalize the screen number to 0
+	mov ah, 0FFH		; set the screen switch return code
+
+	mov cl,[si]		; get length of function key string
+	sub cl,2		; subtract data already received
+	jz esc_chk		; all done if no extra characters sent
+	xor ch,ch
+	push ax			; save current character
+clean_up:			; remove extra characters from the queue
+	push bx			; save Q ctl address
+	push cx			; save count
+	call serial_in		; pick up extra characters
+	pop cx
+	pop bx
+	loop clean_up		; continue until all characters have been read
+
+	pop ax			; get character back	
+esc_chk:
+	mov dh, P_CON[bx]	; Check if we're in the middle of an
+  	mov dl, dh		; escape sequence.
+        push bx			; If so, don't allow screen switch key to
+          call set_up_bx	; return to PIN until sequence is finished.
+	cli			; No interrupts while checking esc count
+        cmp OESC_CNT[bx],0
+        pop bx
+          je exit_st1
+
+        or Q_STATE[bx], SWITCH_PEND                
+	sti
+        xor dh,dh
+        add dl, SWITCH_BIAS
+        mov cl, f_flagwait
+        push ax
+         call supif
+        pop ax
+	jmps exit_st1
+
+exit_st0:
+	xchg al,ESC_BUFF[bx]	; trade second char in sequence for ESC 
+				; and change input routine to pick up
+				; second character in sequence
+	mov C_STATE[bx],offset conin_1
+	mov ah,0
+
+exit_st1:
+	sti
+	ret
+
+
+;Alternate state of the console input function. Used to pick up the 
+; Character in a non-switching ESC sequence.
+;	Entry bx = address of Q control structure
+;
+;	Exit  al = second character in ESC sequence
+;	      ah = 0
+;	      State is switched back to conin_0
+
+conin_1:
+	mov al,ESC_BUFF[bx]	; Get the character
+	mov ah,0		; Set return code
+	mov C_STATE[bx],offset conin_0
+	ret
+;********************************************************
+;							*
+; Serial output routine					*
+;							*
+;********************************************************
+serial_out:
+;
+;	ENTRY:	cl = character to send out
+;		bx -> Queue control struct
+;
+;	EXIT:	the character is :
+;               1] either sent to the USART, 
+;               2] or put in the output buffer,	
+;               3] or, the process is flagwaited until there is room
+;		in the output buffer .
+;	Also counts characters in the terminal dependent esc sequences
+;	to determine when a switch can occur.
+;  	NOTE: The conout routine always sets the esc count to 4 when an
+;	      esc is first encountered. This routine must correct that
+;	      count if there are fewer characters in the sequence actually
+;	      being sent.
+
+	pushf				 
+	push bx
+	push es
+	cli				
+	push cx				;; save the character
+	mov cx, OMSGCNT[bx]		;; cx = number of chars in the Q
+	cmp cx, ONMSGS			;; is there room in the Q ?
+	  jb con1
+	or OFLAG[bx], PROC_WAITING	;; no, set a local process-waiting flag
+	pop cx 			        
+	pop es
+	pop bx
+	popf				;; turn interrupts back on
+	push cx			        ;; save the character
+	push bx			        ;; save the Q ctl structure
+
+	mov dl,OFLAGN[bx]		;; do the global flagwait
+	mov cl,F_FLAGWAIT
+	  call supif
+	cmp ax, ERROR			;; was there an error ?
+	  jne con0
+	                                ;; It might have been a flag overrun.
+        mov cl, P_DISPATCH              ;; Dispatch the process, and try again.
+          call supif
+
+con0:
+        pop bx			        ;; BX -> Q ctl structure
+        pop cx			        ;; restore the char
+	  jmps serial_out
+
+con1:                                   ;; There's  room in the Xmit Q.
+	cmp OESC_CNT[bx], 0		;; Check the esc count
+	  jz not_esc
+	push bx
+        cmp OESC_CNT[bx], 1             ;; Are we at the end of the sequence?
+	  je check_switch		;; Yes, see if PIN is waiting.
+
+	cmp OESC_CNT[bx], 3		;; See if this is a 4-char sequence.
+	  jne dec_esc			;; We're at first or third char.
+        pop bx ! pop ax 
+	push ax ! push bx 		;; AX -> char , BX -> Output Q ctl
+	mov dx,ds ! mov es,dx
+	mov di,Offset sec_in_four	;; Point to table of second char in
+					;; four char esc sequences
+	mov cl,[di]			;; Number to test
+	xor ch,ch
+	inc di				;; Point to first character
+	repne scasb			;; Look for a match
+	  jE dec_esc			;; If have a match dec count by one.
+	mov di,Offset sec_in_three	
+	mov cl,[di]			;; Number to test
+	inc di				;; Point to first character
+	repne scasb
+	  jnz check_switch		;; If not found
+	   dec OESC_CNT[bx]		;; Update count to reflect shorter esc sequence
+	  jmps dec_esc
+
+check_switch:				;; Completed and two character esc 
+					;;  sequences end up here.
+        pop bx ! pop ax 
+	mov OESC_CNT[bx], 0		;; Clear escape count.
+         call con2			;; Send the last char in the sequence
+        xor ah,ah			;; before doing the flag set, if any.
+        mov al, CUR_VCON[bx]
+        mov bx,ax
+        mov bl, vrtl_phy[bx]		;; get the physical console #
+        xor bh,bh
+	mov bl,contable[bx]		;; get usart number
+        shl bx, 1
+        mov bx, icdesctbl[bx]		;; get the Input Q control structure
+        test Q_STATE[bx],SWITCH_PEND    ;; Is PIN waiting for an escape
+          jz exit 			;; sequence to end ?
+
+flag_set:
+        push bx 
+        xor dh, dh
+        mov dl, P_CON[bx]
+        add dl, SWITCH_BIAS		;; Flag # = virtual console + bias
+        mov cl, f_flagset		;; Wake up the PIN waiting to do
+         call supif			;; a screen switch.
+        pop bx
+        and Q_STATE[bx], not SWITCH_PEND
+	  jmps exit
+not_esc:
+	pop ax
+	call con2
+	 jmps exit
+dec_esc:
+        pop bx  ! pop ax
+	dec OESC_CNT[bx]
+	call con2
+
+exit:
+	pop es
+	pop bx
+	popf
+	 ret
+
+con2:	                                ;; put the character in the Xmit Q
+	mov cx, OMSGCNT[bx]		;; get the count of chars in the queue
+	mov si, OMSGOUT[bx]		;; get the output index
+	add si, cx			;; add to it the number of chars
+	and si,ONMSGS - 1		;; in the buffer, mod( buff size )
+	mov OBUFFER[bx+si],al		;; put it in the Q
+	inc cx				;; inc Q char count
+	mov OMSGCNT[bx],cx		
+	                                ;; if 1st char in Q, start USART Xmit
+	dec cx				;; cx = chars in Q -1 
+	  jnz con4
+	test OFLAG[bx], XON_XOFF_MODE   ;; Is it supporting Xon/Xoff protocol ?
+	  jz con3
+	test OFLAG[bx], XOFF_PENDING    ;; Is there an Xoff pending ?
+	    jnz con4                    
+	                                ;; The character is in the buffer and 
+con3:                                   ;; the usart int system is turned off.
+	call usart_on                   ;; Start the Usart's Xmitter.
+con4:
+	ret
+
+
+
+;************************************************	
+;						*
+;		Status line Routine		*
+;						*
+;************************************************
+
+
+vs_statline:
+;
+;	CCP/M's entry point for status line updates
+;	
+;	ENTRY:	DL = physical console 
+;
+
+
+	cmp userline,true		;See if a status line is in use
+	je vs_st0
+	ret				;Skip if none in use
+
+vs_st0:
+	push es				; save the UDA
+	push dx				; save the Pcon
+
+	mov ax,ds			; set up for subsequent string
+	mov es,ax			; moves
+
+
+
+	xor bx, bx			; get the Xmit Q control stucture
+	mov bl, dl
+	mov bl,contable[bx]		; get usart number
+	shl bx, 1
+	mov bx, ocdesctbl[bx]		; bx -> Xmit Q control Structure
+
+	mov	bl, CUR_VCON[bx]	; al = current Vcon for this Pcon
+	xor	bh,bh
+	shl	bx,1
+
+	mov	ax,f30_tbl[bx]
+	test	ax,0010H		; no update if in gen. graphic mode
+	jz	update
+;
+	pop	dx
+	pop	es
+	ret
+
+;    Going to update status line
+
+update:				;*** fill in console owner name
+	mov si, vccb_tbl[bx]		; si -> VCCB for this Pcon's 
+					; current Vcon
+
+	mov si, [si]			; get pd addr from ccb
+	add si, P_NAME			; move console owners
+	mov di, offset st_name		; name into status line
+
+	mov cx,4
+	cld
+	rep movsw
+
+				;*** update Vcon field
+	shr	bx,1			; get back Vcon number
+	and	bl,vmask		; make console relative
+	add 	bl,'0'			; make it ascii
+	mov 	vcon_numb,bl
+
+
+
+	mov al, dl		;*** fill in the physical console
+	xor ah,ah
+	mov bl,10
+	div bl				; Make value decimal
+	add ax,03030h			; Make ASCII
+	mov pcon_numb, ax
+
+
+
+	mov di,offset st_open	;*** fill in open file drive letters
+	mov cx, 16/2			; 16 drives
+	mov aX,'  '			; clear open file string
+	rep stosW
+
+	mov dx,open_vector		;Pick up open drive vector 
+	mov di,offset st_open		;Point at message in status line
+	MOV	AL,'A'
+update0:
+	shr dx,1! jnc update1
+	  	stosb			;store drive letter
+update1:inc 	AX			;Bump to next drive letter
+	OR 	DX,DX			;See if any more drives left
+	jnz 	update0			
+
+	mov bx,offset time		;Point to place to put time
+	mov al,tod_hr			;Get the hour (BCD)
+;*****
+	MOV	DX,'ma'			;Set up for time as "am"
+	CMP	AL,12H			;See if hour is past noon
+	JB	ISAM			;If noon or less, must be "am"
+	SUB	AL,12H			;Make pm time into 12 hour format
+	DAS				;Adjust for a decimal value
+	MOV	DX,'mp'			;Set time as "pm"
+ISAM:	CMP	AL,0			;See if hour is 0
+	JNZ	ISAM2			
+	MOV	AL,12H			;Make hour 12am if it is 0
+ISAM2:	MOV 	6[BX],DX		;Save "am" or "pm" after time
+;*****
+	call bcd_asc			;Convert to ASCII (in ax)
+	mov [bx],ax			;Store it
+	
+	mov al,tod_min			;Get the minutes
+	call bcd_asc			;Convert to ASCII
+	mov 3[bx],ax
+
+
+;
+;    Send the status line to the console 
+;
+
+	pop dx				; get the Pcon back
+	pushf
+	cli
+
+	; check for room in the con-out circular buffer
+	; if ( omsgs - omsgcnt > st_len ) display the status line
+	; also check for not being in the middle of an escape sequence
+
+	; get the physical Q control structure
+
+	xor dh, dh			; clear the high byte
+	mov bx, dx
+	mov bl,contable[bx]
+	shl bx, 1
+	mov bx, ocdesctbl[bx]		; bx -> Xmit Queue control
+
+	mov ax, ONMSGS
+	sub ax, OMSGCNT[bx]
+	cmp ax, ST_LEN ! jb stl_ret 
+	  cmp OESC_CNT[bx], 0 ! jne stl_ret
+
+stl_now:
+	mov cx, ST_LEN 			; length of the status line
+	mov si, offset st_line		; addr of the status line
+	mov dx, OMSGCNT[bx]		; the chars in Q
+	mov bp, OMSGOUT[bx]		; current output pointer
+
+st_line_lp:
+	mov di, bp			; current char ptr => index reg
+	add di, dx			; add in the number of chars waiting
+	and di, (ONMSGS - 1)		; circular buffer...
+		lodsb			; get a char from the st line
+	mov OBUFFER[di+bx], al		; stuff the character
+	inc dx				; bump char waiting count
+	loop st_line_lp			; do it until the entire status line
+					; is moved into the con out buffer
+
+	mov OMSGCNT[bx], dx		; put the updated number of chars
+					; waiting to go out into the Q 
+					; control structure.
+	test OFLAG[bx],XON_XOFF_MODE	; See if this port uses XON/XOFF
+	jz stl1				; Continue if not
+	test OFLAG[bx],XOFF_PENDING	; Check for pending XOFF
+	jnz stl_ret			; Leave interrupts off if XOFF pending
+stl1:
+	call usart_on			; start the engine ( if necessary )
+
+stl_ret:
+	popf
+	pop es				; es = UDA
+
+	ret
+
+;Utility routine to convert BCD value in al to ASCII
+;Result is returned in AX (Low Byte in ah)
+
+bcd_asc:
+	mov ah,al
+	and ax,0ff0h			;Isolate nibbles
+	mov cl,4
+	shr al,cl			;Move lower nibble into place
+	add ax,03030h			;Make ASCII
+	ret				
+
+         dseg
+
+
+
+;*****************************************************************
+;                                                                *
+;       VIRTUAL   SCREEN   DATA STRUCTURES                       *
+;                                                                *
+;*****************************************************************
+
+screen_tbl	dw	offset scr0
+		dw	offset scr1
+		dw	offset scr2
+		dw	offset scr3
+		dw	offset scr4
+		dw	offset scr5
+		dw	offset scr6
+		dw	offset scr7
+		dw	offset scr8
+		dw	offset scr9
+		dw	offset scr10
+		dw	offset scr11
+		dw	offset scr12
+		dw	offset scr13
+		dw	offset scr14
+		dw	offset scr15
+		dw	offset scr16
+		dw	offset scr17
+		dw	offset scr18
+		dw	offset scr19
+		dw	offset scr20
+		dw	offset scr21
+		dw	offset scr22
+		dw	offset scr23
+		dw	offset scr24
+		dw	offset scr25
+		dw	offset scr26
+		dw	offset scr27
+		dw	offset scr28
+		dw	offset scr29
+		dw	offset scr30
+		dw	offset scr31
+		dw	offset scr32
+		dw	offset scr33
+		dw	offset scr34
+		dw	offset scr35
+		dw	offset scr36
+		dw	offset scr37
+		dw	offset scr38
+		dw	offset scr39
+		dw	offset scr40
+		dw	offset scr41
+		dw	offset scr42
+		dw	offset scr43
+		dw	offset scr44
+		dw	offset scr45
+		dw	offset scr46
+		dw	offset scr47
+		dw	offset scr48
+		dw	offset scr49
+		dw	offset scr50
+		dw	offset scr51
+		dw	offset scr52
+		dw	offset scr53
+		dw	offset scr54
+		dw	offset scr55
+
+
+;In the following data structures the page is initialized at runtime
+
+scr0		db	0,20h,20h		;Storage for page, row, column 
+
+scr1		db	0,20h,20h			
+
+scr2		db	0,20h,20h			
+
+scr3		db	0,20h,20h			
+
+scr4		db	0,20h,20h			
+
+scr5		db	0,20h,20h			
+
+scr6		db	0,20h,20h			
+
+scr7		db	0,20h,20h			
+
+scr8		db	0,20h,20h			
+
+scr9		db	0,20h,20h			
+
+scr10		db	0,20h,20h			
+
+scr11		db	0,20h,20h			
+
+scr12		db	0,20h,20h			
+
+scr13		db	0,20h,20h			
+
+scr14		db	0,20h,20h			
+
+scr15		db	0,20h,20h			
+
+scr16		db	0,20h,20h			
+
+scr17		db	0,20h,20h			
+
+scr18		db	0,20h,20h			
+
+scr19		db	0,20h,20h			
+
+scr20		db	0,20h,20h			
+
+scr21		db	0,20h,20h			
+
+scr22		db	0,20h,20h			
+
+scr23		db	0,20h,20h			
+
+scr24		db	0,20h,20h			
+
+scr25		db	0,20h,20h			
+
+scr26		db	0,20h,20h			
+
+scr27		db	0,20h,20h			
+
+scr28		db	0,20h,20h			
+
+scr29		db	0,20h,20h			
+
+scr30		db	0,20h,20h			
+
+scr31		db	0,20h,20h			
+
+scr32		db	0,20h,20h			
+
+scr33		db	0,20h,20h			
+
+scr34		db	0,20h,20h			
+
+scr35		db	0,20h,20h			
+
+scr36		db	0,20h,20h			
+
+scr37		db	0,20h,20h			
+
+scr38		db	0,20h,20h			
+
+scr39		db	0,20h,20h			
+
+scr40		db	0,20h,20h			
+
+scr41		db	0,20h,20h			
+
+scr42		db	0,20h,20h			
+
+scr43		db	0,20h,20h			
+
+scr44		db	0,20h,20h			
+
+scr45		db	0,20h,20h			
+
+scr46		db	0,20h,20h			
+
+scr47		db	0,20h,20h			
+
+scr48		db	0,20h,20h			
+
+scr49		db	0,20h,20h			
+
+scr50		db	0,20h,20h			
+
+scr51		db	0,20h,20h			
+
+scr52		db	0,20h,20h			
+
+scr53		db	0,20h,20h			
+
+scr54		db	0,20h,20h			
+
+scr55		db	0,20h,20h			
+
+
+;****************************************************************
+;								*
+;		Status Line Data				*
+;								*
+;****************************************************************
+
+;Note: The send user line and display user line commands are filled in at runtime
+
+st_line	db	0,0,0,0		;Send user line
+	db	'Pcon='
+pcon_numb dw	3030h		;ascii Pcon number
+	db	'  '		; visual delimiter
+
+	db	'Vcon='
+	db	'0'
+vcon_numb db	'0'		; ascii Vcon number
+	db	'  '		; visual delimiter
+
+st_name	db	'        '	;console owner process name
+	db	'  '		; visual delimiter
+
+st_open	db	'xxxxxx'	;drives with open files
+	db	'xxxxxxxxxx' 
+
+;	db	;additional bytes for status line
+
+	db	'          '
+	db	'          '
+
+time	db	0,0		;Hours
+	db	':'
+	db	0,0		;Minutes
+	db	' am'		;12 hour format
+
+	db	0dh		;Delimiter for user line
+display	db	0,0,0,0		;Display user line
+	db	0ffh
+st_len	equ	(offset $-1) - (offset st_line)
+
+;	table to indicate if special status line is being displayed currently
+
+
+	endif			;Non Z19 terminals
+
+	end
+

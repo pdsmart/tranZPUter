@@ -1,0 +1,515 @@
+	TITLE CURSOR
+	SUBTTL - Pascal definitions -
+	PAGE 55
+
+;-------------------------------------------------------;
+;							;
+;  MODULE CURSOR -- cursor routines in assembler.       ;
+;							;
+;  begun: 15 - Aug - 82					;
+;							;
+;-------------------------------------------------------;
+
+	.COMMENT \
+
+This module contains cursor- positioning and semigraphics- procedures
+for VT 52+ type terminals like the VISUAL 200. The following definitions
+are to be made in your Pascal program to use them:
+
+TYPE                             
+  dir   = (up,down,left,right);  (* direction of the 3 line crossing *)
+                                 		
+
+EXTERNAL PROCEDURE GotoXY(x,y:INTEGER);       	 (* position cursor         *)
+EXTERNAL PROCEDURE ClrScr;			 (* clear whole screen 	    *)
+EXTERNAL PROCEDURE ClrEOS;		     	 (* clear to end of screen  *)	
+EXTERNAL PROCEDURE ClrEOL;			 (* clear to end of line    *)
+EXTERNAL PROCEDURE EraScr;			 (* erase whole screen      *)
+EXTERNAL PROCEDURE EraEOS;			 (* erase to end of screen  *)
+EXTERNAL PROCEDURE EraEOL;			 (* erase to end of line    *)
+EXTERNAL PROCEDURE EraEOF;			 (* erase to end of field   *)
+EXTERNAL PROCEDURE Hline(y,xStart,xEnd:INTEGER); (* draw horizontal line    *)
+EXTERNAL PROCEDURE Vline(x,yStart,yEnd:INTEGER); (* draw vertical line      *)
+EXTERNAL PROCEDURE TriAt(x,y:INTEGER; where:dir);(* print 3 line crossing   *)
+EXTERNAL PROCEDURE EdgeAt(x,y,x2,y2: INTEGER);   (* make frame- end points  *)
+EXTERNAL PROCEDURE CrossAt(x,y:INTEGER);	 (* print 4 line crossing   *)
+EXTERNAL PROCEDURE Mask;			 (* draw standard mask      *)
+EXTERNAL PROCEDURE Grafix;			 (* switch to graphics mode *)
+EXTERNAL PROCEDURE EndGra;			 (* switch to normal mode   *)
+EXTERNAL PROCEDURE BakGnd;			 (* switch to background    *)
+EXTERNAL PROCEDURE ForGnd;			 (* switch to foreground    *)
+
+
+To link them to your program, link the CURSOR.ERL file as well as the 
+PASLIB.ERL file. No references to other library routines are made.
+
+There is no error checking done on range of coordinates,etc. The whole
+library is intended to give highest speed and require minimal space. 
+Therefore, it does NOT use standard MT+ I/O but instead uses direct calls
+to CP/Ms CONOUT function. 
+
+The standard mask procedure draws horizontal lines of 80 characters length
+on lines 0,2 and 21. I use row 1 for a title, rows 3 to 20 for the appli-
+cation's screen display, and lines 22 and 23 for error- messages and as
+status display (e.g. "Type any key to continue" etc.).
+
+ 	\
+
+	.Z80
+
+	PUBLIC	GOTOXY			; cursor positioning.
+	PUBLIC	CLRSCR			; clear screen.
+	PUBLIC	CLREOS			; clear to end of screen.
+	PUBLIC	CLREOL			; clear to end of line.
+	PUBLIC	ERASCR			; erase screen.
+	PUBLIC	ERAEOS			; erase to end of screen.
+	PUBLIC	ERAEOL			; erase to end of line.
+	PUBLIC	ERAEOF			; erase to end of field.
+	PUBLIC	GRAFIX			; select graphics.
+	PUBLIC	ENDGRA			; select normal mode.
+	PUBLIC	FORGND			; select foreground.
+	PUBLIC	BAKGND			; select background.
+	PUBLIC	HLINE			; draw horizontal line.
+	PUBLIC	VLINE			; draw vertical line.
+	PUBLIC	EDGEAT			; print 4 edges of a rectangle.
+	PUBLIC	TRIAT			; print a 3 line crossing.
+	PUBLIC	CROSAT			; print a 4 line crossing.
+	PUBLIC	MASK			; draw standard mask.
+
+CONOT	EQU	2			; CP/M console output function.
+BDOS	EQU	5			; CP/M entry point.
+BS	EQU	8			; backspace character.
+ESC	EQU	1BH			; lead in character.
+
+
+	SUBTTL - cursor positioning -
+	PAGE
+	CSEG
+;
+;-------------------------------------------------------;
+; SUBROUTINE ESCAPE     -- send escape character.       ;
+;			                                ;
+; entry: --                                             ;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+ESCAPE:	LD	C,CONOT			; 
+	LD	E,ESC			; 
+	CALL	BDOS			; 
+	LD	C,CONOT			; 
+	RET				; 
+
+;-------------------------------------------------------;
+; SUBROUTINE GOTOXY -- position cursor on VT 52 +	;
+;							;
+; entry: coordinates on stack: Stk(2)=y, Stk(3)=x	;
+; exit: --						;
+;-------------------------------------------------------;
+;
+; send initial string (ESC 'Y')
+;
+GOTOXY:	CALL	ESCAPE			; send escape.
+
+	LD	E,'Y'			; send 'Y'
+	CALL	BDOS			; 
+
+	POP	HL			; RETurn address
+	POP	DE			; y- value
+	EX	(SP),HL	 		; x- value
+
+	LD	A,20H			; offset to x- value
+	ADD	A,L			; 
+	LD	L,A			; store x' in L
+
+	LD	A,20H			; offset to y- value
+	ADD	A,E			; 
+	LD	E,A			; store y' in E
+
+	PUSH	HL			; x'- value
+
+	LD	C,CONOT			; send y'- value
+	CALL	BDOS			; 
+
+	POP	DE			; get x'- value
+	LD	C,CONOT			; 
+	JP	BDOS			; BDOS returns for us, just to save 
+					; time.
+
+
+	SUBTTL - clear screen routines -
+	PAGE
+;
+;-------------------------------------------------------;
+; SUBROUTINE CLRSCR -- clear screen 	 		;
+;-------------------------------------------------------;
+
+CLRSCR:	CALL	ESCAPE			; send escape
+
+	LD	E,'v'			; 
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE CLREOS     -- clear to end of screen       ;
+;-------------------------------------------------------;
+;
+CLREOS:	CALL	ESCAPE			; send escape.
+
+	LD	E,'y' 			; send 'y'.
+	JP	BDOS			; 
+
+;
+;-------------------------------------------------------;
+; SUBROUTINE CLREOL     -- clear to end of line.        ;
+;-------------------------------------------------------;
+;
+CLREOL:	CALL	ESCAPE			; send escape
+
+ 	LD	E,'x'			; send 'x'.
+	JP	BDOS			; 
+
+	SUBTTL - erase screen routines -
+	PAGE
+;
+;-------------------------------------------------------;
+; SUBROUTINE ERASCR     -- erase screen (foregnd only)  ;
+;-------------------------------------------------------;
+;
+ERASCR:	CALL	ESCAPE			; send escape
+
+	LD	E,'w'			; send 'w'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE ERAEOS     -- erase to end of screen.      ;
+;-------------------------------------------------------;
+;
+ERAEOS:	CALL	ESCAPE			; send escape
+
+	LD	E,'J'			; send 'J'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE ERAEOL     -- erase to end of line.        ;
+;-------------------------------------------------------;
+;
+ERAEOL:	CALL	ESCAPE			; send escape
+
+	LD	E,'K'			; send 'K'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE ERAEOF     -- erase to end of field.       ;
+;-------------------------------------------------------;
+;
+ERAEOF:	CALL	ESCAPE			; send escape
+
+	LD	E,'f'			; send 'f'.
+	JP	BDOS			; 
+
+	SUBTTL - graphics and foreground/background logic -
+	PAGE
+;
+;-------------------------------------------------------;
+; SUBROUTINE GRAFIX     -- turn graphics on.            ;
+;-------------------------------------------------------;
+;
+GRAFIX:	CALL	ESCAPE			; send escape
+
+	LD	E,'F'			; send 'F'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE ENDGRA     -- turn graphics off.           ;
+;-------------------------------------------------------;
+;
+ENDGRA:	CALL	ESCAPE			; send escape
+
+	LD	E,'G'			; send 'G'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE FORGND     -- set foreground.              ;
+;-------------------------------------------------------;
+;
+FORGND:	CALL	ESCAPE			; send escape
+
+	LD	E,'3'			; send '3'.
+	JP	BDOS			; 
+;
+;-------------------------------------------------------;
+; SUBROUTINE BAKGND     -- set background.              ;
+;-------------------------------------------------------;
+;
+BAKGND:	CALL	ESCAPE			; send escape
+
+	LD	E,'4'			; send '4'
+	JP	BDOS			; 
+
+	SUBTTL - draw lines -
+	PAGE
+;
+;-------------------------------------------------------;
+; SUBROUTINE Hline      -- draw horizontal line.        ;
+;			                                ;
+; entry: TOS=RET,Stk(2)=xEnd,Stk(3)=xStart,Stk(4)=y	;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+HLINE:	POP	HL			; RETadr
+	POP	DE			; xEnd
+	POP	BC			; xStart
+	EX 	(SP),HL			; y
+
+	PUSH	DE			; xEnd   (to save)
+	PUSH	BC			; xStart (to save)
+;
+; setup for GotoXY
+;
+	PUSH	BC			; xStart
+	PUSH	HL			; y 
+	CALL	GOTOXY			; position cursor....
+;
+; setup for output- loop
+;
+	POP	DE			; xStart
+	POP	HL			; xEnd
+	SBC	HL,DE			; calc # of chars to output.
+	LD	B,L			; must be less than 256.....
+	INC	B			; increment to get right # of dashes.
+;
+; send char.
+;
+HLINLP:	PUSH	BC			; save count.
+
+	LD	C,CONOT			; setup for conout.
+	LD	E,'`'			; send our char...
+	CALL	BDOS			; 
+
+	POP	BC			; get count back.
+	DJNZ	HLINLP			; ... and loop.
+
+	RET				; that's it..
+;
+;-------------------------------------------------------;
+; SUBROUTINE Vline      -- draw vertical line.          ;
+;			                                ;
+; entry: coordinates on stack: Stk(1)=yEnd,Stk(2)=yStart;
+;			       Stk(3)=x			;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+VLINE:	POP	HL			; RETadr
+	POP	DE			; yEnd
+	POP	BC			; yStart
+	EX	(SP),HL			; x
+
+	PUSH	DE			; yEnd
+	PUSH	BC			; yStart
+;
+; setup for GOTOXY
+;
+	PUSH	HL			; x
+	PUSH	BC			; yStart
+	CALL	GOTOXY			; position the cursor.
+;
+; setup for loop.
+;
+	POP	DE			; yStart
+	POP	HL			; yEnd
+	SBC	HL,DE			; calc # of characters to output.
+	LD	B,L			; must be less than 256...
+	INC	B			; increment to get correct len.
+;
+; loop till end is reached..
+;
+VLINLP:	PUSH	BC			; save count
+	LD	C,CONOT			; setup for char out.
+	LD	E,'a'			; 
+	CALL	BDOS			; 
+	
+	CALL	ESCAPE			; send cursor down code.
+	LD	E,'B'			; 
+	CALL	BDOS			; 
+	
+	LD	C,CONOT			; send backspace
+	LD	E,BS			; 
+	CALL	BDOS			; 
+
+ 	POP	BC			; get count
+	DJNZ	VLINLP			; ...and loop.
+
+	RET				; that's it...
+
+	SUBTTL - crossings -
+ 	PAGE
+;
+;-------------------------------------------------------;
+; SUBROUTINE EDGEAT     -- draw edge at coord...        ;
+;			                                ;
+; entry: coordinates of rectangle to draw on stack:     ;
+;							;
+;		TOS     RETadr				;
+;			y2   				;
+;			x2				;
+;			y 				;
+;			x				;
+;							;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+EDGEAT:	POP	HL			; RETadr
+	POP	DE			; y2
+	POP	BC			; x2
+	LD	A,C			; save y2 in accu.
+	POP	BC			; y
+	EX	(SP),HL			; x
+;
+; setup for GOTOXYs
+;
+;
+; L = x, E = y2, C = y, A = x2
+;
+	PUSH	HL			; x
+	PUSH	BC			; y
+	PUSH	HL			; x
+	PUSH	DE			; y2
+	LD	L,A			; L = x2
+	PUSH	HL			; x2
+	PUSH	DE			; y2
+	PUSH	HL			; x2
+	PUSH	BC			; y
+
+	CALL	GOTOXY			; 
+	LD	E,'l' 			; send upper right
+	CALL	DOIT			; 
+
+	CALL	GOTOXY			; 
+	LD	E,'m'			; lower right
+	CALL	DOIT			; 
+	
+	CALL	GOTOXY			; 
+	LD	E,'e'			; lower left
+	CALL	DOIT			; 
+
+	CALL	GOTOXY			; 
+	LD	E,'s'			; upper left 
+DOIT:	LD	C,CONOT			; setup for BDOS call
+	JP	BDOS			; send char in E.
+;
+;-------------------------------------------------------;
+; SUBROUTINE TRIAT      -- draw 3-line crossing at...   ;
+;			                                ;
+; entry: coordinates on stack: Stk(1)=where,Stk(2)=x,   ;
+;	                       Stk(3)=y.		;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+; define data type.
+;
+UP	EQU	0
+DOWN	EQU	1
+LEFT	EQU	2
+RIGHT	EQU	3
+;
+TRIAT:	POP	HL			; RETadr
+	POP	DE			; where (0..3)
+	POP	BC			; y
+	EX	(SP),HL			; x
+; 
+; setup for GOTOXY	
+;
+	PUSH	DE			; save where
+	PUSH	HL			; x
+	PUSH	BC			; y
+
+	CALL	GOTOXY			; position cursor.
+
+	POP	DE			; get where
+	LD	A,E			; put into accu
+
+	LD	E,'c'			;
+ 	CP 	UP			; see if up- tri
+	JR	Z,TRIOUT		; 
+
+	LD	E,'d'			; 
+	CP	DOWN			; see if right- tri
+	JR	Z,TRIOUT		; 
+
+	LD	E,'n'			; 
+	CP	RIGHT			; see if down- tri
+	JR	Z,TRIOUT		; 
+
+	LD	E,'o'			; else, left- tri...
+TRIOUT:	LD	C,CONOT			; setup for output
+	JP	BDOS			; 
+;  	
+;-------------------------------------------------------;
+; SUBROUTINE CROSAT     -- draw a cross at...           ;
+;			                                ;
+; entry: coordinates on stack: Stk(2)=x, Stk(3)=y       ;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+CROSAT:	POP	HL			; RETadr
+	POP	DE			; col
+	POP	BC			; row
+; 
+; setup for GOTOXY	
+;
+	PUSH	HL			; RETadr
+	PUSH	BC			; row
+	PUSH	DE			; col
+
+	CALL	GOTOXY			; position cursor.
+
+	LD	E,'b'			; 
+	LD	C,CONOT			; setup for output
+	JP	BDOS			; 
+
+	SUBTTL - standard mask -
+	PAGE	
+;
+;-------------------------------------------------------;
+; SUBROUTINE MASK       -- draw standard mask...        ;
+;			                                ;
+; entry: no parameters.                                 ;
+; exit : --                                             ;
+;-------------------------------------------------------;
+;
+MASK:	CALL	BAKGND			; set background & graphics
+	CALL	GRAFIX			; 
+	XOR	A			; clear accu
+	LD	L,A			; clear HL
+	LD	H,A			; 
+
+	PUSH	HL			; Hline(0,0,79);
+	PUSH	HL			;
+	LD	L,79			; 
+	PUSH	HL			; 
+	CALL	HLINE			; 
+
+	XOR	A			; Hline(2,0,79)
+	LD	H,A			; 
+	LD	L,2			; 	
+	PUSH	HL			; 
+	LD	L,A			; clear HL
+	PUSH	HL			; 
+	LD	L,79			; 
+	PUSH	HL			; 
+	CALL	HLINE			; 
+
+	XOR	A			; Hline(21,0,79)
+	LD	H,A			; 
+	LD	L,21			; 
+	PUSH	HL			; 
+	LD	L,A			; 
+	PUSH	HL			; 
+	LD	L,79			; 
+	PUSH	HL			; 
+	CALL	HLINE
+
+	CALL	ENDGRA			; EndGraphics
+	JP	FORGND			; Foreground
+
+	END
+

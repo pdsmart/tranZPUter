@@ -1,0 +1,330 @@
+	TITLE	"ZCNFG Configuration file for COPY, Ver 1.4"
+;----------------------------------------------------------------
+;  COPY Patch offsets					15 Dec 88
+
+VERFLG	EQU	0BH		; 0 = don't automatically verify copy
+				; FF = automatically verify file copies
+
+INSP	EQU	0CH		; 0 = set to no inspect of files on disk
+				; FF = ask to tag desired files by inspection
+
+SYSEXC	EQU	0DH		; 0 = include system files in dir scan
+				; FF = exclude system files from dir scan
+
+NCOPY	EQU	0EH		; 0 = no multiple copies of specified files
+				; FF = copy specified files to multiple disks
+
+EXIST	EQU	0FH		; 0 = test existence of files before copying
+				; FF = don't test existence before copying
+
+ARCHIV	EQU	10H		; 0 = do not use archive attribute control
+				; FF = select only non-archived, set archive
+				; Bit on source after copy
+
+REPLACE	EQU	11H		; 0 = do not copy based on existence
+				; FF = copy only if destination file exists
+
+DUSER	EQU	12H		; Default destination user (0 is default)
+
+DDISK	EQU	13H		; Default destination disk (drive b here)
+
+BACKUP	EQU	15H		; Name of backup directory (keep at 8 chars)
+
+EXCL0	EQU	1DH		; Offsets to Exclude list entries
+EXCL1	EQU	28H
+EXCL2	EQU	33H
+EXCL3	EQU	3EH
+EXCL4	EQU	49H
+EXCL5	EQU	54H
+EXCL6	EQU	5FH
+EXCL7	EQU	6AH
+
+;---------------------------------------------------------
+
+; DATA fpr CNFG Prpgram Linkage
+; function definitions - ** needed for CASE Table entries **
+
+switch	equ	0	;toggle bit n in a byte (n is specified)
+text	equ	1	;replace a text string of specified length
+duspec	equ	2	;replace a ZCPR style DU specification (NOT DIR:!)
+hexrad	equ	3	;edit byte/word using HEX radix
+decrad	equ	4	;edit byte/word using DECIMAL radix
+textlc	equ	5	;same as function text, but lower case is OK
+filesp	equ	6	;change all or part of a filespec DU:FN.FT
+togl3	equ	7	;toggle to one of three options: 001B, 010B, 100B
+togltf	equ	8	;toggle a byte between 0ffh and 0
+
+;see ZCNFG.WS (or .DOC) for a full definition of these functions.
+
+;---------------------------------------------------------
+
+; ASCII definitions
+; these are convenient, but only required if you wish
+; to use them in text or data fields (including HELP)
+
+CTLC	EQU	3
+BS	EQU	8		; Backspace
+HT	EQU	9		; Horizontal tab
+LF	EQU	10		; Line feed
+CR	EQU	13		; Carriage return
+SPC	EQU	20H		; Space char
+
+;=========================================================
+;	MACRO Definitions
+; You don't HAVE to use the macros. But it does make it
+; easier to fill in the tables!
+
+; This macro is used for creating a CASE table
+; entry which specifies toggling or setting a
+; single bit (0..7) in a configuration data byte.
+; It is useful when the 'switch' function is named.
+
+BITMAP	 MACRO	A,SUB,OFF,BIT,SCR,DAT
+	DEFB	'&A'
+	DEFW	SUB, OFF
+	DEFB	1 SHL BIT	; ;make a mask byte
+	DEFW	SCR, DAT
+	 ENDM
+
+;=========================================================
+; Macro parameter definitions
+;	A   = the character used in the screen for a menu item
+;	OFF = byte offset in config block
+;	SUB = subroutine for translation to screen
+;	SCR = screen location
+;	DAT = extra data word if required. Normally 0
+; produces a record which is 8 bytes long
+
+;=========================================================
+; This macro is used to create a case table entry
+; which contains a byte of data required by the function
+; to be performed. (see table of function definitions above)
+
+VECTOR	 MACRO	A,SUB,OFF,BYTE,SCR,DAT
+	DEFB	'&A'
+	DEFW	SUB, OFF
+	DEFB	BYTE		; ;a byte of data
+	DEFW	SCR, DAT
+	 ENDM
+
+;************************************************************
+;	S T A R T    O F    O V E R L A Y    C O D E
+;************************************************************
+; The next 13 bytes must remain in this location.
+
+	RST	0		; For safety - file won't execute
+	DEFW	AMENU		; For relocation of addresses, this
+				; Points to the next location.
+; First MENU list must be here. All names are local.
+
+AMENU:	DEFW	AMENU, AMENU, ASCRN, ACASE, AHELP ; Menu a
+
+;=========================================================
+;The case table used for MCOPY, only one menu & screen.
+;=========================================================
+
+ACASE:	DEFB	(ACASEX-ACASE1)	/ (ACASE2-ACASE1) ; Number of cases
+	DEFB	ACASE2 - ACASE1	; Length of each record
+
+;	 macro	.single char menu selector
+;	|	|	.function (see above)
+;	|	|	|	.offset in cnfg block
+;	|	|	|	|	.function dependant data
+;	|	|	|	|	|	.screen location
+;	|	|	|	|	|	|
+;acse1: bitmap	0,	switch, obyte0, crtflg, ascrl0, yndata
+;							|
+;	    address of data structure used by function._|
+;
+; The first two entries in the case table must be labeled to
+; provide data for the calculation at ACASE:. Subsequent
+; entries (one for each menu selection) need not be labeled.
+
+ACASE1:	VECTOR	A,	TOGLTF,	ARCHIV,	1,  SCR_R0,	YNDATA
+ACASE2:	VECTOR	E,	TOGLTF,	EXIST,	1,  SCR_R1,	YNDATA
+	VECTOR	I,	TOGLTF,	INSP,	1,  SCR_R2,	YNDATA
+	VECTOR	M,	TOGLTF,	NCOPY,	1,  SCR_R3,	YNDATA
+	VECTOR	R,	TOGLTF,	SYSEXC,	1,  SCR_R4,	YNDATA
+	VECTOR	S,	TOGLTF,	SYSEXC,	1,  SCR_R5,	YNDATA
+	VECTOR	V,	TOGLTF,	VERFLG,	1,  SCR_R6,	YNDATA
+
+; Note: User/Drive are sequential bytes accessed as a word
+
+	VECTOR	D,	DUSPEC,	DUSER,	0,  SCR_R7,	0
+	VECTOR	B,	TEXT,	BACKUP,	8,  SCR_R8,	0
+
+	VECTOR	0,	filesp,	EXCL0,	0, SCR_E0,	0
+	VECTOR	1,	filesp,	EXCL1,	0, SCR_E1,	0
+	VECTOR	2,	filesp,	EXCL2,	0, SCR_E2,	0
+	VECTOR	3,	filesp,	EXCL3,	0, SCR_E3,	0
+	VECTOR	4,	filesp,	EXCL4,	0, SCR_E4,	0
+	VECTOR	5,	filesp,	EXCL5,	0, SCR_E5,	0
+	VECTOR	6,	filesp,	EXCL6,	0, SCR_E6,	0
+	VECTOR	7,	filesp,	EXCL7,	0, SCR_E7,	0
+
+; The next entry is a label which terminates the list.
+; It is required for use in the calculation at ACASE:
+
+ACASEX:				; Label used to calc number of entries
+
+;=========================================================
+
+ASCRN:				; Screen image for first screen
+	DB CR,LF		; Ensure clean top of screen
+;Title line
+	DB	LF,HT
+	DB	'_______________COPY Configuration_______________'
+	DB	CR,LF			; Blank lines for screen format
+
+	DB	HT,'A) Archive Bit Control of Select and Copy    '
+SCR_R0:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'E) Existence Test of File on Destination     '
+SCR_R1:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'I) Inspect Files Before Copy                 '
+SCR_R2:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'M) Multiple Disk Copy                        '
+SCR_R3:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'R) Copy ONLY files which exist (Replace)     '
+SCR_R4:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'S) System Files Excluded                     '
+SCR_R5:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'V) Verify After Copying                      '
+SCR_R6:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'D) Default Destination Drive/User            '
+SCR_R7:	DB	'   '
+	DB	CR,LF
+
+	DB	HT,'B) Backup Directory Name                  '
+SCR_R8:	DB	'        '
+	DB	CR,LF
+
+	DB	HT,'0) Excluded Files.................  '
+SCR_E0:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'1) ...............................  '
+SCR_E1:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'2) ...............................  '
+SCR_E2:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'3) ...............................  '
+SCR_E3:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'4) ...............................  '
+SCR_E4:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'5) ...............................  '
+SCR_E5:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'6) ...............................  '
+SCR_E6:	DB	'            '
+	DB	CR,LF
+
+	DB	HT,'7) ...............................  '
+SCR_E7:	DB	'            '
+	DB	CR,LF,LF
+
+; Scroll to top of screen (not needed if only one screen)
+
+	DB	0		; Terminator
+
+;-----------------------------------
+;	TYPICAL Screen Data List
+;  (handy, but only need be here if referenced)
+
+; Data pair for representing bit values in screen image
+; Can also be used for function 8 display (True/False)
+; these must be null terminated strings.
+
+YNDATA:	DEFB	'YES',0		; For 1=yes
+	DEFB	' NO',0
+
+;=========================================================
+; Help screen for menu A
+
+AHELP:				; Help screen for menu a
+	DB	CR,LF,LF
+	DB	'                                ZSDOS COPY V1.4',CR,LF
+	DB	CR,LF
+	DB	'Archive  - If yes, copies only those files which '
+	DB	'have the archive attribute',CR,LF
+	DB	'           clear.',cr,lf
+	DB	CR,LF
+	DB	'Exclude  - If yes, excludes system (hidden) files '
+	DB	'from copy.',CR,LF
+	DB	CR,LF
+	DB	'Inspect  - if yes, COPY prints the name of each file '
+	DB	'and asks if you wish to ',CR,LF
+	DB	'           copy it.',CR,LF
+	DB	CR,LF
+	DB	'Multiple - If yes, copies all listed files to the '
+	DB	'specified drive/user, then',CR,LF
+	DB	'           prompts for a new disk and repeats the '
+	DB	'copy operation.',CR,LF
+	DB	CR,LF
+	DB	'Exist    - If yes, tests if the file exists on the '
+	DB	'destination drive/user',CR,LF
+	DB	'           before copying.  If the file exists, you '
+	DB	'are asked if you want to',CR,LF
+	DB	'           replace it.  On ZSDOS systems with stamping '
+	DB	'enabled, the stamps are',CR,LF
+	DB	'           compared and an added prompt of SAME, OLDER,'
+	DB	' or NEWER is shown to ',CR,LF
+	DB	'           indicate the comparative age of the files.'
+	DB	CR,LF
+	DB	CR,LF
+	DB	CR,LF
+	DB	CR,LF
+	DB	CR,LF
+	DB	CR,LF
+	DB	'Replace  - If yes, files will only be copied if the '
+	DB	'destination already',CR,LF
+	DB	'           exists.  The "E" and "N" options are disabled '
+	DB	'but dates will',CR,LF
+	DB	'           still be compared.',CR,LF
+	DB	'Backup   - The name of the directory you normally '
+	DB	'copy most of your files to.',CR,LF
+	DB	CR,LF
+	DB	'Default  - The "normal" destination drive and user '
+	DB	'to use if the named backup',CR,LF
+	DB	'           directory isn''t found.  DO NOT use wild'
+	DB	'cards!',CR,LF
+	DB	CR,LF
+	DB	'Verify   - If yes, the CRC''s of the source and the '
+	DB	'copied file are checked to',CR,LF
+	DB	'           confirm error free copies.',CR,LF
+	DB	CR,LF
+	DB	'Exclude  - File names listed here will not be found '
+	DB	'in the directory scan and',CR,LF
+	DB	'           consequently cannot be copied.  To remove '
+	DB	'an entry, select the',CR,LF
+	DB	'           number and enter a single space for the '
+	DB	'name.  To add an entry,',CR,LF
+	DB	'           enter the ambiguous or unambiguous file '
+	DB	'name and type separated',CR,LF
+	DB	'           by a period.'
+	DB	CR,LF
+	DB 0
+
+;=========================================================
+

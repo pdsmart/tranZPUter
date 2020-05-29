@@ -1,0 +1,88 @@
+CP/M WordStar patch for VT100 up to 5 colors.
+
+Features :
+WordStar patch for ANSI/vt100 terminals like Linux Console or X11 xterm.
+Works with CP/M 2.2 (or MP/M) with fixed height and fixed width at offset 232h and 233h (default values are actually 24x80).
+Get console height and width dynamically from SCB Bdos #49 (for use with CP/M Plus).
+Could do the same with CP/M 2.2 (or MP/M) as CP/M Plus if SCB Bdos #49 return non-0 values for height and width.
+Support for up to 120 lines of 250 columns (e.g. 43 or 44 lines of 132 columns CRT mode) with limitations. 
+
+Send sequence codes to delete and insert line on screen.
+Orange (customizable at offset 33Dh) background color instead of simple reverse video (only with color compatible vt100 terminals).
+Bright status line (number one) instead of reverse video.
+Blue (customizable at offset 31Ch) foreground color for latest flags column (only with color compatible vt100 terminals).
+Up to five colors (white/orange/black/bright/blue).
+Bright and reverse video only with non-color vt100 terminals. 
+
+Works with Zilog Z80 or Intel 8080/8085. No use of Z80 specific op-codes.
+Fit in exact amount of bytes for patches. No extra memory needed.
+Works with WS 3.3 pre-patched with WINSTALL.COM
+
+
+Installation procedure: Patch yourself your copy of WS.COM with this WS3.HEX file.
+C>WINSTALL
+
+...
+
+The changes made during this session of INSTALL are stored
+in a temporary file. You may now save these changes in your
+installed file C:WS.COM.
+
+These are your current values:
+
+Terminal                :             DEC VT-100
+Printer                 :          Standard Printer
+Communications protocol :            No protocol
+Driver                  :        Primary list device
+
+          *****  EXIT OPTIONS MENU  *****
+
+A   Save the changes made during this INSTALL session
+B   Quit this session of INSTALL without saving changes
+C   Change any of your choices / Remain in INSTALL
+
+    Enter the letter of your choice (A/B/C).
+
+
+
+Your new installed WordStar file is C:WS.COM.
+
+
+You are returning to the operating system.
+
+
+C>TYPE WS3.HEX
+:03010000C30046F3
+:1C02320018500000000000000000000000000000000000000000000000C3BB02C8
+:20025000031B5B4B000000031B5B4D000000031B5B4C0000000000051B5B34336D00051BD0
+:200270005B30306D000000000000000000000000000000000000000000C90000C9000A05A5
+:01029000006D
+:02029300FF006A
+:0302A000C307038E
+:2002BB00CDE9027DCDF3023E3BCD06017CCDF3023E48CD06017DB7210B37113030C2E1029A
+:2002DB00213031113232226A02EB227102C93E1BCD06013E5BC306013C06FFD60A04D2F6B8
+:2002FB0002F578C4F402F1C63AC30601F5573A33023DBC21A00236000165020A5EC21E039F
+:20031B001E222FB7CA36037AB7FA36030A2F02CDE9027BCDF4023E6DCD0601F1FE0BC24386
+:10033B00033E21CDF4023E3BE67FCD060136C3C919
+:20460000112A460E31CD0500B7CA10463C323202112C460E31CD0500B7CA27463CFEFADAFF
+:0E46200024463EFA323302C3FC2C1C001A0062
+:00000001FF
+
+C>SID WS.COM
+CP/M 3 SID - Version 3.0
+NEXT MSZE  PC  END
+4600 4600 0100 DAFF
+#Rws3.hex
+NEXT MSZE  PC  END
+462E 462E 0100 DAFF
+#Wws.com
+008Bh record(s) written.
+#g0
+
+C>device console [lines=44,columns=132]
+
+Console width set to 132 columns
+Console page set to 44 lines
+
+
+C>ws

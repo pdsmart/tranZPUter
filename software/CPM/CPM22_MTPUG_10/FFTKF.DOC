@@ -1,0 +1,48 @@
+
+
+     FFT.PAS is an implementation of the radix-2, fast Fourier trans-
+form algorithm with decimation in time (Cooley-Tukey method).  This
+program is essentially the same as that found in J.W. Cooper, "Intro-
+duction to Pascal for Scientists," (Wiley:1981) pp. 211-216.  I do
+not particularly recommend this book in general, but the FFT program
+is solid and in the author's area of expertise.  Also, variable names
+and program structure follow closely to the discussion in the text.
+There were, however, several blunders in Cooper's post-processing pro-
+cedure which I have corrected.  Furthermore, I incorporated more effi-
+cient code in a number of places (for example, the required sines and
+cosines are computed recursively using only the SQRT function).
+
+     By rearranging the procedure calls in the main body, you can
+perform other calculations.  Some common usages are:
+
+
+          Forward Transform    ----->  FFT(FORWRD);
+            Complex Vector
+
+          Inverse Transform    ----->  FFT(INVERSE);
+            Complex Vector
+
+          Inverse Transform    ----->  POST_PROCESS(INVERSE);
+             Real Vector               FFT(INVERSE);
+                                       SHUFFLE(INVERSE);
+
+
+     There are many methods of computing discrete Fourier transforms
+in order (N log N) floating point operations.  The differences can
+usually be attributed to various ways the data are accessed or to
+the optimal computational structure as dictated by the available
+hardware.  FFT.PAS represents an efficient, but relatively straight-
+forward approach well suited to microprocessors.
+
+     For those interested in studying FFT's further, I suggest:
+
+
+           J.D. Lipson, "Elements of Algebra and Algebraic
+              Computing," (Addison-Wesley:1981).
+
+           H. Nussbaumer, "Fast Fourier Transform and Convolution
+              Algorithms," (Springer-Verlag:1982).
+
+           E.O. Brigham, "The Fast Fourier Transform," (Prentice-
+              Hall:1974).
+

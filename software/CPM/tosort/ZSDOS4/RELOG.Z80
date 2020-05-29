@@ -1,0 +1,59 @@
+	TITLE	"Clear Fixed-Disk Login & Force Allocation rebuild"
+;*************************************************************
+;* RELOG.Z80						     *
+;*							     *
+;* RELOG flushes the Hard Disk Login Vector then Warm Boots  *
+;* the System, causing all allocation Bitmaps to be rebuilt. *
+;* This is a ZSDOS 1.0 utility.				     *
+;*							     *
+;* Copyright (C) 1988 by    Cameron W. Cotrill		     *
+;*   Modified by Harold F. Bower for ZsDos1.1 and 2.x	     *
+;*							     *
+;* Revision:						     *
+;*	1.2 - Modified to handle Banked ZsDos2	 8 Nov 92    *
+;*	1.1 - Modified for Zsdos1.1		11 Jun 89    *
+;*	1.0 - Release Version			16 Sep 88    *
+;*************************************************************
+
+VER	EQU	12		; Release version
+
+BDOS	EQU	5
+CR	EQU	0DH
+LF	EQU	0AH
+
+
+RELOG:	LD	C,9
+	LD	DE,SIGNON
+	CALL	BDOS
+	LD	C,48		;ZSDOS Return Version and Type
+	CALL	BDOS
+	AND	0F0H		; Keep only Major Version digit
+	CP	30H		; Is this Vers 1.x or 2.x of something?
+	JR	NC,NOZS		; ..jump Error if Not
+	LD	A,H		; Now check for ZDDOS/ZDDOS
+	CP	'S'		; Is it ZSDOS?
+	JR	Z,RELOG1	; ..jump to action if so
+	CP	'D'		; Is it ZDDOS?
+	JR	NZ,NOZS		; ..jump error if so
+RELOG1:	LD	C,9
+	LD	DE,CLMESS	; Inform the User
+	CALL	BDOS
+	LD	C,37		; ZSDOS purge HD Login
+	LD	DE,0FFFFH	; Reset Everything
+	JR	DOSV		; ..And continue with common code
+
+NOZS:	LD	DE,ZSMESS	; Inform User of Error
+	LD	C,9
+DOSV:	CALL	BDOS		; Call DOS then exit with Warm Boot
+	JP	0
+
+
+SIGNON:	DEFB	CR,LF,'RELOG V',VER/10+'0','.',VER MOD 10 + '0',CR,LF,'$'
+
+CLMESS:	DEFB	'Clearing hard disk login vector.',CR,LF,'$'
+
+ZSMESS:	DEFB	CR,LF,'ERROR - Must have ZSDOS to use this utility!'
+	DEFB	CR,LF,'$'
+
+	END
+

@@ -1,0 +1,79 @@
+	defb	86h			; setclk
+	defc	'setclk'
+	defw	dotcpu-7
+setclk:
+	defw	$+2
+	exx				; save ip
+	ld	c,iopreg
+	ldctl	hl,(c)			; l <-- current i/o page
+	ld	a,l
+	ex	af,af'			; save i/o page
+	ld	l,0feh
+	ldctl	(c),hl			; select i/o page 0feh
+	xor	a
+	out	(cntrl0),a		; disable c/t 0
+	out	(cntrl1),a		; disable c/t 1
+	out	(config1),a
+	ld	hl,0ffffh
+	ld	a,10h
+	out	(config0),a		; cascade c/t 0 - c/t 1
+	ld	c,tcon0
+	outw	(c),hl			; load c/t 0 time constant
+	ld	c,tcon1
+	outw	(c),hl			; load c/t 1 time constatnt
+	ld	a,80h
+	out	(config1),a		; continous mode
+	ld	a,0e0h
+	out	(cntrl1),a		; start 32bit counter
+	ex	af,af'			; std. accu
+	ld	l,a			; l <-- previous i/o page
+	ld	c,iopreg
+	ldctl	(c),hl			; restore i/o page
+	exx				; restore ip
+	jnext
+;
+;
+	defb	86h			; getclk
+	defc	'getclk'
+	defw	setclk-9
+getclk:
+	defw	$+2
+	exx				; save ip
+	ld	c,iopreg
+	ldctl	hl,(c)			; l <-- current i/o page
+	ld	a,l
+	ex	af,af'			; save current i/o page
+	ld	l,0feh
+	ldctl	(c),hl			; select i/o page 0feh
+	ld	a,80h
+	out	(cntrl1),a		; halt 32bit counter
+	ld	c,count1
+	inw	hl,(c)
+	ld	d,h
+	ld	e,l			; de <-- count1
+	ld	c,count0
+	inw	hl,(c)			; hl <-- count0
+	ld	c,0
+	ld	a,c			; a <-- 0
+	sub	l			; 0 - l
+	ld	l,a			; l <-- neg(l)
+	ld	a,c			; a <-- 0
+	sbc	a,h
+	ld	h,a			; h <-- neg(h)
+	ld	a,c			; a <-- 0
+	sbc	a,e
+	ld	e,a			; e <-- neg(e)
+	ld	a,c			; a <-- 0
+	sbc	a,d
+	ld	d,a			; d <-- neg(d), dehl <-- neg(dehl)
+	divuw	dehl,25000		; scale to 1/100 secs
+	push	hl			; result
+	ex	af,af'			; std. accu
+	ld	l,a			; l <-- previous i/o page
+	ld	c,iopreg
+	ldctl	(c),hl			; restore i/o page
+	exx				; restore ip
+	jnext
+;
+;
+

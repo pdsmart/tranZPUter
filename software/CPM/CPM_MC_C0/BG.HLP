@@ -1,0 +1,495 @@
+;
+	 BackGrounder ii commands -- Enter letter/number from this menu 
+
+F - features summary			H - HELP
+B - BG					1 - CALC
+C - CUT,  PASTE 			2 - SCREEN
+D - DIR,  FIND, ERA			3 - SPOOL, FORMS, PRINTR
+E - ECHO, FEED, CLS			4 - SHIFT
+G - GET,  GO,   JUMP,  SAVE
+J - JOT
+K - KEYS
+L - LIST, TYPE
+N - NDR,  OCP
+P - PEEK, POKE
+R - RESET, ^C
+S - SWAP, FLIP
+T - TIME, DATE
+W - WHL,  WHLQ, NOTE
+
+:F :BGINFO.HLP
+:H
+	 HELP - display/print indexed help file 
+
+HELP <CR>
+
+	Display this file (BG.HLP).
+
+HELP [DU:]filename <CR>
+
+	Display named help file.
+
+
+Use these controls:
+
+	M		return to Menu
+	S		return to Start (top-level menu)
+	N,<CR>, <SPACE>	display Next screen
+	L		display Last screen
+	<CNTL-C>	exit from help
+	P		Print screen
+
+:B
+	 BG - review commands, remove BackGrounder ii 
+
+BG <CR>
+
+	Show active tasks and attached key-definitions.
+	If Quiet not set, list the available BackGrounder ii commands.
+
+BG OFF <CR>
+
+	Remove BackGrounder ii from memory and warm boot.
+
+BG Q <CR>
+	Prompt Quietly, without listing commands.
+
+BG V <CR>
+	Prompt Verbosely, listing commands.
+
+BG Y <CR>
+	Yes, enable <SUSPEND> and <ALT> keys.
+
+BG N <CR>
+	No, disable <SUSPEND> and <ALT> keys.
+:C
+	 CUT and PASTE 
+	(requires a loaded screendriver)
+
+CUT <CR>
+
+	Copies rectangular region of screen to a buffer.
+
+	Move the cursor to upper-left corner of region to be clipped.
+	Type 'X'.
+	Move the cursor to bottom-right corner of region.
+	Type 'X' or <CR>.
+
+PASTE <CR>
+
+	Returns last-clipped region to current program, at the
+	current cursor.
+
+	A <CR>	is added to the end of each clipped row.
+:D
+	 DIR  - file directory 
+
+DIR <CR>
+	List all non-system files with sizes in current drive/user.
+
+DIR Du:filespec <CR>
+
+	List all matching non-system files with sizes in specified drive/user.
+
+DIR /fas <CR>
+
+	options are:	F - filesizes (reverses configured setting)
+			A - all = both Directory and System files.
+			S - System files only
+
+
+DIR Du:filespec /fas <CR>
+
+	Specified files, with specified options
+
+
+	 FIND - find files, ERA - erase 
+
+FIND D:filespec <CR>
+
+	Find all matching files on specified drive, in all user areas.
+
+ERA filespec [v] <CR>
+
+	Erase specified files. Verify first if V.
+:E
+	 Echo - display input on console or printer 
+
+ECHO string <CR>
+
+	Display string (uppercase) on console
+
+ECHO $string <CR>
+
+	Display string (uppercase) on printer.
+
+FEED <CR>
+
+	Eject printer page (formfeed).
+
+CLS <CR>
+	
+	Clear the screen and home the cursor.
+:G
+	 GET, JUMP, GO, SAVE - load, run, save file 
+
+GET addr [DU:]filename <CR>
+
+	Load file at (hex) address.	(foreground only)
+
+JUMP addr <CR>
+
+	Run program starting at addr. 	(foreground only)
+
+GO <CR>
+
+	Run program at normal start addr (100h).
+	GO will re-run the last program, provided
+	   it is re-executable.		(foreground only)
+
+SAVE nn[H] [DU:]filename [S] <CR>
+
+	Save memory (starting at 100h) to file.
+	nn = decimal number of pages (100h each).
+	nnH = Hex number of pages
+	if 'S', nn = decimal number of Sectors (80h each).
+:J
+	 JOT - take notes 
+	(requires a loaded screendriver)
+
+JOT <CR>
+
+	Clear screen for taking notes.
+
+	Use <DEL> to delete a character, and other commands as listed.
+	<CNTL-P> will paste the last-clipped region at the cursor.
+
+	To exit, type the <SUSPEND> character.
+
+	The screen is appended to the JOTPAD file.
+
+JOT [DU:]filename <CR>
+
+	Same, but append to the filename specified.
+:K
+	 KEYS - Define, load, save, view, attach key strings 
+
+KEYS [Du:]filename <CR>
+
+	Load definitions from filename.BG.
+
+KEYS <CR>
+
+    Select from the menu:
+	  D - Define a key
+	  P - Paste last-cut region to key
+	  R - begin Recording keystrokes
+	  V - View current definitions
+	  K - view single Key
+	  S - Save current definitions to file
+	  L - Load (previously-saved) key definitions
+	  A - Attach definitions to program for auto-loading
+
+
+		Defining a key.
+
+To define a numeric keypad key, first press that key,
+then enter keystrokes and terminate with the <SUSPEND> key.
+
+To define a main keyboard key, first press the <ALT> key, followed
+by the key to be defined, e.g. "\a".
+
+To erase a character, type <DEL>, or control-X to start over.
+
+To enter hex characters, first type the '#' key.
+
+To enter a special character literally (Quote it), first type control-Q.
+
+If there is no screendriver, define the "r" key to be a screen-redraw
+string appropriate to the running task.
+
+
+		Pasting to a key.
+		(requires a loaded screendriver)
+
+The Paste option uses the last-cut region to define a key. A
+carriage-return (^M) is added to the end of each row.  Edit as desired,
+and terminate with <SUSPEND>.
+
+		Viewing definitions.
+
+Use the View option to inspect the currently defined keys. The display
+starts and ends with a colon ':' in order to indicate any spaces
+included in the definition.
+
+To view a single defined key, use the K option.
+
+		Keystroke Recording.
+
+Use the Record option to begin recording each keystroke. 
+
+Recording is terminated by typing the previously-defined <RECORD>
+key, or the <SUSPEND> key.  Up to 255 keystrokes may be recorded.
+
+		Saving definitions.
+
+Definitions may be saved for re-use when re-running a program. The Save
+option requests a short descriptive label and a filename. Usually, it's
+convenient to use the name of the current program. The filetype is
+automatically set to ".BG ".
+
+
+		Loading definitions.
+
+Definitions may be (manually) loaded by selecting the Load option and
+entering the filename of the definitions to use.  The newly- loaded
+definitions replace any previously loaded or defined strings.
+
+Definitions can be automatically loaded whenever a particular program is
+run.  To use this feature, Save the desired definitions to a suitable
+filename.  Then select the Attach option, give the name of the program,
+and the name of the definitions file.  The next time the program is run
+these definitions will automatically be installed.
+
+	       Global and user-task definitions
+
+When BGii is first loaded, it contains a short list of global
+definitions, which you can inspect by typing KEYS and then V.  GLOBAL
+definitions are available everywhere -- in Foreground and Background
+CP/M and in either user task.  You can add new definitions, save them,
+load others, etc. by using the KEYS command at Foreground CP/M level.
+
+USER-TASK definitions are reserved for an active user task. To define
+keys for a particular program, once it is running, type <SUSPEND>, KEYS
+and D.  These definitions are in effect only while this task is active,
+not in Background CP/M and not in another task.  They expire when the
+program is exited, so if you want to preserve them you should <SUSPEND>,
+use KEYS and the Save command.  To cause them to be automatically loaded
+with the next use of that program, use the Attach command also.
+
+If you use the same key for a user-task definition and a global
+definition, the user-task definition takes precedence while the task is
+active.  The global definition remains in hiding and takes effect
+everywhere else.
+:L
+	 LIST and TYPE -  print or display a file 
+
+LIST [DU:]filename <CR>
+
+	Print file on printer.  Expands tabs to 8 spaces.
+
+TYPE [DU:]filename <CR>
+
+	Display file.  The menu on the top line summarizes the keys:
+
+	. = down 1 line		, = up 1 line
+	> = down 1 page		< = up 1 page
+	B = beginning		E = end of file
+	R = scroll right	L = scroll left
+	G       =  goto = enter string to search for
+	1...9   =  move that many pages in current direction
+
+	Automatically unSQueezes a compressed file (forward only).
+
+:N
+   NDR (Named DiRectory) and OCP (Overlay Command Processor) 
+
+NDR [DU:]filename <CR>
+
+	Load  filename.NDR  as the Named DiRectory.
+
+OCP [DU:]filename <CR>
+
+	Load  filename.OCP  as the Overlay Command Processor.
+
+:P
+	 PEEK and POKE - examine and change memory 
+
+PEEK addr1 [addr2]<CR>
+
+	Display memory in hex and ascii from addr1 to addr2.
+	If no addr2, display approx. 256 bytes.
+
+PEEK<CR>
+
+	Resume memory display from last address.
+
+POKE addr byte1 byte2 ... <CR>
+
+	Change memory at addr to (hex) byte1 ...
+
+POKE addr $string <CR>
+
+	Change memory at addr to (ascii) string.
+:R
+	 RESET or CNTL-C - reset disk system 
+
+RESET <CR> or <CNTL-C>
+	
+	Close modified files, reset disk system, and
+	log in drive A: and current drive.
+
+	Use this command to change disks.  Be sure the running
+	program has completed writing any open files.
+
+:S
+	 SWAP and FLIP - switch to/view alternate task 
+
+SWAP <CR>
+
+	Switch to the alternate task.  If no alternate is active,
+	switch to alternate CP/M.
+	
+FLIP <CR>		
+	(requires a loaded screendriver)
+
+	Display screen of the alternate task.
+	The next keypress restores the active screen.
+
+:T
+	 TIME and DATE - display time and date  (requires DateStamper)
+
+TIME <CR>				TIME ALL <CR>
+
+	Display current time.			Display time and date.
+
+TIME ON <CR>
+
+	Turn on time display for CP/M prompts.     Example:   10:24 A0>
+
+TIME ON S <CR>
+
+	Turn on time display with seconds for CP/M prompts:   10:24:03 A0>
+
+TIME OFF <CR>
+
+	Turn off time display in prompts.
+
+DATE <CR>
+
+	Display current date.
+
+:W
+	 WHL and WHLQ - wheel byte, NOTE - command comment 
+
+WHL <CR>
+
+	Turn off "wheel byte."  When the wheel byte is off,
+	only non-private programs can be run.
+
+WHL password <CR>
+
+	Turn on "wheel byte".
+
+WHLQ <CR>
+	
+	Report "wheel byte" status - ON or OFF.
+
+NOTE comment <CR>
+
+	Treat following text up to ';' or <CR> as a comment for the command.
+
+:1
+		 CALC - decimal/hex calculator 
+CALC <CR>
+
+Enter digits (with optional decimal point in decimal mode)
+Enter operator:
+	+ 	add
+	-	subtract
+	X or *	multiply
+	/	divide
+	M or %	modulus (remainder),  hex mode only
+	N	negate (change sign)
+	=	final result
+Enter:
+	SA, SB or SC 	to Store Entry in register A, B, or C.
+	RA, RB or RC 	to Recall register value to Entry register.
+	Q		to Quit.
+	H		toggle between Hex and Decimal modes.
+
+The final result (Entry register) can be recalled with
+the calc <RESULT> key definition (initially <ALT> a).
+
+Register values are preserved from the previous use of CALC.
+:2
+	 SCREEN - dump screen to printer or file 
+	(requires a loaded screendriver)
+
+SCREEN <CR>
+
+	List the current (user-program) screen on the printer.
+	Command is disabled if spooling is active.
+
+SCREEN [DU:]filename <CR>
+
+	Append the current (user-program) screen to the specified file.
+:3
+		 SPOOL, FORMS and PRINTR 
+
+To load the Spooler, run SPOOLER.  To queue files for printing, run Q.
+
+SPOOL <CR>
+SPOOL ON <CR>
+
+	Activate Spooler and send current list device output
+	to SPOOL.$PL file on swap drive, user 0.
+
+SPOOL [DU:]filename <CR>
+
+	Send list output to named file.
+
+SPOOL OFF <CR>
+
+	Deactivate Spooler and optionally rename output file.
+	List output now goes to list device.
+
+
+FORMS <CR>
+
+	Show current forms setting for each list device.
+	If a form is set, the Spooler will only print files with
+	that form setting.  No setting is displayed as "-".
+
+FORMS <device> <form> <CR>
+
+	Set the <device> to use <form>, reactivate Spooler.
+
+	   <device> =	C for CRT:
+			L for LPT: (parallel printer)
+			T for TTY: (serial printer)
+			U for UL1: (serial printer)
+
+	   <form>   = a single character (e.g. 'L' for letterhead)
+
+FORMS <device> <CR>
+
+	Clear form setting for <device> to allow printing
+	all types of files.  Reactivate Spooler.
+
+PRINTR <CR>
+
+	Show current printer device, reactivate Spooler.
+
+PRINTR <device> <CR>
+
+	Set printer device ("iobyte"), reactivate Spooler.
+
+	   <device> =	C for CRT:
+			L for LPT: (parallel printer)
+			T for TTY: (serial printer)
+			U for UL1: (serial printer)
+
+:4
+		 SHIFT - toggle numeric keypad 
+		(requires a loaded functionkey driver)
+
+SHIFT ON <CR>
+	
+	Shift keypad to accept and use BackGrounder ii definitions.
+
+SHIFT OFF <CR>
+
+	Put keypad in numeric mode.
+or each list device.
+	If a f

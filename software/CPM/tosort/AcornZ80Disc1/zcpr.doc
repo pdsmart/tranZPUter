@@ -1,0 +1,310 @@
+A Personal Note
+===============
+
+Somehow, I've managed to get by for the last 14 years using just ZCPR.
+But like some of you, I have fiddled with the standard ZCPR and
+modified it to suit my tastes.  As I added new commands or enriched old
+ones, I've always remained compatible with existing programs, all the
+BDOS replacements, and, most important of all, stayed within the 800H
+space allocation of the original Digital Research CCP.  Here are the
+fruits of my labors, I hope you enjoy this CCP replacenow have options to turn on or off page breaks.  Moreover, the
+console check for abort has been improved.
+
+Two commands have been added for use in submit files - SAK and BELL.
+These commands allow you to pause or ring the bell during submit file
+execution.
+
+Before you install this version of ZCPR onto your boot disks, try it by
+running it as a .com file.  Just edit the few customizing options and
+assemble the source.  After you decide it really is better, load it
+onto your boot track and make it yment as much as I
+do.
+
+        Don Kirkpatrick
+        17595 S.W. Pheasant Lane
+        Beaverton, Oregon 97006
+        <Donald.C.Kirkpatrick@tek.com>
+
+
+Introduction
+============
+
+This console replacement is designed to run under CP/M 2.2 or any of
+the 2.2 BDOS replacements.  It requires a Z80 or better.  If you are
+running DRI's CCP or older versions of ZCPR1, this program is a
+significant improvement.  If you are running ZCPR3, CP/M 3.0, CP/M
+Plus, or MP/M, this will probably be a disappoiour standard.  Complete instructions
+are located at the end of this document.
+
+The complete built-in command list is:
+
+    DIR - directory command enhanced to list optionally all user areas
+    REN - standard rename command
+    USER- move to new user number area on same drive
+    SAVE- save specified number of TPA pages or records in a file
+    TYPE- display a file on the console with optional page break pauses
+    LIST- print command plus optional form feed insertion
+    PAGE- send form feed to ntment.
+
+If you are familiar with ZCPR3, you will recognize many of the
+enhancements here: comments on a command line, search path for the .com
+file, drive/user change with simple du:, CLEVEL3 command processing,
+proper SUBMIT file facility, and so on.  Nothing has been removed from
+DRI's CCP, only new features added.  AND IT ALL STILL FITS IN THE
+ORIGINAL 800H, THE SAME SPACE AS THE DIGITAL RESEARCH FIVE COMMAND
+CCP.
+
+Many of the standard commands have been enhanced.  For example, TYPE
+and LIST list device
+    ERA - standard file erase command
+    ERAQ- file erase with confirmation query at each file
+    DFU - set default user number for .com search path
+    BELL- send a bell character to the console
+    SAK - pause until a key is struck on the console (Strike Any Key)
+    SCL - toggle multiple commands per line (Single Command on a Line)
+    GET - load a file into the TPA at any specified location
+    JUMP- process command tail and execute program at specified address
+    GO  - process c type 'junk*.'.  The
+question mark still works as a single character wild card.
+
+
+Command Line Processing
+=======================
+
+The  current user number is included as part of the command prompt for
+all non-zero user numbers.  The prompt is of the form du>, for example
+A2> or B10>.  If the SUPRES equate is true, the user number is
+suppressed for user 0 only.
+
+Multiple commands are typed on a single line separated by a command
+separator character.  Occasionally, you need to type the separatorommand tail and execute program loaded at 100H
+    PEEK- display hexadecimal byte string starting with specified address
+    POKE- load hexadecimal byte string starting with specified address
+    BOOT- execute BIOS cold boot routine
+
+
+Filename Processing
+===================
+
+The standard ZCPR3 du: drive/user file specification has been
+implemented.  Any filename can be in the du:fn.ft form.  For example:
+
+       A>era c4:junk*.*
+
+erases files on the C drive, user area 4 without leaving drive A
+character in a command tail.  The SCL command toggles the multiple
+command enable.  The CMDCHR equate determines the command separator
+character.  A ';' has been chosen as the separator character in this
+distribution version.
+
+Comments are allowed on a command line.  When the comment separator
+character is encountered as the first character of a command, the
+remainder of the line is ignored.  The COMCHR equate determines the
+comment separator character.  A ';' has been chosen as the separator
+cha user
+0.  When a user number is found in a filename, that user number is
+placed in S1 of the default FCB.  Bit 7 of S1 is set to inform the
+program using the FCB a user number was found.
+
+The * in an ambiguous file name has been improved.  Now a trailing *
+causes the remainder of the ambiguous name to be filled with '?', not
+just the fn field.  For example:
+
+       A>era c4:junk*
+
+is the same as the example above.  Previously, junk* was defined as
+'junk????.   '.  If you need the ft field blank,racter in this distribution version.  Here is an example containing
+comments and multiple commands on a single line:
+
+   A>get 100 junk;peek 100;;this is a comment.
+   A>;this is also a comment.
+
+There exists a built-in search path for transient commands.  First, the
+current drive/user is searched.  Next, the current drive/default user
+is searched.  Last, drive A/default user is searched.  The DEFUSR
+equate determines the default user number, currently set to user 0 in
+this distribution version.  PR is entered at CPRLOC+3 jump, default command
+processing is suppressed.  Either way, register C must contain a valid
+drive/user, just like the original CCP.
+
+
+Submit File Processing
+======================
+
+A basic design choice had to be made in the design of ZCPR concerning
+the execution of submit files. The original CCP had a problem.  It
+ALWAYS looked for the $$$.SUB file on drive A and the submit program
+would place it on the current default drive.  When the you were logged
+onto drive B anThe default user is temporarily changed
+with the DFU command.  If a drive is specified in the transient
+command, the current and default user areas on the specified drive are
+searched.  If a user number is specified, that user area on the current
+and default drive are searched.  If both the drive and user number are
+specified, no search is performed.  The same drive/user area is never
+searched twice.
+
+Transient commands are always "called."  If a program terminates via a
+return rather than a warm bd you issued a submit command, the $$$.SUB was placed on
+drive B and not executed.
+
+After much debate it was decided to have ZCPR perform the same type of
+function as CCP (look for the $$$.SUB file on drive A), but the problem
+with SUBMIT.COM still exists.  Hence, RGF designed SuperSUB and RLC
+took his SuperSUB and designed SUB from it; both programs are set up to
+allow the selection at assembly time of creating the $$$.SUB on the
+default drive or on drive A.  If you don't have one of these newer
+soot, subsequent multiple commands on the
+command line are executed.  Any program exiting by a warm boot reloads
+ZCPR and the subsequent commands lost.
+
+A default command can be placed in the command buffer and control
+passed to ZCPR for processing.  The only thing required, besides
+placing the command in the buffer and jumping to CPRLOC, is to
+initialize the command character counter at the start of the buffer.
+The procedure is compatible with the original DRI CCP default command
+processing.  If ZCubmit programs, a procedure for patching the standard SUBMIT.COM has
+been included at the end.
+
+The fixed drive choice permits a submit file to contain a series of
+commands exactly as they would be entered from a CP/M console.  This
+permits things like:
+
+    A>dir
+    A>b:
+    B>dir
+
+to be executed, even though the currently default drive is changed
+during execution. If the $$$.SUB file were present on the default
+drive, the above series of commands would not work.  ZCPR would be
+looking for $ If there is a conflict between an internal ZCPR command
+and a transient program of the same name, the internal command is
+executed.  Type the command with the du: included if the external
+transient command is the one desired.  Here is a complete alphabetized
+list of all the resident commands with their syntax:
+
+=============================================================================
+
+Command:  BELL
+
+Function: To ring terminal bell.
+
+Forms:    BELL
+
+Options:  None.
+
+Uses:     This comma$$.SUB on the default drive, and switching default drives
+without moving the $$$.SUB file would cause processing to abort.  Note
+that the same problem occurs if the user number of the $$$.SUB file is
+not predefined. ZCPR assumes that the $$$.SUB file is located on user 0
+of drive A.
+
+The trick of using the $ flag returned by the BDOS disk reset is used
+to speed the search for a $*.* file on drive A. This trick will not
+work if the $$$.SUB file were located on another drive.
+
+The '>' prompt charactnd is designed to be placed in a submit file to
+          ring the bell to indicate significant checkpoints.
+
+=============================================================================
+
+Command:  BOOT
+
+Function: To execute BIOS cold boot routine.
+
+Forms:    BOOT
+
+Options:  REBOOT equate controls the inclusion/exclusion of this command.
+
+Uses:     Reboots the system without pushing the reset button.  The
+          cold boot entry point in the BIOS must be supported for this
+          commaner is replaced by a special character while a
+submit file is in execution.  The SPRMPT equate defines this special
+character, currently set to '$' in this distribution version.
+
+
+Command Syntax
+==============
+
+Multiple commands can be placed on one line.  If the comment character
+is encountered where a command should start, the rest of the line is
+ignored.  Any command can be renamed by editing the command table.
+Command names can be up to eight characters long and are terminated by
+bit 7 high. d to work.
+
+=============================================================================
+
+Command:  DFU
+
+Function: To set the Default User Number for transient commands.
+
+Forms:    DFU <usrnum>
+
+Options:  DEFUSR equate defines the default user choice until this
+          command is entered.
+
+          NUMBASE equate defines the character that specifies a
+          hexadecimal number.  The distribution version is set to 'H'.
+
+Uses:     The default user area is searched after a transient comm
+
+          FENCE equate specifies the character separator between the
+          directory columns.
+
+          USRDLM equate specifies the character between the user number
+          and the filename.
+
+          USRFLG, SYSFLG, and SOFLG equates specify the command line
+          tail character that control the display of system and
+          non-system files.
+
+Uses:     Displays a directory listing of files in specific drive/user
+          area.
+
+=============================================and
+	  cannot be found in the current user area.  If the transient
+	  command still has not been found, the default user on the
+	  default drive is searched last.  The new default user number
+	  is in decimal, but hexadecimal numbers are entered by
+	  appending an 'H'.  The next warm boot will restore the
+	  original default user number.
+
+=============================================================================
+
+Command:  DIR
+
+Function: To display a directory listing of the files on a drive.================================
+
+Command:  ERA
+
+Function: To erase files.
+
+Forms:    ERA <afn>
+
+Options:  None.
+
+Uses:     Deletes files.  Names of erased files are displayed.
+
+=============================================================================
+
+Command:  ERAQ
+
+Function: To erase files with individual query.
+
+Forms:    ERAQ <afn>
+          <afn>? y          File erased
+          <afn>? <CR>       File not erased
+
+Options:  None.
+
+Uses:     Deletes a subset of a set of ambi
+
+Forms:    DIR <afn>       Display the DIR files
+          DIR <afn> S     Display the SYS files
+          DIR <afn> B     Display both DIR and SYS files
+          DIR <afn> A     Display both DIR and SYS files for all user areas
+
+Options:  TWOCOL equate controls the number of columns in the display.
+          Forty-column terminals are limited to two-column displays.
+
+          WIDE equate controls the spacing between the columns and
+          change the horizontal width of a directory display.Acorn CPCPMDISC¤                                                                                                                                                                                                                                                /M         0                                                                                                                                                                                                                                                ееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееее

@@ -1,0 +1,2046 @@
+	TITLE	"INSTALOS - Install ZCPR3, ZSDOS, and CBIOS"
+;*************************************************************************
+;   I N S T A L O S
+;-------------------------------------------------------------------------
+; Copyright (C) 1988  by Harold F. Bower and Cameron W. Cotrill
+;-------------------------------------------------------------------------
+; This program permits overlaying User-supplied Console Command Processor,
+; Disk Operating System (such as ZSDOS), and BIOS replacements into an
+; existing MOVCPM "type" program.  The MOVCPM program's image is patched
+; with the new code, and the page relocatable bit map is modified with the
+; correct values for the new routine.  All segments must be in Microsoft
+; .REL formatted files ORGed at 0.  The user may select default names for
+; the program segments, or enter any valid file names and types, and
+; specify drive and user area parameters to search for the specified files.
+;
+; Revision:
+;	1.2b- fix in DOBIOS to move first byte of map	   21 Jul 91  HFB
+;	1.2a- Null map areas before loading new segments.  10 Apr 90  HFB
+;	1.2 - Mod to work with SLINK0 module which has external Read
+;		functions.				 8 Apr 90  HFB
+;	1.1b- Fixed screen clear bug, cleaned source code. 10 Feb 90  HFB
+;	1.1a- Modified CCP Map byte test to mask off LSB for odd-ball
+;		CP replacements such as ZCPR2.		 9 Aug 89  HFB
+;	1.1 - Added ability to instal DOS in TURBOSYS.PRL for Plu*Perfect
+;		Turbo-Dos.				18 Jun 89  HFB
+;	1.0a- Added forgotten Internal Path config.	25 Sep 88  HFB
+;	1.0 - Initial Release				16 Sep 88
+;*************************************************************************
+; Link with SLINK0.REL and Vers 4 of: SYSLIB.REL, VLIB.REL and Z3LIB.REL.
+; ..as:
+; A>ZML INSTAL12,SLINK0,VLIB/,Z3LIB/,SYSLIB/
+;* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+VER	EQU	12		; Version Number of module
+subver	equ	'b'		; ..minor mod revision letter
+
+BELL	EQU	07H		; ASCII Bell Char
+BS	EQU	08H		; ASCII Backspace char
+TAB	EQU	09H		; ASCII Horizontal Tab char
+LF	EQU	0AH		; ASCII Line Feed char
+CR	EQU	0DH		; ASCII Carriage Return char
+
+BDOS	EQU	0005H		; BDOS vector address
+FCB	EQU	005CH		; Default FCB location
+BUFF	EQU	0080H		; Default CP/M Buffer
+
+;<-- ZSDOS version specific values -->  Release Version 1.0
+
+SPSAVE	EQU	0061H		; ZSDOS Stack save location from base
+FLGOFF	EQU	15H		; ZSDOS Flag offset from base
+IPATH	EQU	0DF1H		; Offset of Internal Path
+
+	PUBLIC	@GBYTE		; Declare this for the LINK routine.
+				; .Routine must return Byte in A, Carry
+				; ..Set if Error, Else Carry Clear.
+
+; From VLIB Get..
+
+	EXT	Z3VINIT, EREOL, CLS, GOTOXY, GXYMSG
+	EXT	VPRINT, STNDOUT, STNDEND, AT
+
+; From Z3LIB Get..
+
+	EXT	WHRENV
+
+; From SYSLIB Get..
+
+	EXT	CIN, COUT, CAPS, CRLF, CODEND, BLINE
+	EXT	PA2HC, PFN2, PHL4HC
+	EXT	RETUD, LOGUD, INITFCB, FNAME, SETDMA
+	EXT	F$OPEN, F$READ, F$WRITE, F$CLOSE
+	EXT	F$EXIST, F$MAKE, F$DELETE
+
+; From stand-alone modules..
+
+	EXT	LINK
+
+;--------------------------------------------------
+;	B e g i n     t h e     S o u r c e
+;--------------------------------------------------
+	.Z80
+	CSEG
+
+INSTAL:	JP	START		; ZCPR3 header
+
+	DEFB	'Z3ENV'
+	DEFB	1		; External environment
+	DEFW	0000		; Dummy value for environment
+
+START:	LD	(STACK),SP	; Save entry stack..
+	LD	SP,STACK	; ..and set local one
+	LD	HL,0000		; Prevent re-execution..
+	LD	(INSTAL+1),HL	; ..by vectoring to warm boot
+
+; Zero working variables on entry
+
+	LD	HL,ENVPTR
+	LD	B,MSEG3-ENVPTR
+ZERO:	LD	(HL),0
+	INC	HL
+	DJNZ	ZERO
+
+	LD	HL,(0006)	; Set address to force complete scan for ENV
+	CALL	WHRENV		; Locate and confirm
+	LD	(ENVPTR),HL
+	CALL	Z3VINIT
+
+	CALL	CLS		; Start with a clear screen
+	CALL	PRNL
+	DEFB	1,1,1,'INSTALOS',2,' V',VER/10+'0','.',VER MOD 10 + '0',subver
+	DEFB	'   Copyright (C) 1988/89/90   H.F. Bower / C.W. Cotrill'
+	DEFB	CR,LF,0
+
+	LD	HL,BUFF		; Check for help request
+	LD	A,(HL)		; Get # of chars in string
+	INC	HL		; Advance to 1st char
+	INC	HL
+	OR	A		; If NO arguments
+	JP	Z,MOVZSA	; ..jump to main program
+	CP	3		; Help must have 3 chars
+	JP	NZ,MOVZSA
+	LD	A,(HL)		; Get 1st char
+	CP	'/'		; Is it an option?
+	INC	HL
+	LD	A,(HL)		; (stash 2nd char)
+	JP	NZ,MOVZSA	; ..jump if first char not slash
+	CP	'/'		; Two slashes is help
+	JR	Z,HELP		; ..jump if help
+	LD	B,0		; Set ORG offset in case "A"
+	CP	'A'		; Is it an absolute load request?
+	JP	Z,MOVZS1	; ..jump to save mode flag if so
+	CP	'T'		; Install DOS in TURBOSYS.MDL?
+	JP	Z,MOVZS0	; ..save mode flag & set offset if so
+	JP	MOVZSA		; ..and continue later
+
+HELP:	CALL	VPRINT
+	DEFB	CR,LF,LF
+	DEFB	1,'INSTALOS',2,' patches a user''s MOVCPM.COM "type" program'
+	DEFB	' with',CR,LF,'             '
+	DEFB	'replacement CCP, DOS and BIOS segments.',CR,LF,LF
+	DEFB	'  Syntax:',CR,LF
+	DEFB	'        INSTALOS [/o] <cr>',CR,LF
+	DEFB	'  Options:',CR,LF
+	DEFB	'        // - Print this message',CR,LF
+	DEFB	'        /A - Overlay existing relocated image',CR,LF
+	DEFB	'               (Absolute Addressing from image)',CR,LF
+	DEFB	'        /T - Overlay ZSDOS/ZDDOS on TURBOSYS.MDL',CR,LF
+	DEFB	'  Notes:',CR,LF
+	DEFB	'      1 - Operation is interactive, screen oriented under '
+	DEFB	'ZCPR3',CR,LF
+	DEFB	'      2 - Replacement segments must be in Microsoft .REL '
+	DEFB	'form',CR,LF
+	DEFB	'      3 - Default setting of ZSDOS/ZDDOS parameters is '
+	DEFB	'supported',CR,LF
+	DEFB	'          during installation of the DOS segment.',CR,LF
+	DEFB	'      4 - Drive/User filespecs (DU:) are allowed.',CR,LF,LF,0
+	JP	EXIT		; Back to CCP
+
+MOVZS0:	LD	BC,200H		; Set 2 page offset for ORGs w/TURBO-ROM
+	LD	HL,(COMTB0)	; .in CCP Org for Named Commons
+	ADD	HL,BC
+	LD	(COMTB0),HL
+	LD	HL,(COMTB1)	; ..and DOS
+	ADD	HL,BC
+	LD	(COMTB1),HL
+	LD	HL,(COMTB2)	; ...and BIOS
+	ADD	HL,BC
+	LD	(COMTB2),HL
+				; ..fall thru w/2 page offset in B
+MOVZS1:	LD	(MODFLG),A	; Save the installation mode flag
+	LD	A,B		; ..and offset for orgs
+	LD	(ORGOFF),A
+MOVZSA:	CALL	CODEND		; Get start of avail memory (even page)
+	LD	(BASADR),HL	; Save bottom of file buffer
+
+	CALL	RETUD		; Get logged Drive/User
+	LD	(CUSER),BC	; ..and save
+	LD	A,(MODFLG)	; Is this an absolute load?
+	CP	'A'
+	JR	NZ,MOVZSB	; ..jump if Not
+	CALL	PRNL		; Ask for Absolute System model name
+	DEFB	3,1,'Absolute System Model (Default=SYSTEM.MDL) : ',0
+	CALL	GETNAM		; Get [DU:]FN.FT
+	LD	HL,DFLT6	; Point to default
+	JR	MOVZSC		; ..and jump to check
+
+MOVZSB:	CP	'T'		; Is this a Turbosys load?
+	JR	NZ,MOVZST	; ..jump to normal relocatable if Not
+	CALL	PRNL		; Ask for file name/loc'n
+	DEFB	3,1,'TurboRom system file (Default=TURBOSYS.PRL) : ',0
+	CALL	GETNAM		; Get ID
+	LD	HL,DFLT1A	; .point to default
+	JR	MOVZSC		; ..and jump to check
+
+MOVZST:	CALL	PRNL		; Ask for name of CP/M image
+	DEFB	3,1,'System Image file to patch (Default=MOVCPM.COM) : ',0
+	CALL	GETNAM		; Get [DU:]FN.FT
+	LD	HL,DFLT1	; Check for MOVCPM.COM default
+
+MOVZSC:	CALL	SETTYP
+
+	LD	DE,FCB
+	CALL	F$OPEN		; Attempt to open OS image file
+	JP	NZ,FERROR	; ..jump if unable to open
+
+	CALL	PRNL
+	DEFB	5,10,'Loading.. ',0
+	CALL	PRNAME
+	LD	DE,80H		; Set sector size
+	LD	HL,(BASADR)	; Get start of free memory
+
+FXFER0:	LD	(TOPADR),HL	; Save current top of image
+	PUSH	DE		; ..and sector size
+	CALL	SETDMA
+	LD	DE,FCB
+	CALL	F$READ		; Get a sector
+	POP	DE
+	OR	A		; Check for end
+	JR	NZ,FXFER1	; ..exit if the end
+	LD	HL,(TOPADR)	; Calculate new top
+	ADD	HL,DE
+	JR	FXFER0
+
+FXFER1:	LD	DE,FCB
+	CALL	F$CLOSE		; ..just to be polite
+
+; Now we need to locate the CCP in the MOVCPM memory image.  BDOS will be
+; 800H above it (unless it is a non-standard CCP).  Test for CCP by looking
+; for 2 jump instructions at BASE+0 and BASE+3, or an absolute jump at BASE+0
+; followed by a relative jump at BASE+3.
+
+	LD	HL,300H		; Start of CCP in TURBOSYS viewed from DDT
+	LD	(OFFSET),HL
+	EX	DE,HL		; ..and keep offset in DE
+
+TESTNX:	LD	HL,(BASADR)	; Start at beginning of image
+	ADD	HL,DE
+	LD	(PHCCP),HL	; ..and save
+	CALL	CHK		; Have we gone too far?
+	JP	NC,NOCCP	; ..error if so
+
+; Is HL pointing to the start if a CCP image?
+
+	LD	A,(HL)		; Check first byte
+	CP	0C3H		; Is it a jump?
+	JR	NZ,TESTN0	; ..try next logical sector if not
+	INC	HL
+	INC	HL
+	INC	HL		; Jump at base, check base+3
+	LD	A,(HL)
+	CP	0C3H		; Is it a jump?
+	JR	Z,TSTBDS	; ..go check for BDOS if it is
+	CP	18H		; Else check for ZCPR 3.3 Relative jump
+	JR	NZ,TESTN0	; ..try next logical sector if not
+	LD	(Z33FLG),A	; Put non-zero value in flag to show Z33
+	JR	TSTBDS		; ..and exit to check for BDOS
+
+TESTN0:	LD	HL,(OFFSET)
+	LD	DE,80H		; Bump the offset pointer up some more
+	ADD	HL,DE		; Point to next record to check
+	LD	(OFFSET),HL	; Put new offset in storage..
+	EX	DE,HL		; ..and in DE
+	JR	TESTNX		; Loop to test again
+
+TSTBDS:	LD	BC,803H		; Additional offset to BDOS Jump instr.
+	ADD	HL,BC
+	LD	A,(HL)
+	CP	0C3H		; ..must be a jump here
+	JR	NZ,TESTN0	; Jump if not right
+
+	DEC	HL		; Back up to page beginning to save serial#
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	PUSH	HL
+	LD	(PHDOS),HL	; Saving address for later overlay, and SN..
+	LD	DE,SNBUF	; ..in local buffer
+	LD	BC,6
+	LDIR
+
+	LD	HL,SNBUF
+	LD	DE,ZRDOSS
+	LD	B,5
+ZCHKLP:	LD	A,(DE)
+	CP	(HL)
+	JR	NZ,CPM		; ..have CP/M if mismatch
+	INC	HL
+	INC	DE
+	DJNZ	ZCHKLP		; Loop til all of string checked
+	LD	A,0FFH
+	LD	(ZFLG),A	; Set flag for ZRDOS
+
+CPM:	POP	HL		; Get DOS page back
+	LD	BC,0E00H	; Offset into proposed BIOS Jump table
+	ADD	HL,BC
+	LD	(PHBIO),HL	; ..and save physical address
+	LD	A,(HL)		; Is there a jump here?
+	CP	0C3H
+	JR	NZ,TESTN0	; ..jump search loop if not
+	LD	BC,0006		; Skip second jump for ONEAC ON! wierd BIOS
+	ADD	HL,BC		;
+	LD	B,5		; Insure that 5 jumps here (ON! limit)
+TESTBI:	LD	A,(HL)
+	CP	0C3H
+	JR	NZ,TESTN0	; Jump to search loop if not here
+	INC	HL		; ..advance to next loc'n
+ 	INC	HL
+	INC	HL
+	DJNZ	TESTBI		; Loop til done
+
+; We have now validated locations for all parts of the OS, calculate them
+
+	LD	HL,(OFFSET)	; Recalc the CCP address
+	INC	H		; Compensate for DDT load from TPA (100H)
+	LD	(CSEG1),HL
+	LD	DE,800H		; Offset to BDOS
+	ADD	HL,DE
+	LD	(CSEG2),HL
+	LD	DE,0E00H	; Offset to BIOS
+	ADD	HL,DE
+	LD	(CSEG3),HL
+
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JR	Z,MAIN0A	; ..jump if so
+
+; See if we can locate the relocatable bit map
+
+	LD	DE,(BASADR)	; Start at the Base address
+	ADD	HL,DE		; ..adding in offset to BIOS
+	LD	DE,200H-100H	; Start at Turbosys BIOS offset-TPA ( >=1.5k )
+	ADD	HL,DE		; So start looking for the bit map here
+	LD	(MAPCCP),HL	; Save to verify
+
+BITS0:	CALL	CHK		; Make sure we don't go out of bounds
+	JP	NC,NOMAPB	; ..error if run over
+	LD	A,(HL)		; Get a byte from the Map
+	AND	0FEH		; ..masking LSB for home-grown CP (eg.ZCPR2)
+	CP	24H		; CCP and ZCPR < 3.3 all start with 24H
+	JR	Z,BITS1		; ..jump if OK to BDOS Map start
+	CP	20H		; Could it be ZCPR 3.3?
+	JR	NZ,BITSLP	; ..jump if wrong bit combo
+	LD	A,(Z33FLG)	; Else see if Z33 detected in code
+	OR	A
+	JR	NZ,BITS1	; ..jump if this was Z33
+
+BITSLP:	LD	DE,16		; Else offset to next logical sctr Map
+	LD	HL,(MAPCCP)
+	ADD	HL,DE
+	LD	(MAPCCP),HL	; Update the storage location
+	JR	BITS0
+
+BITS1:	LD	DE,100H		; The BDOS Map bits are up here
+	ADD	HL,DE
+	LD	(MAPDOS),HL	; ..save this address in case it is good
+	LD	A,(HL)		; Check the first byte
+	OR	A		; ..should always be a 00
+	JR	NZ,BITSLP	; Back for more if not right
+	INC	HL
+	LD	A,(ZFLG)	; Is this a ZRDOS system?
+	OR	A
+	LD	E,80H		; ZRDOS has this as second byte
+	JR	NZ,CPM1		; ..jump if ZRDOS
+
+	LD	E,08AH		; CP/M, ZSDOS have 0AAH, Morrow has 8AH
+CPM1:	LD	A,(HL)
+	RES	5,A		; ..so mask bit 5 changing AA to 8A
+	CP	E
+	JR	NZ,BITSLP
+
+	LD	DE,1BFH		; The BIOS Map bits are this much further up
+	ADD	HL,DE
+	LD	(MAPBIO),HL	; ..and save address
+	LD	A,24H		; Check a few of the BIOS bytes
+	CP	(HL)
+	JR	NZ,BITSLP
+	INC	HL		; Bypass a few bytes in case IOPs installed
+	INC	HL
+	INC	HL
+	CP	(HL)
+	JR	NZ,BITSLP
+	INC	HL
+	BIT	7,(HL)
+	JR	Z,BITSLP
+	JR	MAIN0		; ..and continue below
+
+MAIN0A:	LD	HL,(PHDOS)	; Get DOS Address
+	LD	DE,7		; Offset to addr of jump
+	ADD	HL,DE
+	LD	A,(HL)		; Get low order addr
+	INC	HL
+	LD	D,(HL)		; ..and hi order
+	CP	10H		; Is it ZRDOS 1.9 (Jump 109H relative)
+	JR	NC,MAIN0B	; ..jump if not
+	DEC	D		; Else back up to starting page
+MAIN0B:	LD	E,0		; Set for base page
+	LD	(MSEG2),DE	; Save addr for DOS
+	LD	(COMTB0),DE
+	LD	HL,-800H
+	ADD	HL,DE
+	LD	(MSEG1),HL	; ..and CCP
+	LD	(COMTB1),HL
+	LD	HL,0E00H
+	ADD	HL,DE
+	LD	(MSEG3),HL	; ..and BIOS
+	LD	(COMTB2),HL
+	JP	MATCH0
+
+; The Relocation Bit map has been validated, Re-calculate addresses
+
+MAIN0:	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JP	Z,MATCH0	; ..jump if so
+	LD	HL,(MAPCCP)	; Get physical map address
+	LD	DE,(BASADR)	; ..and subtract image starting addr
+	OR	A
+	SBC	HL,DE
+	INC	H		; Move up one for TPA offset in DDT
+	LD	(MSEG1),HL
+	LD	DE,100H		; Offset to BDOS map segment
+	ADD	HL,DE
+	LD	(MSEG2),HL
+	LD	DE,01C0H	; Offset to BIOS map segment
+	ADD	HL,DE
+	LD	(MSEG3),HL
+
+; Locate vector in image which points to Bit Map page
+
+	LD	HL,(OFFSET)	; Get Offset to CCP start
+	LD	A,H		; Calculate maximum loops based on..
+	SUB	6		; ..page count of offset
+	LD	B,A
+	LD	DE,-128		; ..and back up to start of boot loader
+	ADD	HL,DE
+	DEC	H		; Down one more page
+	LD	L,1		; Go to the vector offset..
+	LD	DE,(BASADR)	; Offset to Real memory
+	ADD	HL,DE
+TRY1:	LD	(VECT),HL	; Save vector address in real memory
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)		; Load the vector
+	LD	(MAPOFF),DE	; ..and save map offset
+
+; See if this vector matches the value scanned from the image
+
+	INC	H		; Up to next page past vector addr..
+	LD	L,0		; ..and first location
+	ADD	HL,DE		; The Map should start here (logical offset)
+	LD	A,(MAPCCP+1)	; Get starting page of CCP map bits
+	CP	H		; Right page?
+	JR	NZ,TRY2		; ..jump if not
+	LD	A,E		; Now check offset word for page boundary
+	OR	A		; Is it on even page?
+	JR	Z,MATCH		; ..jump if Match
+TRY2:	LD	HL,(VECT)	; Else get map offset..
+	DEC	H		; ..and move down 256 bytes
+	DJNZ	TRY1		; Loop if not the end
+			;..else fall thru to error
+	CALL	VPRINT
+	DEFB	CR,LF,'++ Image Vector does not match Calculations ++',0
+	JP	MOVZSJ		; and exit
+	
+; Calculate available space for BIOS Code and Data
+
+MATCH:	LD	DE,(PHBIO)	; Get BIOS Physical starting address
+	LD	HL,(MAPCCP)	; ..and calculate BIOS code size
+	XOR	A
+	LD	L,A
+	SBC	HL,DE
+	LD	(BIOSIZ),HL	; Save existing BIOS size
+
+MATCH0:	LD	HL,6*256+1
+	CALL	CLSCR		; Set the cursor
+
+	CALL	STATS		; Print the gathered statistics
+
+; Locations in memory have all been identified, now see what to do
+
+	LD	A,'-'
+	LD	B,60
+LINLP:	CALL	COUT		; Print a dividing line
+	DJNZ	LINLP
+
+	CALL	PRNL		; Get user selection
+	DEFB	14,18,'1 - Replace CCP',0
+	CALL	PRNL
+	DEFB	15,18,'2 - Replace DOS',0
+	CALL	PRNL
+	DEFB	16,18,'3 - Replace BIOS',0
+	CALL	PRNL
+	DEFB	17,18,'4 - Save and Exit',0
+MENU0:	CALL	PRNL
+	DEFB	19,10,'Enter Selection (^C Quits) : ',0
+	CALL	EREOL		; ..clear rest of line
+	CALL	GETCH		; Get response
+	CP	03		; ..if Control-C..
+	JP	Z,MOVZSJ	; ...exit
+	CALL	COUT
+	CP	'2'
+	JP	Z,DODOS
+	CP	'3'
+	JP	Z,DOBIOS
+	CP	'4'
+	JP	Z,MVZSDA
+	CP	'1'
+	JR	NZ,MENU0	; Loop if invalid selection
+
+	CALL	CLR13
+
+..1:	CALL	PRNL		; Get CCPR name
+	DEFB	14,1,'Name of ZCPR file (Default=ZCPR3.REL) : ',0
+	CALL	EREOL		; ..clear rest of line
+	CALL	GETNAM
+	CALL	CRLF
+
+	LD	HL,DFLT4	; Check for default requirements
+	CALL	SETTYP
+
+	LD	DE,FCB
+	CALL	INITFCB
+	CALL	F$EXIST		; Does it already exist?
+	JR	NZ,HAVZ		; ..jump if not
+	CALL	NOTFND		; Else say we have it & ask for another
+	JR	..1
+
+HAVZ:	CALL	PRIME		; Prime the input file routine
+	CALL	LNKSIZ		; Call the LINK module for sizing only
+	JP	NZ,SZFERR	; ..jump if Errors
+
+	EX	DE,HL		; Save the sizes..
+	LD	(CSIZE),HL	; ..of CSEG
+	LD	(DSIZE),BC	; ..and DSEG
+	ADD	HL,BC		; Check combined size
+	LD	DE,0801H	; ..against maximum + 1
+	OR	A
+	SBC	HL,DE
+	JP	NC,TOOBIG	; Go error if file size excessive
+
+	LD	HL,16*256+7
+	CALL	GOTOXY
+	LD	DE,FCB+1
+	CALL	PFN2
+	CALL	VPRINT
+	DEFB	' Size Ok...overlaying CCP..',0
+	LD	DE,FCB
+	CALL	INITFCB		; Set FCB for another read
+	CALL	PRIME		; ..and prepare for a Read
+
+	EXX			; Load up the registers for Link
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JR	NZ,HAVZ1	; ..jump if Not
+	LD	BC,(MSEG1)	; Else set CSEG ORG addr
+	LD	HL,(CSIZE)
+	ADD	HL,BC
+	EX	DE,HL		; Set DSEG ORG addr in DE'
+	LD	A,0001B		; Link with No Map
+	JR	HAVZ2
+
+HAVZ1:	LD	DE,(MAPCCP)	; Purge CCP Bit Map area
+	LD	HL,800H/8	; ..(size of CCP Map area)
+	ADD	HL,DE		; Point to end
+	CALL	PURGIT		; ..and clear
+
+	LD	BC,0		; CSEG ORG Addr
+	LD	A,(ORGOFF)	; Get org offset (0=norm, 200H=turbosys)
+	ADD	A,B		; ..add to page
+	LD	B,A
+	LD	DE,(CSIZE)	; DSEG ORG Addr
+	LD	HL,(MAPCCP)	; Map start Addr
+	LD	A,0011B		; Flags to LINK and Generate Map
+HAVZ2:	EXX
+
+	LD	BC,(PHCCP)	; Get Physical CCP DSEG address to BC
+	LD	HL,(CSIZE)
+	ADD	HL,BC
+	EX	DE,HL		; Physical DSEG Map addr to DE
+	CALL	LNKLNK		; Do an actual LINK operation
+	JP	NZ,LNKERR	; ..jump if Errors
+	JP	MAIN0
+
+;.....
+
+DODOS:	CALL	CLR13
+
+; Get ZSDOS relocatable file to overlay on the memory image.
+
+RELNAM:	CALL	PRNL		; Ask for name of save file
+	DEFB	14,1,'Name of DOS file (Default=ZSDOS.ZRL) : ',0
+	CALL	EREOL
+	CALL	GETNAM		; Get filename and parse into FCB
+	CALL	CRLF
+
+	LD	HL,DFLT2	; Prepare for ZSDOS.REL default
+	CALL	SETTYP
+
+	LD	DE,FCB
+	CALL	INITFCB
+	CALL	F$EXIST		; Does the file exist?
+	JR	NZ,HAVREL	; ..jump if file found
+
+	CALL	NOTFND		; Say can't find it, abort if no try again
+	JR	RELNAM
+
+HAVREL:	CALL	PRIME		; Prepare for a Read
+	CALL	LNKSIZ		; Call LINK for Sizing Only
+	JP	NZ,SZFERR	; ..jump to sizing error if not Ok
+
+	EX	DE,HL		; Put code size in HL
+	LD	(CSIZE),HL	; ..saving for later
+	LD	(DSIZE),BC	; ..saving data size also
+	ADD	HL,BC		; Check combined size to fit
+	LD	DE,0E01H	; This is the maximum allowed + 1
+	OR	A
+	SBC	HL,DE
+	JR	C,SIZOK		; bypass error if it will fit
+TOOBIG:	CALL	PRNL
+	DEFB	16,1,BELL,'*** File too large to fit...',0
+	JP	MOVZSJ		; ..and exit
+
+SIZOK:	LD	HL,16*256+7	; Let the user know what's happening
+	CALL	GOTOXY
+	LD	DE,FCB+1	; Print the filename
+	CALL	PFN2
+	CALL	VPRINT
+	DEFB	' Size OK...overlaying BDOS..',0
+	LD	DE,FCB		; Re-initialize the FCB
+	CALL	INITFCB
+	CALL	PRIME		; ..and prepare for a Read
+
+	EXX			; Set up all of the registers
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JP	NZ,SIZOK0	; ..jump if Not
+	LD	BC,(MSEG2)	; Set CSEG ORG addr in BC'
+	LD	A,0001B		; LINK with No Map
+	JR	SIZOK1
+
+
+SIZOK0:	LD	DE,(MAPDOS)	; Null the DOS Bit Map Area
+	LD	HL,0E00H/8	; ..(size of DOS Map area)
+	ADD	HL,DE		; HL now points to end of Map
+	CALL	PURGIT		; ..and clear the bit map
+
+	LD	BC,800H		; BC' = CSEG ORG address for DOS
+	LD	A,(ORGOFF)	; Get org offset (0=norm, 200H=turbosys)
+	ADD	A,B		; ..add to org page
+	LD	B,A
+	LD	A,0011B		; LINK and Generate Map
+SIZOK1:	LD	HL,(CSIZE)	; ..Map generation means DSEG follows CSEG
+	ADD	HL,BC
+	EX	DE,HL		; DE' = DSEG ORG address
+	LD	HL,(MAPDOS)	; HL' = Bit Map physical starting addr
+	EXX			; ..now back to primary regs
+
+	LD	BC,(PHDOS)	; BC = Physical addr to put CSEG data
+	LD	HL,(CSIZE)
+	ADD	HL,BC
+	EX	DE,HL		; DE=Physical addr for DSEG
+	CALL	LNKLNK		; LINK for real this time
+	JP	NZ,LNKERR	; ..jump error routine if problems
+
+; Before we continue, we must determine whether we have ZSDOS or ZDDOS
+
+	LD	HL,(PHDOS)	; Get address of DOS image..
+	LD	DE,SPSAVE+2	; ..and offset to text string in stack area
+	ADD	HL,DE
+	LD	A,(HL)
+	CP	'Z'		; Is this the first character?
+	JP	NZ,NOCHGS	; ..abort configuration if not ZSDOS
+	INC	HL		; Advance to next char
+	LD	A,(HL)
+	LD	(DOSTYP),A	; Save second char
+	CP	'S'
+	JR	Z,ZSCHK0	; Second char Ok, continue
+	CP	'D'
+	JP	NZ,NOCHGS	; Abort configuration if not ZSDOS or ZDDOS
+ZSCHK0:	INC	HL
+	LD	A,(HL)
+	CP	'D'
+	JP	NZ,NOCHGS
+	INC	HL
+	LD	A,(HL)
+	CP	'O'
+	JP	NZ,NOCHGS
+	INC	HL
+	LD	A,(HL)
+	CP	'S'
+	JP	NZ,NOCHGS	; Abort if not ZSDOS or ZDDOS
+
+; This is ZSDOS/ZDDOS, Now see if changes are desired in the vectors
+
+MOVZSD:	CALL	PRNL
+	DEFB	17,1,'Examine/Change ZSDOS parameters ([Y]/N)? : ',0
+	CALL	GETCH
+	CP	03		; Is it Control-C?
+	JP	Z,MOVZSJ	; ..exit if so
+	CALL	COUT
+	CP	'N'
+	JP	Z,NOCHGS	; No changes desired, Save and exit
+
+	CALL	CLS		; ..else clear the screen for config
+
+	LD	HL,(ENVPTR)	; Get the pointer
+	LD	A,H
+	OR	L
+	JR	NZ,DSKOK	; Jump if valid Environment
+	CALL	VPRINT
+	DEFB	CR,LF,'No Z3 Environment Found',CR,LF,0
+	JP	DSKOK0		; ..and continue
+
+DSKOK:	CALL	GXYMSG
+	DEFB	1,40,'Z3 Environment at  : ',0
+	LD	HL,(ENVPTR)
+	CALL	PRHEX
+
+	CALL	CHKZS		; Is this ZSDOS?
+	LD	HL,2*256+45	;    (prepare for cursor set
+	JR	NZ,II0		; ..jump if ZDDOS
+
+	CALL	PRNL		; CRLF then print
+	DEFB	2,40,'ZCPR Path Address  : ',0
+	LD	DE,0009H	; Offset to Path
+	LD	HL,(ENVPTR)
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	LD	(PATH),HL
+	CALL	PRHEX
+
+	LD	HL,3*256+45
+II0:	PUSH	HL
+	CALL	CRLF
+	POP	HL
+	CALL	GOTOXY	
+	CALL	VPRINT
+	DEFB	'Wheel Byte at : ',0
+	LD	DE,0029H	; Offset to Wheel Byte
+	LD	HL,(ENVPTR)
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	EX	DE,HL
+	LD	(WHEEL),HL
+	CALL	PRHEX
+	CALL	CRLF
+
+; Now Let's Discover where DOS parameters are in this System
+
+DSKOK0:	LD	IX,(PHDOS)	; Set the pointer to image of DOS
+
+	LD	DE,FLGOFF	; Set offset to FLAG byte in IX
+	ADD	IX,DE
+	LD	(IXVAL),IX	; Save IX value in memory
+
+	LD	E,(IX+13)	; Get disabling address for checks
+	LD	D,(IX+14)
+	LD	(DISABL),DE	; ..and save
+
+DSKDAT:	CALL	CRLF
+	CALL	AT
+	DEFB	22,1
+	CALL	EREOL		; Clear line 17 in case it was used
+	LD	HL,501H		; Position to start of line 5
+	CALL	GOTOXY
+	CALL	VPRINT
+	DEFB	'       1 - PUBlic Files           : ',0
+	LD	IX,(IXVAL)
+	BIT	0,(IX+0)
+	CALL	PRYN
+
+	CALL	CHKZS		; Is this ZSDOS?
+	JR	NZ,ISZD0	; ..change prompt if ZDDOS
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       2 - Pub/Path Write Enable  : ',0
+	JR	ISZD1
+
+ISZD0:	CALL	VPRINT
+	DEFB	CR,LF,'       2 - Public Write Enable    : ',0
+ISZD1:	LD	IX,(IXVAL)
+	BIT	1,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       3 - Read-Only Vector       : ',0
+	LD	IX,(IXVAL)
+	BIT	2,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       4 - Fast Fixed Disk Log    : ',0
+	LD	IX,(IXVAL)
+	BIT	3,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       5 - Disk Change Warning    : ',0
+	LD	IX,(IXVAL)
+	BIT	4,(IX+0)
+	CALL	PRYN
+
+	CALL	CHKZS		; Is this ZSDOS?
+	JP	NZ,DSKOK2	; ..bypass Path stuff if ZDDOS
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       6 - Path w/o System Attr   : ',0
+	LD	IX,(IXVAL)
+	BIT	6,(IX+0)
+	CALL	PRYN
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       7 - DOS Search Path        : ',0
+	LD	IX,(IXVAL)
+	BIT	5,(IX+0)
+	JR	Z,NOPATH	; Go below if No path
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,0
+	LD	HL,800H		; Is it set for the Internal Path?
+	LD	DE,IPATH
+	ADD	HL,DE
+	EX	DE,HL		; Put Int Path addr in DE
+	LD	IX,(IXVAL)	; Get Vector setting to HL
+	LD	L,(IX-4)
+	LD	H,(IX-3)
+	OR	A
+	SBC	HL,DE		; Compare the two
+	JR	NZ,NOTINT	; Jump to show value if Not Internal
+	CALL	VPRINT
+	DEFB	' - Internal',0	; ..else say it is set to Internal
+	JR	NOPAT1
+
+NOTINT:	CALL	VPRINT
+	DEFB	'  Addr = ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX-4)
+	LD	H,(IX-3)
+	CALL	PRTADD		; Print the Address
+	JR	NOPAT1
+
+NOPATH:	CALL	VPRINT
+	DEFB	1,'Disabled',2,0
+NOPAT1:	CALL	EREOL
+
+DSKOK2:	CALL	VPRINT
+	DEFB	CR,LF,'       8 - Wheel Byte Protect     : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX-2)
+	LD	H,(IX-1)
+	LD	A,H
+	OR	L
+	JR	Z,NOWHL
+	PUSH	HL
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,'  Addr = ',0
+	POP	HL
+	CALL	PRTADD		; Print the Address
+	CALL	EREOL
+	JR	DSKOK3
+
+NOWHL:	CALL	VPRINT
+	DEFB	1,'Disabled',2,'..Assumed ON',0
+	CALL	EREOL
+
+DSKOK3:	CALL	VPRINT
+	DEFB	CR,LF,'       T - Time Routine (Clock)   : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+1)	; Get Time Routine for display
+	LD	H,(IX+2)
+	CALL	PRSTAT		; Print the current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       A - Stamp Last Access Time : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+3)	; Get routine address
+	LD	H,(IX+4)
+	CALL	CHKZS		; Is this ZDDOS?
+	JR	Z,NOZDD0	; ..jump if not
+	CALL	PRCOND		; Print ZDDOS Status
+	JR	NOZDD1		; ..and then jump to Modify
+
+NOZDD0:	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       C - Stamp Create Time      : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+5)	; Get routine address
+	LD	H,(IX+6)
+	CALL	PRSTAT		; Print current status of this vector
+
+NOZDD1:	CALL	VPRINT
+	DEFB	CR,LF,'       M - Stamp Modify Time      : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+7)	; Get routine address
+	LD	H,(IX+8)
+	CALL	CHKZS		; Is this ZDDOS?
+	JR	Z,NOZDD2	; ..jump if not
+	CALL	PRCOND		; Print ZDDOS Status
+	JR	DSKOK4		; ..and bypass other stuff
+
+NOZDD2:	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       G - Get Date/Time Stamp    : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+9)	; Get routine address
+	LD	H,(IX+10)
+	CALL	PRSTAT		; Print current status of this vector
+
+	CALL	VPRINT
+	DEFB	CR,LF,'       S - Set Date/Time Stamp    : ',0
+	LD	IX,(IXVAL)
+	LD	L,(IX+11)	; Get routine address
+	LD	H,(IX+12)
+	CALL	PRSTAT		; Print current status of this vector
+
+DSKOK4:	CALL	CRLF
+	LD	HL,21*256+1	; Go to 21st row
+	CALL	GOTOXY
+	CALL	EREOL		; Zero in case it was used
+	CALL	GXYMSG
+	DEFB	20,1,'Entry to Change ("X" if Finished) : ',0
+	CALL	EREOL
+ERRENT:	CALL	GETCH
+	CP	03		; Is it a Control-C?
+	JP	Z,MOVZSJ	; ..exit if so
+	CP	' '		; Is it printable?
+	JR	C,ERRENT
+	CALL	COUT		; Echo response
+	CP	'X'		; Is it an Exit request?
+	JP	Z,NOCHGS
+	CP	'1'		; Public Files on/off?
+	LD	B,00000001B
+	JP	Z,DSKOKX	; Exit if Public Files
+	CP	'2'
+	LD	B,00000010B
+	JP	Z,DSKOKX	; Exit if Public/Path Write Enable
+
+	CP	'3'
+	LD	B,00000100B
+	JP	Z,DSKOKX	; Exit if R/O Vectors
+	CP	'4'
+	LD	B,00001000B
+	JP	Z,DSKOKX	; Exit if Fast Fixed Disk Log
+	CP	'5'
+	LD	B,00010000B
+	JP	Z,DSKOKX	; Exit if Disk Relog Warning
+
+	CALL	CHKZS		; Is this ZSDOS?
+	JP	NZ,DSKOK5	; ..jump if ZDDOS to bypass Path
+
+	CP	'6'
+	LD	B,01000000B
+	JP	Z,DSKOKX	; Exit if Path w/o System Attribute
+
+	CP	'7'
+	JP	NZ,DSKOK5	; Jump if not Search Path
+
+	CALL	PRNL		; Else ask for path address
+	DEFB	21,20,'Path [(',1,'D',2,')isable, (',1,'S',2,')et'
+	DEFB	', (',1,'I',2,')nternal',0
+	LD	HL,(ENVPTR)	; Is there an Environment?
+	LD	A,H
+	OR	L
+	JR	Z,DSKO4A	; ..bypass rest if No ENV
+	CALL	VPRINT
+	DEFB	', (',1,'Z',2,')CPR3',0
+DSKO4A:	CALL	VPRINT		; Now print rest of prompt
+	DEFB	'] : ',0
+DSKO4C:	CALL	GETCH
+	CALL	COUT
+	CP	'D'
+	JR	Z,DSKO4B	; Jump to disable path if "D"
+	CP	'Z'
+	JR	Z,DFLTP		; Jump to Set ZCPR3 path if "Z"
+	CALL	CHKZS		; Is this ZSDOS?
+	JR	NZ,DSK04D	; ..jump if not
+	CP	'I'
+	JR	NZ,DSK04D	; Jump to next if Not Internal Path
+	LD	DE,IPATH	; Else calculate Internal address
+	LD	HL,800H
+	ADD	HL,DE
+	JR	DFLTP0		; ..and jump to set
+
+DSK04D:	CP	'S'
+	JR	NZ,DSKO4C	; Jump if not "S"
+	LD	IX,(IXVAL)
+	SET	5,(IX+0)	; Setting, so turn on Path bit
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter PATH Address : ',0
+	LD	HL,0
+	CALL	GETADR		; ..else get a HEX address
+	JR	DFLTP0		; Jump to set it
+
+DSKO4B:	LD	IX,(IXVAL)
+	RES	5,(IX+0)	; ..else clear PATH bit to disable
+	JP	DSKDAT		; ..and return for more
+
+DFLTP:	LD	IX,(IXVAL)
+	LD	HL,(ENVPTR)	; Are we operating from ZCPR3 Environment?
+	LD	A,H
+	OR	L
+	JP	Z,DSKDAT	; ..jump to loop without effect if Not
+	LD	HL,(PATH)	; Get the ZCPR3 Path
+DFLTP0:	LD	IX,(IXVAL)
+	LD	(IX-3),H	; ..and save in ZSDOS
+	LD	(IX-4),L
+	SET	5,(IX+0)	; Set Path bit to enable
+	JP	DSKDAT
+
+DSKOK5:	CP	'8'		; Is it a Wheel change?
+	JP	NZ,DSKOK6	; ..jump if not
+
+	CALL	PRNL		; Get the wheel address
+	DEFB	21,20,'WHEEL Addr [(',1,'D',2,')isable, (',1,'S',2,')et',0
+	LD	HL,(ENVPTR)	; Is there an environment present?
+	LD	A,H
+	OR	L
+	JR	Z,DSKO5A	; Bypass second part of prompt if No ENV
+	CALL	VPRINT
+	DEFB	', (',1,'Z',2,')CPR3',0
+DSKO5A:	CALL	VPRINT		; ..Now print end of prompt
+	DEFB	'] : ',0
+DSKO5B:	CALL	GETCH
+	CALL	COUT
+	LD	HL,0		; Preset default disable value
+	CP	'D'
+	JR	Z,DFLTW0	; Jump if Disabling wheel
+	CP	'Z'
+	JR	Z,DFLTW		; Jump if accepting ZCPR3 Wheel
+	CP	'S'
+	JR	NZ,DSKO5B	; Loop if not valid char
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter WHEEL Address : ',0
+	LD	HL,0
+	CALL	GETADR		; ..else get Wheel address
+	JR	DFLTW0		; ..and set it
+
+DFLTW:	LD	HL,(ENVPTR)	; Are we operating within ZCPR3 Environment?
+	LD	A,H
+	OR	L
+	JP	Z,DSKDAT	; ..jump loop without effect if Not
+	LD	HL,(WHEEL)	; Get th ZCPR3 Wheel byte address
+DFLTW0:	LD	IX,(IXVAL)
+	LD	(IX-1),H
+	LD	(IX-2),L
+	JP	DSKDAT
+
+DSKOK6:	CP	'T'		; Is it Set Clock Time request?
+	JR	NZ,DSKOKA	; ..jump if not
+	CALL	PRNL		; Get the Time BIOS Offset
+	DEFB	21,15,'Time (Clock)',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+1),L
+	LD	(IX+2),H
+	LD	A,0FFH		; prep for unload value
+	ADC	A,0		; carry flag is dummy vector flag
+	LD	(IX+15),A	; ..which will set unload to 0
+	LD	(IX+16),A	; rather than 0FFFFH
+	JP	DSKDAT		; Exit if correct character
+
+DSKOKA:	CP	'A'		; Is it Stamp Access Time request?
+	JR	NZ,DSKOKC	; ..jump if not
+	CALL	PRNL		; Get Access Time parameter
+	DEFB	21,15,'Stamp Last Access Time',0
+	CALL	CHKZS		; Is this ZSDOS?
+	PUSH	AF
+	CALL	Z,PROMP0	; ..print prompt and get ZS response if so
+	POP	AF
+	CALL	NZ,PROMP1	; Else do same for ZD response
+	LD	IX,(IXVAL)
+	LD	(IX+3),L
+	LD	(IX+4),H
+	JP	DSKDAT
+
+DSKOKC:	CALL	CHKZS		; Is this ZSDOS?
+	JR	NZ,DSKOKM	; ..can't change Create time if ZDDOS
+	CP	'C'		; Is it Stamp Create Time request?
+	JR	NZ,DSKOKM	; ..jump if not
+	CALL	PRNL		; Get Create Time parameter
+	DEFB	21,15,'Stamp Create Time',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+5),L
+	LD	(IX+6),H
+	JP	DSKDAT
+
+DSKOKM:	CP	'M'		; Is it Stamp Modify Time request?
+	JR	NZ,DSKOKG	; ..jump if not
+	CALL	PRNL		; Get Modify Time parameter
+	DEFB	21,15,'Stamp Modify Time',0
+	CALL	CHKZS		; Is this ZSDOS?
+	PUSH	AF
+	CALL	Z,PROMP0	; ..print prompt and get ZS response if so
+	POP	AF
+	CALL	NZ,PROMP1	; Else do same for ZD
+	LD	IX,(IXVAL)
+	LD	(IX+7),L
+	LD	(IX+8),H
+	JP	DSKDAT
+
+DSKOKG:	CALL	CHKZS		; Is this ZSDOS?
+	JR	NZ,DSKOKE	; ..exit here if not	
+	CP	'G'		; Is it a Get Time Stamp request?
+	JR	NZ,DSKOKS	; ..jump if not
+	CALL	PRNL		; Get parameter for Get Time Stamp
+	DEFB	21,15,'Get Time Stamp',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+9),L
+	LD	(IX+10),H
+	JP	DSKDAT
+
+DSKOKS:	CP	'S'		; Is it a Set Time Stamp request?
+	JR	NZ,DSKOKE	; ..jump error if not
+	CALL	PRNL		; Get parameter for Set Time Stamp
+	DEFB	21,15,'Set Time Stamp',0
+	CALL	PROMP0		; ..print second part and get response
+	LD	IX,(IXVAL)
+	LD	(IX+11),L
+	LD	(IX+12),H
+	JP	DSKDAT
+
+DSKOKE:	CALL	VPRINT		; Error in entered char..
+	DEFB	BS,' ',BS,BELL,0	; ..inform the user..
+	JP	ERRENT		; Go back to entry loop
+
+DSKOKX:	LD	A,B
+	LD	IX,(IXVAL)
+	XOR	(IX+0)		; Toggle affected bit
+	LD	(IX+0),A	; ..and store the result
+	JP	DSKDAT
+
+
+; Everything patched, so save the program
+
+NOCHGS:	CALL	CLS		; Clear the screen
+	LD	DE,(PHDOS)	; Address of serial number in image
+	LD	HL,SNBUF	; ..stored SN from old image 
+	LD	BC,6
+	LDIR			; Put serial number back
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JP	Z,MATCH0	; ..jump if so
+	JP	MAIN0		; ..and loop back to main menu
+
+;.....
+; Replace the BIOS portion of the memory image
+; Move the Bit Map portion of the image as necessary
+
+DOBIOS:	CALL	CLR13
+
+	LD	A,(MODFLG)	; Is this a Turbo-Rom installation?
+	CP	'T'
+	JR	NZ,..2		; ..jump if Not
+	CALL	PRNL		; Else warn the user
+	DEFB	14,1,'DANGER -- Do you Really want this (Y/[N])? ',0
+	CALL	GETCH
+	CP	'Y'
+	JP	NZ,MAIN0	; ..Return to main loop if Not
+
+..2:	CALL	PRNL		; Get CCPR name
+	DEFB	14,1,'Name of BIOS file (Default=CBIOS.REL) : ',0
+	CALL	EREOL		; ..clear rest of line
+	CALL	GETNAM
+	CALL	CRLF
+
+	LD	HL,DFLT5	; Check for default requirements
+	CALL	SETTYP
+
+	LD	DE,FCB
+	CALL	INITFCB
+	CALL	F$EXIST		; Does it already exist?
+	JR	NZ,HAVZ0	; ..jump if not
+	CALL	NOTFND		; Else say we have it & ask for another
+	JR	..2
+
+HAVZ0:	CALL	PRIME		; Prepare for a Read
+	CALL	LNKSIZ		; Call LINK for Sizing Only
+	JP	NZ,SZFERR	; ..jump if Errors
+
+	EX	DE,HL		; Save the sizes..
+	LD	(CSIZE),HL	; ..of CSEG
+	LD	(DSIZE),BC	; ..and DSEG
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JP	Z,MOVING	; ..jump if so
+	ADD	HL,BC		; Check combined size
+	LD	E,L
+	LD	D,H
+	LD	BC,(BIOSIZ)	; ..against maximum + 1
+	OR	A
+	SBC	HL,BC
+
+MORE:	LD	A,L		; Is a partial page needed?
+	OR	A
+	JR	Z,MORE0		; ..jump if not
+	INC	H		; Else raise to next page
+	LD	L,0
+MORE0:	LD	A,H		; Is the difference greater than 1 page?
+	OR	A
+	JP	Z,MOVING	; ..Proceed with overlay if not
+
+; Change in sizing is needed.  Recompute all addresses and save
+
+	LD	(MOVOFF),HL	; Save needed compensation in size
+	PUSH	HL
+	LD	HL,(TOPADR)	; ..and calculate the amount of map to move
+	LD	DE,(MAPCCP)
+	XOR	A
+	LD	E,A
+	SBC	HL,DE
+	LD	(MOVSIZ),HL
+	POP	BC		; Restore compensation/direction
+	LD	L,E
+	LD	H,D
+	ADD	HL,BC
+	EX	DE,HL		; Set Source & Destination addresses
+	BIT	7,B		; Are we going up or down?
+	LD	BC,(MOVSIZ)	; ..get amount to move
+	JR	NZ,MOVDN	; Jump if moving smaller
+	PUSH	BC		; Save count for fill at end
+	ADD	HL,BC		; Offset to top of area to move
+	EX	DE,HL
+	ADD	HL,BC
+	EX	DE,HL
+	INC	BC		; Insure we move the first byte
+	LDDR			; ..and move map higher
+	POP	BC		; Restore count
+FILL0:	XOR	A		; ..and fill..
+	LD	(DE),A		; ...remainder with zeros
+	DEC	DE
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,FILL0
+	JR	CONT
+
+MOVDN:	LDIR			; Move to smaller location
+CONT:	LD	HL,MAPCCP
+	LD	B,3
+	LD	DE,(MOVOFF)	; Correct Bit Map addresses
+CONT0:	LD	A,(HL)		; Get low byte of addr
+	ADD	A,E		; ..add low offset
+	LD	(HL),A
+	INC	HL		; Advance to next
+	LD	A,(HL)
+	ADC	A,D		; ..add hi offset
+	LD	(HL),A
+	INC	HL		; Advance to next addr
+	DJNZ	CONT0
+
+	LD	HL,(MAPOFF)	; Add offset value at VECT..
+	ADD	HL,DE		; ..to movement correction
+	EX	DE,HL
+	LD	HL,(VECT)
+	LD	(HL),E		; Store the new value
+	INC	HL
+	LD	(HL),D
+
+	LD	HL,(BIOSIZ)	; Correct top of image for changed size
+	SRL	H		; Divide BIOS size by 8..
+	RR	L		; ..to get map size
+	SRL	H
+	RR	L
+	SRL	H
+	RR	L
+	LD	DE,(MAPBIO)	; Add to BIOS Map starting address
+	ADD	HL,DE
+	LD	A,L		; Check for partial record
+	AND	7FH
+	JR	Z,CONT1		; ..jump if none
+	LD	A,L
+	AND	80H		; Else move to next record address
+	LD	L,A
+	LD	DE,80H
+	ADD	HL,DE
+CONT1:	LD	(TOPADR),HL	; Save new addr for top-of-image
+
+	CALL	PRNL
+	DEFB	16,7,'Relocated map by : ',0
+	LD	HL,(MOVOFF)
+	CALL	PHL4HC
+	JR	MOVIN0
+
+MOVING:	LD	HL,16*256+7
+	CALL	GOTOXY
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JR	Z,MOVIN0	; ..jump if so
+	LD	DE,FCB+1
+	CALL	PFN2
+	CALL	VPRINT
+	DEFB	' Size Ok ',0
+MOVIN0:	CALL	VPRINT
+	DEFB	'..overlaying BIOS..',0
+
+; Before we actually move, we should purge existing code and Map Bits
+
+	LD	DE,(MAPBIO)	; Get Starting address
+	LD	HL,(TOPADR)	; ..and Ending Address
+	CALL	PURGIT		; Clean map bits if not Absolute load
+
+	LD	DE,FCB
+	CALL	INITFCB		; Set FCB for another read
+	CALL	PRIME		; ..and prepare for it
+
+	EXX			; Load up the registers for Link
+	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	JR	NZ,MOVIN1	; ..jump if Not
+	LD	BC,(MSEG3)	; CSEG ORG to BC'
+	LD	A,0001B		; Flag to Link with No Map
+	JR	MOVIN2
+
+MOVIN1:	LD	BC,1600H	; CSEG ORG Addr to BC'
+	LD	A,(ORGOFF)	; Get org offset (0=norm, 200H=turbosys)
+	ADD	A,B		; ..and add to org page
+	LD	B,A
+	LD	A,0011B		; Flag to LINK and Generate Map
+MOVIN2:	LD	HL,(CSIZE)
+	ADD	HL,BC
+	EX	DE,HL		; DSEG ORG Addr to DE'
+	LD	HL,(MAPBIO)	; Map start Addr in HL'
+	EXX
+
+	LD	BC,(PHBIO)	; Get Physical BIOS DSEG address to BC
+	LD	HL,(CSIZE)
+	ADD	HL,BC
+	EX	DE,HL		; Physical DSEG Map addr to DE, FCB to HL
+	CALL	LNKLNK		; LINK for Real here as well
+	JP	NZ,LNKERR	; ..jump if so
+	LD	A,(MODFLG)	; Was this loaded absolute?
+	OR	A
+	JP	Z,MAIN0		; ..jump to main loop if Not
+	LD	HL,(CSIZE)	; Calculate size of new bios
+	LD	DE,(DSIZE)
+	ADD	HL,DE
+	LD	DE,(PHBIO)	; Add to Bios start
+	ADD	HL,DE
+	INC	H		; Round up to next page
+	LD	L,0
+	LD	(TOPADR),HL	; And save
+	JP	MAIN0
+
+;.....
+; All changes completed.  Save the image to memory and exit
+
+MVZSDA:	CALL	CLS		; Finish up on a clear screen
+	LD	A,(MODFLG)	; Are we installing in TURBO?
+	CP	'T'
+	JR	NZ,NOTURB	; ..jump if not
+	CALL	PRNL		; See where to save it
+	DEFB	1,4,'Location to save TURBOSYS.PRL (Default=',0
+	LD	BC,(CUSER)	; Get current Drive/User
+	LD	A,B		; First Drive
+	ADD	A,'A'		; ..make ASCII
+	CALL	COUT
+	LD	A,C		; Now User
+	LD	B,-1		; Calculate 10's
+XXX:	INC	B
+	SUB	10
+	JR	NC,XXX
+	ADD	A,10		; ..add in for overflow
+	LD	C,A
+	LD	A,B		; Any tens?
+	OR	A
+	JR	Z,XXX0		; ..jump if Not
+	ADD	A,'0'
+	CALL	COUT		; Print Tens if there
+XXX0:	LD	A,C
+	ADD	A,'0'
+	CALL	COUT		; Print Ones
+	LD	A,':'
+	CALL	COUT
+	JR	SAVAB1		; ..and continue
+
+NOTURB:	CALL	PRNL		; Ask for name of save file
+	DEFB	1,4,'Name to save new system (Default=',0
+	LD	A,(MODFLG)	; Absolute mode?
+	OR	A
+	JR	NZ,SAVAB0	; ..jump if so
+	CALL	VPRINT
+	DEFB	'MOVZSDOS.COM',0
+	JR	SAVAB1
+
+SAVAB0:	CALL	VPRINT
+	DEFB	'ZSSYS.MDL',0
+SAVAB1:	CALL	VPRINT
+	DEFB	') : ',0
+	CALL	EREOL
+	CALL	GETNAM		; Get filename and parse into FCB
+
+	LD	A,(MODFLG)	; Which way are we loading?
+	LD	HL,DFLT7	; ..(prepare for abs default)
+	CP	'A'		; Absolute?
+	JR	Z,SAVABS	; ..jump if so
+	LD	HL,DFLT1A	; ..(prepare for TURBO)
+	CP	'T'		; Turbo?
+	JR	Z,SAVABS	; ..jump if so
+	LD	HL,DFLT3	; Set default to MOVZSDOS.COM
+SAVABS:	CALL	SETTYP
+
+	LD	C,13
+	CALL	BDOS		; Reset disks to allow for disk swap
+	LD	BC,(SUSER)	; ..and log into desired DU:
+	CALL	LOGUD
+
+	LD	DE,FCB
+	CALL	F$EXIST		; See if file already exists
+	JR	Z,MOVZSH	; If no file
+	CALL	PRNL		; See if user wants to replace file
+	DEFB	2,5,BELL,'--- That file already exists.  '
+	DEFB	'Overwrite it (Y/[N])? ',0
+	CALL	GETCH		; Get response
+	CALL	COUT
+	CP	'Y'		; Erase existing file?
+	JR	Z,MVZSDB	; ..jump if erasing
+	JP	MVZSDA		; If no erase, ask for new name
+
+MVZSDB:	LD	DE,FCB
+	CALL	F$DELETE	; Erase existing file
+
+MOVZSH:	CALL	PRNL
+	DEFB	3,1,'..Saving ',0
+	CALL	PRNAME		; Print filename.typ after msg
+	LD	DE,FCB
+	CALL	F$MAKE		; Create and Open the save file
+	INC	A		; FF --> 00
+	JP	Z,MAKERR	; ..jump if no directory space
+
+	LD	HL,(TOPADR)	; Calculate number of records to write
+	LD	DE,(BASADR)
+	XOR	A
+	SBC	HL,DE		; HL had size of image in bytes
+	RL	L		; Save least bit in Carry
+	LD	L,H		; ..and shift high byte to low..
+	LD	H,0
+	ADC	HL,HL		; Convert pages to records w/least bit
+	LD	(RCNT),HL
+	EX	DE,HL		; Put MOVCPM image starting addr to HL
+FXFER7:	CALL	SETDMA		; ..and set it
+	PUSH	HL
+	LD	DE,FCB
+	CALL	F$WRITE		; Write record
+	POP	HL		; Restore DMA address
+	OR	A		; ..check write status
+	JP	NZ,WRERR	; Error - prob. disk full
+	LD	DE,0080H	; Compute new DMA address
+	ADD	HL,DE
+	EX	DE,HL		; Put DMA address in DE
+	LD	HL,(RCNT)	; Get buffer data length
+	DEC	HL		; ..count down
+	LD	(RCNT),HL	; Save new count
+	LD	A,H
+	OR	L
+	EX	DE,HL		; Restore DMA addr in case more to go
+	JR	NZ,FXFER7	; Loop til done
+
+FXFER8:	LD	DE,FCB
+	CALL	F$CLOSE		; Close the file
+	INC	A		; FF --> 00
+	JP	Z,WRERR		; ..jump if unable to close
+MOVZSJ:	CALL	PRNL		; Sign off
+	DEFB	22,1,CR,LF,'Returning to system...',0
+EXIT:	LD	BC,(CUSER)	; Restore Entry Drive/User
+	CALL	LOGUD
+	LD	SP,(STACK)	; And exit
+	RET
+
+;.....
+; Purge specified memory area to all Zeros if Not loading Absolute
+; Enter: Starting address in DE, Ending Addr in HL
+
+PURGIT:	LD	A,(MODFLG)	; Are we loading absolute?
+	CP	'A'
+	RET	Z		; ..quit here if so (No purge)
+
+	XOR	A		; Clear Carry & Set a Zero
+	SBC	HL,DE		; Compute # of bytes to Clear
+	LD	C,L		; Move to Counter reg
+	LD	B,H
+	LD	L,E		; ..and move start addr to HL
+	LD	H,D
+	INC	DE		; Bump Destination Addr
+	DEC	BC		; ..and compensate count
+	LD	(HL),A		; Null the first location
+	LDIR			; ..and move it along
+	RET
+
+;.....
+; Call to LINK and associated activities here
+
+LNKSIZ:	XOR	A		; Flags to Merely Size the module
+LNKLNK:	LD	HL,COMTBL	; Pass address of Named COMMON table..
+	CALL	LINK		; Do it
+	PUSH	AF		; Save Status
+	PUSH	BC		; .CSEG Size
+	PUSH	DE		; ..and DSEG Size
+	LD	DE,FCB
+	CALL	F$CLOSE
+	POP	DE
+	POP	BC
+	POP	AF
+	OR	A		; Any errors?
+	RET
+
+;.....
+; Open the File for reading by SLINK0 module and prime the deblocker
+
+PRIME:	LD	DE,FCB		; Use the file specified here
+	CALL	F$OPEN		; ..and open it
+	OR	A		; Any errors?
+	JR	NZ,FERROR	; ..jump if so
+	LD	A,128		; Else set pointer to read next byte
+	LD	(INPTR),A
+	RET			; ..and quit
+
+;.....
+; Need another byte from the file.  Get it, reading if necessary
+
+@GBYTE:	PUSH	HL		; Save regs which are always used
+	PUSH	DE
+	LD	A,(INPTR)	; Check pointer for disk read
+	CP	128
+	JR	C,READ0		; Bypass disk read if INPTR < 128 (not end)
+
+; Last byte in buffer read, get another from the file by CP/M read
+
+	PUSH	BC
+	EXX
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	EX	AF,AF'
+	PUSH	AF
+	EX	AF,AF'
+	PUSH	IX
+	PUSH	IY
+	LD	HL,BUFF		; Input buffer starts here
+	CALL	SETDMA		;  (Library set DMA call)
+	LD	DE,FCB		; Get ID of file to access
+	CALL	F$READ		;  (Library sector read)
+	POP	IY
+	POP	IX
+	EX	AF,AF'
+	POP	AF
+	EX	AF,AF'
+	POP	BC
+	POP	DE
+	POP	HL
+	EXX
+	POP	BC
+	OR	A
+	SCF			; Set Carry in case of Error
+	JP	NZ,READ99	; Jump w/Error Code (Carry Set) if Bad Read
+
+; Valid data is in the sector buffer.  Get a byte, bump pointer and return
+
+READ0:	LD	E,A		; Set pointer for offset
+	LD	D,00		; ..Nulling high addr for 16-bit math
+	LD	HL,BUFF		; Start from base
+	ADD	HL,DE
+	INC	A		; Bump pointer
+	LD	(INPTR),A	; ..and save
+	LD	A,(HL)		; Get a byte
+	OR	A		; ..insuring Ok Return (Carry Clear)
+READ99:	POP	DE
+	POP	HL
+	RET
+
+;.....
+; File Open error exit
+
+FERROR:	CALL	VPRINT		; Indicate can't open read file
+	DEFB	CR,LF,BELL,'*** Unable to open ',0
+	JR	ERFNFT		; Show the file we gagged on
+
+;.....
+NOMAPB:	CALL	VPRINT		; Say that we can't find the map
+	DEFB	CR,LF,BELL,'*** Cannot find legal Relocation Bit Map',CR,LF,0
+	CALL	STATS
+	JP	MOVZSJ		; ..and exit
+
+;.....
+MAKERR:	CALL	VPRINT
+	DEFB	CR,LF,BELL,'*** No Directory Space for ',CR,LF,0
+ERFNFT:	CALL	PRNAME		; Print the file name.typ
+	JP	MOVZSJ		; ..and exit
+
+;.....
+NOCCP:	CALL	VPRINT		; Inform CCP not found
+	DEFB	CR,LF,BELL,'*** Can''t find CCP/BDOS/BIOS at standard '
+	DEFB	'locations !!!',0
+	JP	LNER1		; ..and exit w/CRLF
+
+;.....
+LNKERR:	PUSH	AF		; Save error code from link
+	CALL	VPRINT
+	DEFB	CR,LF,BELL,'*** Error in .REL file : ',0
+	JR	LNER0
+
+SZFERR:	CP	0FFH		; Error Reading the file?
+	JR	NZ,SZFER0	; ..jump if not
+	CALL	VPRINT		; Else Print Read Error
+	DEFB	CR,LF,BELL,'*** Error Reading REL File',0
+	JR	LNER1		; ..and continue
+
+SZFER0:	PUSH	AF		; Save error code
+	CALL	VPRINT
+	DEFB	CR,LF,BELL,'*** Error in .REL sizing ',0
+	CALL	PRNAME
+	CALL	VPRINT
+	DEFB	'    Err Code : ',0
+LNER0:	POP	AF
+	CALL	PA2HC		; Print error code
+LNER1:	CALL	CRLF
+	JP	MOVZSJ		; ..and exit
+
+;.....
+WRERR:	CALL	VPRINT		; Inform of write error
+	DEFB	CR,LF,BELL,'*** Error writing file.  '
+	DEFB	'Try again with another disk (Y/[N])? : ',0
+	CALL	GETCH
+	CALL	COUT
+	CP	'Y'		; Does user want to try again?
+	JP	NZ,MOVZSJ	; ..exit if not, else fall thru..
+	LD	DE,FCB
+	CALL	F$CLOSE		; Close the file
+	JP	MVZSDA		; And try this again...
+
+;.....
+NOTFND:	CALL	PRNL		; Else notify user of no file
+	DEFB	17,10,BELL,'---Can''t find ',0
+	LD	DE,FCB+1
+	CALL	PFN2		; Print the file name
+	CALL	VPRINT
+	DEFB	'.. reenter (Y/[N]) : ',0
+	CALL	GETCH
+	CALL	COUT
+	CP	'Y'
+	JP	NZ,MOVZSJ	; Exit here if no reentry desired
+	LD	HL,17*256+1
+CLRLIN:	CALL	GOTOXY
+	JP	EREOL		; Clear the warning line
+
+;.....
+; Print memory map statistics on the loaded MOVCPM image as seen from DDT
+
+STATS:	CALL	VPRINT
+	DEFB	CR,LF,'Addresses in system image ',0
+	LD	A,(MODFLG)
+	CP	'A'		; Absolute mode?
+	JR	Z,STATS0	; ..jump if so (No Map)
+	CALL	VPRINT
+	DEFB	'(as seen under DDT) ',0
+STATS0:	CALL	VPRINT
+	DEFB	':',CR,LF,LF,'     CCP : ',0
+	LD	A,(MODFLG)
+	CP	'A'		; Absolute mode?
+	JR	Z,STATS1	; ..jump if so (No Map)
+	LD	HL,(CSEG1)
+	CALL	PRHEX		; Print addr in Hex
+	CALL	VPRINT
+	DEFB	'        Map @ ',0
+STATS1:	LD	HL,(MSEG1)
+	CALL	PRHEX
+	CALL	VPRINT
+	DEFB	CR,LF,'     BDOS: ',0
+	LD	A,(MODFLG)
+	CP	'A'		; Absolute mode?
+	JR	Z,STATS2	; ..jump if so (No Map)
+	LD	HL,(CSEG2)
+	CALL	PRHEX
+	CALL	VPRINT
+	DEFB	'        Map @ ',0
+STATS2:	LD	HL,(MSEG2)
+	CALL	PRHEX
+	CALL	VPRINT
+	DEFB	CR,LF,'     BIOS: ',0
+	LD	A,(MODFLG)
+	CP	'A'		; Absolute mode?
+	JR	Z,STATS3	; ..jump if so (No Map)
+	LD	HL,(CSEG3)
+	CALL	PRHEX
+	CALL	VPRINT
+	DEFB	'        Map @ ',0
+STATS3:	LD	HL,(MSEG3)
+	CALL	PRHEX
+	JP	CRLF
+
+;.....
+; Clear from line 13 to end
+
+CLR13:	LD	HL,13*256+1
+			;..and fall thru
+;.....
+; Clear screen from address in HL thru Line 24
+
+CLSCR:	PUSH	HL		; Save for exit positioning
+CLSCR0:	LD	A,H		; Are we at the end yet?
+	CP	25
+	JR	NC,CLSCR1	; ..return if so
+	PUSH	HL
+	CALL	GOTOXY		; Else position cursor
+	CALL	EREOL		; ..and clear this line
+	POP	HL
+	INC	H		; Increment to next line
+	JR	CLSCR0		; ..and loop
+
+CLSCR1:	POP	HL		; Reposition cursor on exit
+	JP	GOTOXY
+
+;.....
+; Get user input line and parse into the FCB
+
+GETNAM:	LD	HL,KYBUFF	; Address the line buffer
+	LD	(HL),20
+	INC	HL
+	LD	(HL),0
+	DEC	HL
+	LD	A,0FFH		; Capitalize input
+	CALL	BLINE		; ..and get it
+	LD	DE,FCB
+	CALL	INITFCB		; Initialize the FCB..
+	LD	HL,FCB+1
+	LD	B,11
+GETNA0:	LD	(HL),' '	; Fill in blank name to start
+	INC	HL
+	DJNZ	GETNA0
+	LD	HL,KYBUFF+2
+	LD	DE,FCB
+	CALL	FNAME		; ..and parse name into it
+	LD	DE,(CUSER)	; Get Current Drive/User..
+	LD	A,B		; ..and parse requested DU
+	INC	A		; FF->0
+	JR	NZ,GETNA1	; Jump if different drive selected
+	LD	B,D		; ..else set default to current
+	INC	B		; Compensate..
+GETNA1:	DEC	B
+	LD	A,C
+	INC	A		; FF->0
+	JR	NZ,GETNA2	; Jump if specific user requested
+	LD	C,E		; ..else set default to current
+GETNA2:	LD	(SUSER),BC	; Save the desired DU
+	JP	LOGUD		; Exit by logging to requested DU
+
+;.....
+; See if we are addressing a location above the top of memory image
+
+CHK:	PUSH	DE		; Destroy no registers other than AF
+	LD	DE,(TOPADR)	; Get the image top
+	OR	A
+	SBC	HL,DE
+	ADD	HL,DE
+	POP	DE		; Restore registers
+	RET			; Carry SET (C) if DE > HL
+
+;.....
+; Print filename in FCB
+
+PRNAME:	LD	DE,FCB+1
+	CALL	PFN2
+	JP	CRLF
+
+;.....
+; Check File name & type in the FCB.  Set to the default addressed by HL if
+; nothing entered
+
+SETTYP:	LD	DE,FCB+1	; Address 1st char in FCB filename
+	LD	A,(DE)
+	CP	' '		; Was a name entered?
+	JR	Z,SETTY0	; ..jump if a name is there
+	CP	'?'		; Is it ambiguous?
+	JR	NZ,SETTY1	; ..have real name, jump if not "?"
+SETTY0:	LD	BC,8
+	LDIR			; Move 8-char filename
+	JR	SETTY2		; ..and check type
+
+SETTY1:	LD	DE,FCB+9
+	LD	BC,8		; Set offset in Default string
+	ADD	HL,BC		; ..Offset to 1st char in File Type
+SETTY2:	LD	A,(DE)
+	CP	' '		; Is the entered type null?
+	JR	Z,SETTY3	; ..jump to fill w/default if Nulls
+	CP	'?'		; Is it ambiguous?
+	RET	NZ		; ..quit here if not
+SETTY3:	LD	BC,3
+	LDIR			; Move the specified default
+	RET
+
+;.....
+; Get a character from the keyboard in uppercase
+
+GETCH:	CALL	CIN
+	JP	CAPS
+
+;.....
+;  Get a Hex address in the HL register pair
+;   Enter with first char in A reg
+
+GETADR:	CALL	CAPS		; ..in caps
+	LD	(CHAR),A	; Save for possible later echo
+	CP	CR		; Is this the end?
+	RET	Z
+	CALL	CKHEX		; Validate as HEX digit
+	JR	NC,GETAD9
+GETAD0:	PUSH	AF		; Save binary value
+	LD	A,(CHAR)	; Get character entered
+	CALL	COUT		; ..and echo
+	POP	AF		; Restore binary value
+	CALL	ADDHEX		; Store the new sum
+GETAD9:	CALL	CIN		; Get a char from console
+	JR	GETADR		; ..else loop for more
+
+;.....
+;  Validate a HEX digit
+; ENTER: Character to check in A
+; EXIT : Converted char in A
+;	 Carry set (C) if OK, else Clear (NC)
+
+CKHEX:	SUB	'0'		; Validate as HEX digit
+	JP	M,CKHEXN	; ..set bad
+	CP	9+1
+	RET	C
+	SUB	7
+	CP	10
+	JR	C,CKHEXN
+	CP	16
+	RET			; Return with flags set
+
+CKHEXN:	OR	0FFH		; Signal Bad digit..(No carry)
+	RET
+
+;.....
+;  Add the hex digit in A to accumulator in HL
+
+ADDHEX:	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	A,L
+	LD	L,A		; Store the new sum
+	RET
+
+;.....	
+;  Print YES/NO responses depending on state of Zero Flag
+
+PRYN:	JR	Z,PRYNN		; Print NO if Zero Set
+PRYN0:	CALL	VPRINT
+	DEFB	1,'YES',2,0
+	RET
+
+PRYNN:	CALL	VPRINT
+	DEFB	1,'NO',2,' ',0
+	RET
+
+;.....
+; Print status of ZDDOS Access and Modify ("Enabled" or "Disabled")
+
+PRCOND:	LD	DE,(DISABL)	; Is this the disable vector?
+	OR	A
+	SBC	HL,DE
+	ADD	HL,DE		; Compare DE to HL preserving registers
+	JR	Z,PRST0		; ..jump if disabled
+	CALL	VPRINT
+	DEFB	1,'Enabled',2,0
+	JP	EREOL
+
+;.....
+; Print status of ZD/ZSDOS Time routines, address or "Disabled"
+
+PRSTAT:	LD	DE,(DISABL)	; Is this the disable vector?
+	OR	A
+	SBC	HL,DE
+	ADD	HL,DE
+	JR	Z,PRST0
+
+	CALL	PRTADD
+	JP	EREOL
+
+PRST0:	CALL	VPRINT
+	DEFB	1,'Disabled',2,0
+	JP	EREOL
+
+;.....
+;  Print a Hexidecimal address in HL highlighted
+
+PRTADD:	CALL	STNDOUT		; Put in highlighted mode if possible
+	CALL	PRHEX
+	JP	STNDEND
+
+;.....
+;  Print Hex value of HL registers followed by an 'H'
+
+PRHEX:	CALL	PHL4HC
+	LD	A,'H'
+	JP	COUT
+
+;.....
+;  Print CRLF then jump to inline print routine w/return addr on stack
+
+PRNL:	CALL	CRLF		; for non-ZCPR3 users
+	JP	GXYMSG
+
+;.....
+;  Print second part of interactive setting prompt (ZSDOS)
+
+PROMP0:	CALL	VPRINT
+	DEFB	' Routine [(',1,'D',2,')isable), '
+	DEFB	'(',1,'S',2,')et] : ',0
+PROMPA:	CALL	GETCH
+	CALL	COUT
+	CP	'D'		; Is it a disable request?
+	JR	Z,PROMPB
+	CP	'S'		; Set?
+	JR	NZ,PROMPA	; ..loop if not
+	CALL	PRNL		; CRLF then print
+	DEFB	22,25,'Enter Address of Routine : ',0
+	LD	HL,0
+	JP	GETADR
+
+PROMPB:	LD	HL,(DISABL)	; Disable by placing address of dummy return
+	SCF			; mark dummy address
+	RET
+
+;  Print second part of interactive setting prompt (ZDDOS)
+
+PROMP1:	CALL	VPRINT
+	DEFB	' Routine [(',1,'D',2,')isable), '
+	DEFB	'(',1,'E',2,')nable] : ',0
+PROMPC:	CALL	GETCH
+	CP	'D'		; Is it a disable request?
+	JR	Z,PROMPB
+	CP	'E'		; Is it an enable request?
+	JR	NZ,PROMPA	; ..loop if not
+	LD	IX,(IXVAL)	; Else get Enable vector from Create addr
+	LD	L,(IX+5)
+	LD	H,(IX+6)
+	RET
+
+;.....
+; Check DOS type.  Return Zero Flag Set if ZSDOS, False if ZDDOS
+
+CHKZS:	PUSH	BC		; Save registers
+	LD	C,A		; Save character in A
+	LD	A,(DOSTYP)	; Get type. 'S' for ZSDOS, 'D' for ZDDOS
+	CP	'S'
+	LD	A,C		; Restore all regs
+	POP	BC
+	RET
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+;    T E X T    D A T A    &    M E S S A G E S
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+; Named Common Table for system segment replacement
+
+COMTBL:	DEFB	'_CCP_',80H,0,0		; CCP Common name
+COMTB0:	DEFW	0000H			; ..Offset to CCP segment
+	DEFB	'_DOS_',80H,0,0		; DOS Common name
+COMTB1:	DEFW	0800H			; ..Offset to DOS segment
+	DEFB	'_BIOS_',80H,0		; BIOS Common name
+COMTB2:	DEFW	1600H			; ..Offset to BIOS segment
+	DEFB	80H			; End mark
+
+; File and miscellaneous names
+
+ZRDOSS:	DEFB	'ZRDOS'
+DFLT1:	DEFB	'MOVCPM  COM'
+DFLT1A:	DEFB	'TURBOSYSPRL'	; Name of Kaypro TURBO system (P*P)
+DFLT2:	DEFB	'ZSDOS   ZRL'
+DFLT3:	DEFB	'MOVZSDOSCOM'
+DFLT4:	DEFB	'ZCPR3   REL'
+DFLT5:	DEFB	'CBIOS   REL'
+DFLT6:	DEFB	'SYSTEM  MDL'	; Image name for absolute patch
+DFLT7:	DEFB	'ZSSYS   MDL'	; Save Image name for absolute patch
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+;	    R A M     S t o r a g e
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+IXVAL:	DEFS	2		; Storage for IX to fix Ill-behaved BIOSes
+DOSTYP:	DEFS	1		; Storage for DOS type character
+ENVPTR:	DEFS	2		; Pointer to any ZCPR3 environment found
+DISABL:	DEFS	2		; Storage for address to disable TIME fcns
+MODFLG:	DEFS	1		; Load Mode Flag  (0=Relocatable,
+				; 'A'=Absolute image, 'T'=Install in TURBOSYS)
+ORGOFF:	DEFS	1		; ORG offset (0=normal, 2=Turbosys for 200H)
+CHAR:	DEFS	1		; Miscellaneous character storage
+PATH:	DEFS	2		; Z3ENV Path address
+WHEEL:	DEFS	2		; Z3ENV Wheel address
+
+BASADR:	DEFS	2		; Base address for user's MOVCPM image
+TOPADR:	DEFS	2		; Top address of MOVCPM image
+OFFSET:	DEFS	2		; Offset from image start to CCP start
+
+PHCCP:	DEFS	2		; Physical CCP address in Memory
+PHDOS:	DEFS	2		; Physical DOS address in Memory
+PHBIO:	DEFS	2		; Physical BIOS address in Memory
+
+MAPCCP:	DEFS	2		; Physical Address of CCP Bit Map Start
+MAPDOS:	DEFS	2		; Physical Address of DOS Bit Map Start
+MAPBIO:	DEFS	2		; Physical Address of BIOS Bit Map Start
+
+BIOSIZ:	DEFS	2		; Size of BIOS Code+Data area
+VECT:	DEFS	2		; Bit Map offset Vector in image
+MAPOFF:	DEFS	2		; Calculated Offset to Bit Map
+MOVOFF:	DEFS	2		; Offset for moving BIOS
+MOVSIZ:	DEFS	2		; Size of BIOS Bit Map when moving
+
+CSIZE:	DEFS	2		; Code size of relocatable module
+DSIZE:	DEFS	2		; Data size of relocatable module
+
+KYBUFF:	DEFS	23		; Buffer for [DU:]FN.FT input string
+CUSER:	DEFS	2		; Current (entry) Drive/User
+SUSER:	DEFS	2		; Source file Drive/User
+ZFLG:	DEFS	1		; 0 = CP/M, FF = ZRDOS
+Z33FLG:	DEFS	1		; 0 = CCP or ZCPR<3.3, 18H = ZCPR Ver 3.3
+RCNT:	DEFS	2		; Size of system image in records
+
+SNBUF:	DEFS	6		; Buffer for serial number/ZRDOS string
+
+INPTR:	DEFS	1		; Pointer into deblocking buffer
+
+; Values used to print status info
+
+CSEG1:	DEFS	2		; CCP Code segment rel offset
+CSEG2:	DEFS	2		; BDOS Code segment rel offset
+CSEG3:	DEFS	2		; BIOS Code segment rel offset
+MSEG1:	DEFS	2		; CCP Bit Map rel offset
+MSEG2:	DEFS	2		; BDOS Bit Map rel offset
+MSEG3:	DEFS	2		; BIOS Bit Map rel offset
+
+	DEFS	128
+STACK:	DEFS	2
+
+	END
+

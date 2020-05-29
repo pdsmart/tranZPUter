@@ -1,0 +1,35 @@
+(*  VERSION 0002  *)
+module plot7;
+
+
+(*..................................................................*)
+(*                           PLOTLIB                                *)
+(*  Plotlib is a collection of plot routines to aid in graphics     *)
+(*  programs. The routines were originally published in BYTE as     *)
+(*  'Drawing with UCSD Pascal and the Hiplot Plotter' by Dr. James   *)
+(*  Stork, Oct 1981. The routines have been modified to run with    *)
+(*  a MicroAngelo graphics terminal by Ray Hopkins, 8 Chestnut Hill *)
+(*  Ct., Cinnaminson N.J. (609) 829-4686.                           *)
+(*..................................................................*)
+
+type
+{$I PLOTLIB.TYP}
+
+const
+{$I PLOTLIB.CON}
+      
+var
+    xpos,ypos :external real;
+
+(*$IPLOTLIB.DEF*)
+{$ISTDLIB.DEF}
+
+procedure plotwhere(var px,py:real);
+
+begin
+  px:=xpos;
+  py:=ypos;
+end;
+
+modend.
+t

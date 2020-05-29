@@ -1,0 +1,37 @@
+	This file is the start of a library of I/O routines. The only
+one implemented to date is the procedure 'GETARG'.
+
+	GETARG is a procedure for getting command line arguments. For
+example, if it were used in a program called DUMMY, then invoking the
+program by typing:
+
+	DUMMY NAME1 NAME2
+
+will result in the procedure getarg returning NAME1 and NAME2. It also
+returns the number of arguments ( up to 2).
+
+	For example, in the above case, the number returned would be 2.
+If the command line were:
+
+	DUMMY NAME
+
+the procedure would return a number of 1 and it would be NAME.
+
+	Finally, typing in a command line which caontains more than
+two arguments causes getarg to return a number of 2 and the second
+returned string would contain all the succeeding arguments. Thus,
+if the command line were:
+
+	DUMMY NAME1 NAME2 NAME3 NAME4
+
+it would return NAME1 as the first string and NAME2 NAME3 NAME4 as the
+second.
+
+	The source code could, of course, be modified to separate out
+more than two arguments.
+
+	I first saw the technique used in this procedure in an article
+in S-100 Microsystems by two Gilbreath's.
+
+	J.A. Koehler, Saskatoon, 28 October, 1982
+

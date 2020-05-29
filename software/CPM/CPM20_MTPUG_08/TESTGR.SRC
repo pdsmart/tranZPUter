@@ -1,0 +1,179 @@
+PROGRAM testgr (input, output);
+  (*------------------------------------------------------------------*)
+  (*  File : TESTGR.P on Prog Store 1				      *)
+  (*								      *)
+  (*  Written Mar 25,'82   by Jack Gilmer			      *)
+  (*								      *)
+  (*  Modified to MT+ Pascal, J.A. Koehler, 23 Nov., 1982             *)
+  (*                                                                  *)
+  (*  This program calls routines defined in a graphics library such  *)
+  (* as  DMP.ERL  and GRHP.ERL, and plots a border, then exercises    *)
+  (* various options, etc. It makes a hard copy on hard copy devices, *)
+  (* (such as the DMP-2 plotter) or just the CRT if the package is    *)
+  (* for a CRT oriented device (such as the ADM3) plus a hard copy    *)
+  (*								      *)
+  (*------------------------------------------------------------------*)
+
+  CONST
+    radian = 57.2958;
+
+
+  TYPE
+    astringtype = string[132];      
+
+    aendtype = (noend, point, square, triangle, cross, ecks, diamond,
+                circle);
+
+    alinetype = (noline, solid, dotted, dashed, dotdashed, 
+                 dotdotdashed);
+
+    apointtype =  RECORD	(* absolute position in millimeters *)
+                    x,
+		    y:  REAL;
+		  END;
+
+  VAR
+
+    lineend: aendtype;
+
+    sinewave:  alinetype;
+
+    ms,
+    mx,
+    my,
+    origin,
+    temp:  apointtype;
+
+    index,
+    xval:  INTEGER;
+
+    str:  astringtype;
+
+  EXTERNAL PROCEDURE adefault;
+  EXTERNAL PROCEDURE ainit;
+  EXTERNAL PROCEDURE aplot(endpoint:  apointtype);
+  EXTERNAL PROCEDURE asetplot(line:  alinetype;
+	                     repeatlength,
+			     endsize:  REAL;
+			     endsymbol:  aendtype);
+  EXTERNAL PROCEDURE asetstr(charheight,
+  	                    charwidth,
+			    charangle,
+			    charspace,
+			    strangle:  REAL);
+  EXTERNAL PROCEDURE asetwindow(lowerleft,
+                	       upperright:  apointtype);
+  EXTERNAL PROCEDURE asize(VAR size:  apointtype);
+  EXTERNAL PROCEDURE astr(str:  astringtype);
+  EXTERNAL PROCEDURE atext;
+  EXTERNAL PROCEDURE awhere(VAR where:  apointtype);
+    
+    
+
+
+  BEGIN (* testgr *)
+    ainit;			(* set it up *)
+    asize(ms);			(* get screen size *)
+    origin.x := 0;		(* set corners *)
+    origin.y := 0;
+    mx := origin;
+    mx.x := ms.x;
+    my := origin;
+    my.y := ms.y;
+
+    asetplot(solid, 0, 0, noend); (* draw border *)
+    aplot(mx);
+    aplot(ms);
+    aplot(my);
+    aplot(origin);
+
+    asetplot(noline, 0, 0, noend);
+    temp.x := ms.x * 0.05;
+    temp.y := ms.y * 0.95;
+    aplot(temp);
+
+    str := 'Default size and direct. ';
+    
+    astr(str);
+
+    temp.y := ms.y * 0.8;
+    aplot(temp);
+    asetstr(5, 1.5, -30, 1.6, -30);
+    str := 'Tall, narrow characters. ';
+
+    astr(str);
+
+    temp.y := ms.y * 0.65;
+    aplot(temp);
+    asetstr(1, 5, 30, 5.1, 30);
+    str := 'Short, fat characters.';
+    
+    astr(str);
+
+    temp.x := 0;		(* draw sine waves - move to start *)
+    temp.y := ms.y / 2.0;
+    asetplot(noline, 0, 0, noend);
+    aplot(temp);
+    FOR sinewave := solid TO dotted DO
+      BEGIN
+	asetplot(sinewave, 5.0, 0, noend);
+	FOR xval := 1 TO 36 DO
+	  BEGIN
+	    temp.y := (ms.y / 2.0) +
+  		      (sin(xval * 10.0 / radian) * ms.y / 3.0);
+	    aplot(temp);
+	    temp.x := temp.x + (ms.x / 72.0);
+	  END; (* FOR xval *)
+      END; (* FOR sinenum *)
+
+    temp := origin;		(* display end types available *)
+    temp.y := ms.y / 10.0;
+    asetplot(noline, 0, 0, noend);
+    aplot(temp);
+    FOR lineend := noend TO circle DO
+      BEGIN
+	asetplot(noline, 0, 2.0, lineend);
+	temp.x := temp.x + (ms.x / 16.0);
+	aplot(temp);
+      END; (* FOR lineend *)
+    FOR lineend := diamond DOWNTO noend DO
+      BEGIN
+	asetplot(solid, 0, 2.5, lineend);
+	temp.x := temp.x + (ms.x / 16.0);
+	aplot(temp);
+      END; (* FOR lineend *)
+
+    origin.x := ms.x * 0.4;	(* draw small window *)
+    origin.y := ms.y * 0.75;
+    ms.x := ms.x * 0.6;
+    ms.y := ms.y * 0.9;
+    asetplot(noline, 0, 0, noend);
+    aplot(origin);
+
+    temp := origin;
+    temp.x := ms.x;
+    asetplot(dotted, 5.0, 0, noend);
+    aplot(temp);
+
+    asetplot(dotdashed, 10.0, 0, noend);
+    aplot(ms);
+
+    temp := origin;
+    temp.y := ms.y;
+    asetplot(dotdotdashed, 15.0, 0, noend);
+    aplot(temp);
+
+    asetplot(dashed, 10.0, 0, noend);
+    aplot(origin);
+
+    temp.x := (origin.x + ms.x) / 2.0;	(* circle the box centre *)
+    temp.y := (origin.y + ms.y) / 2.0;
+    asetplot(noline, 0, ms.x - origin.x , circle);
+    aplot(temp);
+
+    asetwindow(origin, ms);	(* restrict to the window *)
+    asetplot(noline, 0, ms.x - origin.x , diamond);
+    aplot(temp);
+
+  END. (* testgr *)
+

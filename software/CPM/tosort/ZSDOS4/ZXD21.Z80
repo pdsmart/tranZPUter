@@ -1,0 +1,1958 @@
+	TITLE	"ZSDOS EXtended Directory Lister"
+;==========================================================================
+;  Z X D	Z-System eXtended Directory Lister
+;--------------------------------------------------------------------------
+; Derived from XD III Ver 1.2, 8 Apr 84 by Richard Conn.
+;  Changes Copyright (C) 1988 by Harold F. Bower, All Rights Reserved
+;--------------------------------------------------------------------------
+;   ZXD was modified from XD III to take advantage of the Date Stamping
+; capabilities of ZSDOS.  Features of Rick Conn's full-blown XDIR were
+; added, as well as modified formats for Date Stamp displays.  Version 4
+; of "The Libraries" MUST be used to link this program due to the added
+; files tailored for Date/Time Stamping support.
+;   Version 2.0 supports DateStamper(tm), DosDisk(tm), P2DOS (CP/M+) and
+; NZTIME File Stamping methods.
+;
+;    Link as:   ZML ZXDxx,DSLIB/,VLIB/,Z3LIB/,SYSLIB/
+;
+; Revisions:
+;  2.1  -  5 Mar 97 - Corrected Logon error to invalid drive, adapted
+;		screen display & Printer to use Z3TCAP Number of Lines.	HFB
+;  2.0  - 10 Jul 93 - Incorporated elements of DDDIRQS (stripped for only
+;		Pointer sorts), added ZSTIME stamps to others.		HFB
+;  1.66 -  3 May 92 - Use GETNAME/PRTNAME for Help.			HFB
+;  1.65 -  4 Apr 92 - Modified to use 3 bytes of size of ZSDOS2	.	HFB
+;  1.64 - 11 Jul 91 - Corrected bug in No-Date Listing			HFB
+;  1.63 - 14 Oct 90 - Changed to use pointers instead of recs		HFB
+;  1.62 - 21 May 89 - Added embedded Config tag for ZCNFG		HFB
+;   Many interim releases primarily for ZSDOS 1
+;  1.0  - 17 Sep 88 - Initial Release					HFB
+;==========================================================================
+
+VERS	EQU	21		; Released Version
+rev	equ	' '
+DATE	  MACRO
+	DEFB	'5 Mar 97'
+	  ENDM
+
+;---------
+; ZXD -- Simple Extended Disk Directory Program
+
+;    ZXD produces a formatted, alphabetized listing of the contents of
+; the disk directory of the implied (current logged-in) or specified disk.
+
+;    ZXD is invoked by a command line of the following form --
+
+;	ZXD [dir:]fn.ft [/]ooo...
+;    or
+;	ZXD /oooo...
+; Where:
+;   dir	  = optional directory name or disk/user specification (du)
+;		If dir is omitted, ZXD defaults to the current disk/user
+;   fn.ft = optional ambiguous file name and type (* and ? may be used)
+;   o	  = option letters as:
+;		Aa - Set the attributes of the files to be displayed;
+;		  a=S for System Files
+;		  a=N for Non-System Files
+;		  a=A for All Files (System and Non-System)
+;		Oo - Set Output Parameters;
+;		  o=A to Toggle File Attributes
+;		  o=F to Form Feed at end
+;		  o=H to Toggle Hor/Vert
+;		P  - Print display as well as show it on the screen
+;		PF - Same as POF
+;		U  - Print all user areas
+;		W  - Print both Created and Modified dates
+;		D  - Toggle display of Date (US/European) from default
+;		T  - Toggle Method of Time Stamps to use
+;			(P2Dos&NZTime or DateStamper)
+;		S  - Sort with reversed parameters (Name then Type or reversed)
+;		N  - Toggle Date/No-Date in listing
+; Options may be combined as desired; note that AA is the same as AS and AN,
+; but AS by itself negates AN and vice-versa, with AN taking precedence
+;
+; If the User does not have WHEEL privileges, options A, P and U are not
+; recognized, and do not appear in the on-line Help message.
+;.....
+;  CP/M Equates
+
+BDOS	EQU	0005H
+FCB	EQU	005CH
+BUFF	EQU	0080H
+
+CR	EQU	0DH
+FF	EQU	0CH
+LF	EQU	0AH
+
+FNSIZE	EQU	16		; Basic File Name & Type Size
+ESIZE	EQU	FNSIZE+15	; Entry Size + Create, Access & Modify times
+OPTCH	EQU	'/'		; Option char
+;2.1MAXENT	EQU	40		; Maximum number of entries/screen (20 lines)
+
+
+	PUBLIC	COUT		; Call to BOUT will be COUT to SYSLIB routines
+
+; External Library references:
+
+	EXT	FINDCK, CKTDF, RDCLK, P2UTIM, M2UTIM, TIMINI	; Dslib
+	EXT	RCLOCK, GETDOS, DOSTYP, DOSVER, BIN2BCD		;   "
+	EXT	OPENTD, RWTD, CLOSTD, FSTNXT			;   "
+
+
+	EXT	Z3VINIT, STNDOUT, STNDEND, TINIT, DINIT		; Vlib
+
+	EXT	Z3LOG, WHRENV, DUTDIR, GETWHL, ZPRSFN		; Z3lib
+	EXT	GETNAME, PRTNAME				;   "
+
+	EXT	DFREE, DPARAM, FSIZE, LCRLF, CIN, LOUT, FILLB	 ; Syslib
+	EXT	CODEND, RETUD, LOGUD, COMPHD, SCTLFL, SOUT, BOUT ;   "
+	EXT	SCRLF, SHLDC, SADC, SAFDC, SPRINT, SPSTR	 ;   "
+	EXT	BLKSHF, BLKMSK, BLKMAX, DIRMAX, SELFLG, DIRBUF	 ;   "
+	EXT	@FNCMP, @AFNCMP, GETMTOP, DPARAMS, SORT, SSBINIT ;   "
+
+;=================================================================
+;		S T A R T    T H E    P R O G R A M
+;=================================================================
+
+	JP	START		; Bypass header and start execution
+
+	DEFB	'Z3ENV'		; This is a ZCPR3 Utility
+	DEFB	1		; External Environment Descriptor
+Z3EADR:	DEFW	0001		; Set Non-zero to force search
+	DEFW	0000		; Filler for Type 4 Header
+	DEFB	'ZXD     ',0	; Use this Configuration File
+
+;.....
+;  Default Flags
+
+IUSR:	DEFB	0		; All users (0 = no, FF = All users)
+IFMT:	DEFB	0		; 0=Vertical format, FF= Horizontal format
+IFF:	DEFB	0		; enable form feed at end (0=no)
+ISORT:	DEFB	0		; 0=Sort Name then Type, FF=Type then Name
+INDATE:	DEFB	0		; 0=Print With Dates, FF=Print without Dates
+WIDE:	DEFB	0		; 0=only modified dates, FF=create/modified
+STMODE:	DEFB	0FFH		; 0=P2Dos Stamps, FF=DateStamper Stamps
+USEUR:	DEFB	0		; 0=US Date Format, FF=European Date Format
+IATT:	DEFB	10000000B	; Non-System files only
+BLNKYR:	DEFB	0		; 0=Always print Year, FF=Blank Year if current
+
+; ********* Start of ZXD *********
+
+START:	LD	(STACK),SP	; Save stack ptr for return
+	CALL	CODEND		; Determine free space
+	LD	DE,100H		; Allow 1 page for command line & stack
+	EX	DE,HL
+	ADD	HL,DE
+	LD	(BUFFER),HL	; Start of free Buffer area
+	LD	SP,HL		; Set local stack
+	PUSH	DE		; Save page addr for command line copy
+
+;2.1	LD	HL,(Z3EADR)	; Pt to candidate ZCPR3 environment
+	LD	HL,(BDOS+1)	;2.1 Start search at BDos base to
+	CALL	WHRENV		;   find a valid Environment
+	LD	(Z3EADR),HL
+	CALL	INIDSP		;2.1 Initialize Screen/Printer Parms
+	CALL	Z3VINIT		; Initialize the ZCPR3 Env
+	CALL	GETNAME		; Get name by which invoked
+	CALL	RETUD		; Get entry DU for later restoration
+	LD	(ENTRUD),BC	; .on exit
+	LD	(FCB+13),BC	; ..and default DU if no args
+	CALL	TIMINI		; Initialize Clock and Dos Typeing
+	CALL	TINIT		; Initialize the Terminal
+	CALL	GETWHL		; Get any existing Wheel byte
+	OR	A		; ..setting flags
+	LD	(WHEEL),A	; Save it locally for later testing
+	JR	NZ,START0	; ..jump if User has wheel
+	LD	(IUSR),A	; Disable "All User" w/Null in A
+	LD	A,10000000B	; ..and set for only Non-System files
+	LD	(IATT),A
+
+START0:	CALL	SPRINT		; Print the opening banner
+	DEFB	'ZXD  Ver ',VERS/10+'0','.',VERS MOD 10 + '0',rev,0
+
+; Save command line in CMDLNE buffer
+
+	POP	DE		; Restore page addr to DE
+	LD	HL,BUFF+1	; Copy input line into command line buffer
+START1:	LD	A,(HL)		; Get byte
+	LDI			; Move a byte and advance ptrs
+	OR	A		; End of Line?
+	JR	NZ,START1
+
+; Parse Filename per ZCPR3 specifications
+
+	LD	HL,BUFF+1
+FLOOP:	LD	A,(HL)		; Scan over spaces
+	INC	HL		; ..point to next
+	OR	A		; End-of-Line?
+	JR	Z,FLOOPX	; ..jump if so
+	CP	' '		; Space?
+	JR	Z,FLOOP		; ..jump if so
+	DEC	HL		; Back down to first char
+	LD	DE,FCB		; Parse to this location
+	PUSH	DE		; Save FCB addr
+	LD	B,11
+	LD	A,'?'
+FLOOP1:	INC	DE		; Fill FN & FT fields w/"?"
+	LD	(DE),A
+	DJNZ	FLOOP1		; ..loop til done
+	POP	DE		; Restore FCB addr
+	LD	A,1		; Do DU: before DIR:
+	CALL	ZPRSFN		; ..do it
+
+; Try to display time and set current year if found w/ZSDOS or DateStamper
+
+FLOOPX:	CALL	PRTOD		; Print Time of Day (NZ ret is Ok)
+	JR	NZ,ISZS1	; ..jump if no clock present w/0FE in A
+	LD	A,(BUFF)	; Else get Current Year
+ISZS1:	LD	(CURYR),A	; ..and save
+
+;2.1 Check for Errors parsing the specified DU.  Abort if Bad.
+
+	LD	A,(FCB+15)	;2.1 Get Flag (0=Ok, FF=Errors)
+	OR	A		;2.1  Good?
+	JR	Z,DRIVOK	;2.1 ..jump if So
+	CALL	SPRINT		;2.1 Else Error
+	DEFB	CR,LF,'-- Drive/User Error --',CR,LF,0
+	JP	RETURN		;2.1 ..exit
+
+; Log into DU or DIR
+
+DRIVOK:	LD	DE,FCB		; Get file name into FCB, and get user and disk
+	CALL	Z3LOG		; ZCPR3 command line interpretation
+
+; Get and save current user number
+
+	CALL	RETUD		; Get current user and disk
+	LD	(SELUD),BC
+	LD	A,C		; ..User to A
+	AND	1FH		; Mask all but user bits
+	LD	(AFLG),A	; current user number
+
+; Transfer default Flag values to working flags
+
+	LD	HL,IUSR		; Move eight default regs..
+	LD	DE,UFLG		; ..to working locations
+	LD	BC,8
+	LDIR
+	LD	C,(HL)		; Get file attributes (IATT) to C
+	LD	A,(AFLG)	; Get current user number
+	OR	C		; Mask in file attributes
+	LD	(AFLG),A	; ..and save
+	XOR	A		; A=0
+	LD	(PFLG),A	; Set NO Printer output
+	INC	A		; A=1 for console only
+	LD	(SCTLFL),A	; Set switched output flag
+
+; Assume wild file name
+
+	LD	HL,FCB+1	; store '?' chars
+	LD	B,11		; 11 chars
+	LD	A,(HL)		; check for entry specified
+	CP	' '		; test for space (means no entry)
+	JR	Z,FILLQ		; ..jump to fill if no entry
+	CP	OPTCH		; test for option flag
+FILLQ:	LD	A,'?'		; prep for '?' fill
+	CALL	Z,FILLB
+
+; Scan command line for options
+
+	CALL	CODEND		; Pt to first char in buffer
+	DEC	HL		; ..precompensate for search increments
+SKIP00:	INC	HL		; Advance to next char
+	LD	A,(HL)		; Get char
+	CP	' '		; Is it a space?
+	JR	Z,SKIP00	; ..loop if not to check next
+	OR	A		; end of line?
+	JP	Z,ZXDIR		; ..begin main processing if so
+	INC	HL		; Prepare for option
+	CP	OPTCH		; Is it an Option?
+	JR	Z,OPT		; ..jump to process options if so
+	DEC	HL		; Ok to process for DIR:filename.typ form
+
+; Skip over characters of file name
+
+SKIPO1:	LD	A,(HL)		; Get char
+	INC	HL		; ..point to next
+	OR	A		; Is it the end of string?
+	JP	Z,ZXDIR		; ..jump to run ZX if no options follow
+	CP	' '		; Is it a space?
+	JR	NZ,SKIPO1	; ..loop if not space
+
+; Scan complete -- look for possible following option char
+
+SKIPO2:	LD	A,(HL)		; Get char
+	INC	HL		; ..point to next
+	CP	' '		; Is it a space?
+	JR	Z,SKIPO2	; ..loop if so
+	CP	OPTCH
+	JR	Z,OPT		; Have option Char, so jump
+	DEC	HL		; Else back up since this is Option Char
+
+; Look for options -- main loop; HL pts to next char
+
+OPT:	LD	A,(HL)		; get option char
+	INC	HL		; pt to next
+	LD	(PTR1),HL	; Save option line ptr
+	OR	A		; end of line?
+	JP	Z,ZXDIR		; begin main processing
+	CP	' '		; skip over spaces
+	JR	Z,OPT
+
+; Scan option table
+
+	CP	'O'		; Output Control
+	JR	Z,OPTO
+	CP	'S'		; Sort Order control
+	JR	Z,OPTS
+	CP	'N'		; Date/No Date control
+	JR	Z,OPTN
+	CP	'W'		; Wide Display control
+	JR	Z,OPTW
+	CP	'D'		; Date Display (US/European) control
+	JR	Z,OPTD
+	CP	'T'		; Time Stamp method control
+	JR	Z,OPTT
+	PUSH	AF		; Save char while we check for Wheel
+	LD	A,(WHEEL)
+	OR	A
+	JR	Z,OPTER0	; ..jump if user is not a Wheel
+	POP	AF		; Else restore byte and continue
+	CP	'P'		; Print Control
+	JR	Z,OPTP
+	CP	'U'		; User Select control
+	JR	Z,OPTU
+	CP	'A'		; Attribute Control
+	JR	NZ,OPTERR	; ..list Help if not
+			;..else fall thru
+
+; Option A -- File Attributes
+
+	LD	A,(HL)		; get next option letter
+	LD	C,10000000B	; ..Prepare for non-system
+	CP	'N'		; Non-System files?
+	JR	Z,OPTRET
+	LD	C,01000000B	; ..Prepare for System
+	CP	'S'		; System files?
+	JR	Z,OPTRET
+	LD	C,11000000B	; ..Prepare for All files
+	CP	'A'		; All files?
+	JR	NZ,OPTERR	; ..jump to Help if Error (not A,N,S)
+OPTRET:	LD	A,(AFLG)	; Else Set File Attribute Options
+	AND	00111111B	; Mask any existing bits
+	OR	C		; mask in sys/non-sys
+	LD	(AFLG),A	; restore flag
+	INC	HL		; pt to next
+	JR	OPT
+
+; Option P -- enable it; Printer output
+
+OPTP:	LD	A,0FFH		; ON
+	LD	(PFLG),A
+	LD	(SCTLFL),A	; set S-output control
+	LD	A,(HL)		; get possible 2nd letter
+	CP	'F'		; set form feed if F
+	JR	NZ,OPT		; process as next option letter if not F
+	INC	HL		; pt to next
+	LD	(PTR1),HL	; Save current addr
+OPTOF:	LD	HL,FFFLG	; Toggle FF Flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option W -- Wide (create and modify dates) display
+
+OPTW:	LD	HL,WFLG		; Set for user flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option U -- Control User Selection parameter
+
+OPTU:	LD	HL,UFLG		; Set pointer for user flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option S -- Sort Order Selection parameter
+
+OPTS:	LD	HL,SFLG		; Set pointer for Sort order flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option D -- Swap to alternate Date display mode (US/European)
+
+OPTD:	LD	HL,DFLG		; Set pointer for Date Flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option T -- Swap to alternate Time Stamp Method (P2Dos/DateStamper)
+
+OPTT:	LD	HL,TFLG		; Set pointer for TimeStamp Flag
+	DEFB	0DDH		; Trash IX and fall thru
+
+; Option N -- Toggle between prints With Dates and Without Dates
+
+OPTN:	LD	HL,NFLG		; Set pointer for No Date Flag
+
+OPFLIP:	LD	A,(HL)		; Get byte
+	CPL
+	LD	(HL),A		; ..and save it again
+	LD	HL,(PTR1)	; Restore buffer pointer
+	JP	OPT		; ..and continue
+
+; Option O -- control Output parameters
+
+OPTO:	LD	A,(HL)		; get 2nd letter
+	INC	HL		; pt to next
+	LD	(PTR1),HL	; Save pointer address
+	CP	'F'		; form feed?
+	JR	Z,OPTOF
+	CP	'H'		; horizontal/vertical?
+	JR	NZ,OPTERR	; ..jump to Help on Error (Not F or H)
+	LD	HL,HFLG		; Else flip Horiz/Vert flag
+	JR	OPFLIP
+
+;.....
+OPTER0:	POP	AF		; Clear stack for Error entry
+OPTERR:	LD	A,1		; set console only
+	LD	(SCTLFL),A	; set output control flag
+	CALL	SPRINT
+	DEFB	CR,LF,LF,'Syntax:		('
+	DATE
+	DEFB	' Ver)',CR,LF,'	',0
+	CALL	COMNAM
+	CALL	SPRINT
+	DEFB	'				- List per Defaults'
+	DEFB	CR,LF,'	',0
+	CALL	COMNAM
+	CALL	SPRINT
+	DEFB	' //				- Print this message'
+	DEFB	CR,LF,'	',0
+	CALL	COMNAM
+	CALL	SPRINT
+	DEFB	' /o[o..]			- List per options'
+	DEFB	CR,LF,'	',0
+	CALL	COMNAM
+	CALL	SPRINT
+	DEFB	' [dir:][fn[.ft]] [/][o[o..]]	- List selected w/opts'
+	DEFB	CR,LF,'Options:'
+	DEFB	CR,LF,'	Oo - Toggle Output Control Options'
+	DEFB	CR,LF,'		',0
+
+	LD	A,(WHEEL)	; Does user have Wheel privileges?
+	OR	A
+	JR	Z,OPTER1	; ..bypass a line if so
+
+	CALL	SPRINT
+	DEFB	'o=F for Form Feed,  ',0
+OPTER1:	CALL	SPRINT
+	DEFB	'o=H for Horiz/Vert Format'
+	DEFB	CR,LF,'	S  - Toggle Sort (Name/Type or Type/Name)'
+	DEFB	CR,LF,'	N  - Toggle No-Date/Date display'
+	DEFB	CR,LF,'	W  - Wide display with both Create/Modify Dates'
+	DEFB	CR,LF,'	D  - Display Date in alternate form'
+	DEFB	CR,LF,'	T  - Use alternate (P2Dos/DateStamper) Stamps',0
+
+	LD	A,(WHEEL)	; Does user have Wheel privileges?
+	OR	A
+	JP	Z,RETURN	; ..exit if not, Else fall thru..
+
+	CALL	SPRINT
+	DEFB	CR,LF,'	Aa - Set and Display of file attributes'
+	DEFB	CR,LF,'		a=S for System,  a=N for Non-System'
+	DEFB	CR,LF,'		a=A for All Files (System and Non-System)'
+	DEFB	CR,LF,'	U  - Toggle User select (Current or All)'
+	DEFB	CR,LF,'	P  - Send display to Printer'
+	DEFB	CR,LF,'	PF - Same as POF'
+	DEFB	CR,LF,0
+RETURN:	CALL	DINIT		; De-initialize the Terminal
+	LD	BC,(ENTRUD)	; Get entry DU
+	CALL	LOGUD		; ..and restore
+	LD	SP,(STACK)	; get old stack ptr
+	RET			; return to Dos
+
+;.....
+; Print name by which invoked or default name
+
+COMNAM:	LD	A,(Z3EADR+1)	; Get high byte of ENV
+	OR	A		; Anything there?
+	JP	NZ,PRTNAME	; ..jump to print "real" name if so
+	CALL	SPRINT		; Else print default name
+	DEFB	'ZXD',0
+	RET
+
+;.....
+; Memory Overflow Error
+
+MEMERR:	CALL	SPRINT
+	DEFB	'- TPA Overflow -',0
+	JR	RETURN
+
+;================================================================
+; ..Begin ZX processing
+
+ZXDIR:	LD	DE,FCB		; Point to the File Control Block
+
+; Check for Print Option and Print New Line if so
+
+	LD	A,(PFLG)	; printer output?
+	OR	A		; 0ffH=yes
+	CALL	NZ,LCRLF	; new line
+
+; Get Files from Disk
+
+	CALL	DPARAM		; get disk parameters for DFREE
+	LD	BC,(SELUD)
+	CALL	LOGUD
+	LD	A,(TFLG)	; Which mode of Stamps do we want?
+	AND	00000001B	; ..(keeping only LSB)
+	LD	C,A		; ..(Set search flag as well)
+	LD	A,(SFLG)	; AND B7 of Sort Order Flag
+	AND	10000000B
+	OR	C		; ..with Time Stamp Method
+	LD	C,A
+	LD	HL,(BUFFER)	; Pt to free space
+	LD	A,(UFLG)	; get users flag
+	AND	20H		; mask for user select bit (0=name/type)
+	LD	B,A
+	LD	A,(AFLG)	; get attributes flag
+	OR	B		; mask in grouping bit
+	PUSH	DE		; Save the FCB Pointer
+	CALL	DIRQS		; Load directory entries w/file sizes & dates
+	LD	(FIRSTF),DE	; Store the start of pointer table
+	POP	DE		; ..and restore FCB pointer
+	JR	Z,MEMERR	; memory overflow error?
+	LD	BC,(FCOUNT)	; Get File Count..
+	LD	(COUNTF),BC	;   save as file down count
+	CALL	GETDOS		; Get the Dos Version in operation
+	LD	A,(DOSTYP)
+	CP	'S'		; Is it ZSDOS?
+	JR	NZ,DOCPMS	; ..to CP/M sizing way if not
+	LD	A,(DOSVER)
+	CP	20H		; Is the Version # >= 2.0?
+	JR	C,DOCPMS	; ..do CP/M sizing way if < 2.0
+	LD	DE,BUFF		; Else this is ZSDOS2
+	LD	C,26		; Set DMA to Default Buffer
+	CALL	BDOS
+	LD	A,(SELUD+1)	; Get Desired drive
+	LD	E,A
+	LD	C,46
+	CALL	BDOS		; Get Free space in K in BUFF..BUFF+3
+	LD	A,(BUFF+2)	; Get third byte in Size
+	LD	(FREESZ+2),A	; Save Byte 3
+	LD	DE,(BUFF)	; .get bytes 1 and 2
+	JR	DOCPMT		; ..and rejoin code
+
+DOCPMS:	XOR	A		; Insure MSB of Free Size cleared
+	LD	(FREESZ+2),A	; ..since we only get two bytes entering here
+	CALL	DFREE		; compute amount of free space on disk
+DOCPMT:	LD	(FREESZ),DE	; save 16-bits of free space count
+	LD	DE,0000		; set file size counter
+	LD	(TOTSIZ),DE	; save counter
+	XOR	A		; Clear third byte of size too
+	LD	(TOTSIZ+2),A
+	LD	A,(PFLG)	; set temp flag
+	LD	(PFLGT),A
+
+	LD	HL,PFLGS	; Address Save Flags location
+	LD	A,(PFLG)	; save printer output flag
+	LD	(HL),A		; ..in Save locn
+	DEC	HL		; Point to PFLGT
+	LD	A,(HL)		; Use Temp Flag
+	LD	(PFLG),A	; ..in Real pointer
+	LD	(HL),00		; ...and clear Temp Flag
+
+; Check for any files
+
+	LD	HL,(COUNTF)	; get file down count
+	LD	A,H		; any files?
+	OR	L
+	JP	Z,NFMSG		; ..jump to No Files message if Not
+
+; Everything set up now.  Set flag for number of columns in display
+
+	LD	A,(NFLG)	; Are we listing Without Dates?
+	LD	B,3
+	OR	A
+	JR	NZ,ZX2A		; ..jump to set 3 cols if so
+	LD	A,(WFLG)	; Are we listing both dates?
+	DEC	B
+	OR	A
+	JR	Z,ZX2A		; ..jump to set 2 cols if Not
+	DEC	B		; Else set to 1 col
+ZX2A:	LD	A,B		; Get the number
+	LD	(NCOLS),A	; ..and Store
+
+;2.1 Set the Number-of-Entries Count to Printer Page length if Printing,
+;2.1  Else set to the Screen Display Size
+
+	LD	A,(SCTLFL)	;2.1 Fetch Output Control Flag
+	RLA			;2.1  Printing Flag (Bit 7) to Carry
+	JR	NC,ZX6		;2.1 ..jump to default (Screen) if No Print
+	LD	HL,(PTRENT)	;2.1 Else get # Lines on Printer Page
+	LD	(MAXENT),HL	;2.1   and Transfer to Count Limit
+
+; This is the main looping entry point for each screen display
+; Display the Screen Header Information
+
+ZX6:	CALL	SCRLF		; specific user selected
+	CALL	STNDOUT		; ..Give some video highlighting
+	LD	A,(NCOLS)	; Get number of columns
+	LD	B,A		; ..and put in Reg
+	PUSH	BC		; Save count for second header line
+DOHDR0:	LD	A,(UFLG)	; Display all User Areas?
+	LD	HL,HDR1		; ..prepare for a Yes
+	OR	A		; Z=no
+	JR	NZ,DOHDR1	; ..jump if so
+	LD	HL,HDR1A
+DOHDR1:	CALL	SPSTR		; Print Header Text Entry
+	LD	A,(NCOLS)	; Get Number of Columns in listing
+	LD	HL,HDR1B	; ..prepare for both dates
+	CP	2		; Are we printing with just Modified?
+	JR	C,DOHDR2	; ..jump if both dates
+	JR	NZ,DOHDR7	; ...or here if No dates
+	LD	HL,HDR1C	; Else set for just Modified dates
+DOHDR2:	CALL	SPSTR		; Print Date Entries
+DOHDR7:	CALL	HDRSEP		; Print Header separator if required
+	DEC	B		; More entries?
+	INC	B
+	JR	NZ,DOHDR0	; ..loop if more than 1 column entry
+
+	CALL	STNDEND		; Turn Highlighting off for new line
+	POP	BC		; Restore for second header line
+	CALL	SCRLF		; ..and advance to next line
+	CALL	STNDOUT		; Turn Highlighting on for new line
+
+DOHDR3:	LD	A,(UFLG)	; Are we printing all User Areas?
+	LD	HL,HDR2		; ..prepare for a Yes
+	OR	A		; Z=no
+	JR	NZ,DOHDR4	; ..jump if so
+	LD	HL,HDR2A
+DOHDR4:	CALL	SPSTR		; Print Header Text Entry
+	LD	A,(NCOLS)	; Get Number of Columns in listing
+	LD	HL,HDR2B	; ..prepare for Yes
+	CP	2		; Are we printing with just Modified?
+	JR	C,DOHDR5	; ..jump if both dates
+	JR	NZ,DOHDR6	; ...or here if No dates
+	LD	HL,HDR2C	; Else set for just Modified dates
+DOHDR5:	CALL	SPSTR		; Print Date Entries
+DOHDR6:	CALL	HDRSEP		; Print Header separator if required
+	DEC	B		; More entries?
+	INC	B
+	JR	NZ,DOHDR3	; ..loop if more than 1 column entry
+	CALL	STNDEND		; End Reverse video
+
+; Prepare Columnar Output
+
+	LD	A,(PFLGS)	; restore print flag
+	LD	(PFLG),A
+;2.1	LD	DE,MAXENT/2	; Calculate # of entries
+	LD	DE,(MAXENT)	;2.1 Get # Lines to Calculate # Entries
+	LD	HL,0
+	LD	A,(NCOLS)	; Get number of cols in display
+	LD	B,A
+ZX6B:	ADD	HL,DE		; Add in # Entries per column
+	DJNZ	ZX6B		; ..loop til done
+	EX	DE,HL		; Put result in DE
+	LD	HL,(COUNTF)	; Get file count Remaining
+	CALL	COMPHD		; check for HL > DE
+	JR	NC,ZX7		; subtract entries to print from total entries
+	LD	D,H		; DE=HL=number of entries to print
+	LD	E,L
+ZX7:	XOR	A		; subtr entries to print (DE) from total (HL)
+	SBC	HL,DE		; HL=result
+	LD	(COUNTF),HL	; save new down count
+	LD	B,H		; BC=count
+	LD	C,L
+	LD	HL,(FIRSTF)	; Point to First Record Pointer
+
+; At this point, BC=number of remaining entries, DE=number of entries to
+;   print, and HL pts to first entry to print
+
+	LD	(PTR1),HL	; Save ptr to 1st entry
+	LD	A,(HFLG)	; Are we listing horizontally?
+	LD	B,A
+	LD	A,(WFLG)	; ..or showing Wide Display?
+	OR	B
+	JR	NZ,ZX7C		; ..jump if either and don't worry about cols
+	PUSH	DE		; save count
+
+	LD	A,(NFLG)	; Are we listing with No Dates?
+	OR	A
+	JR	Z,ZX70		; ..jump if listing Dates
+	CALL	DIVDE3		; Else div DE by 3, result * 2 in BC, A = Rem
+	JR	ZX72		; ..and rejoin code
+
+; Divide DE by 2, result * 2 in BC (Ptr size), remainder in A
+
+ZX70:	SRL	D		; divide by 2
+	RR	E
+	LD	A,0		; Get remainder in A
+	ADC	A,A
+	PUSH	HL		; Preserve HL
+	LD	L,E		; Copy result to HL
+	LD	H,D
+	ADD	HL,HL		; Double for 2-byte ptrs
+	LD	C,L		; ..and put result in BC
+	LD	B,H
+	POP	HL
+
+ZX72:	ADD	HL,BC		; Add offset (in BC) to 2nd Col Start
+	OR	A		; Any remainder?
+	JR	Z,ZX7A		; ..skip if none
+	INC	HL		; Else advance 1 Ptr to next entry
+	INC	HL
+ZX7A:	LD	(PTR2),HL	; ..Save ptr to Col 2
+	ADD	HL,BC		; Add offset (in BC) to 3rd Col Start
+	CP	2		; If remainder 2, advance one more Ptr
+	JR	C,ZX7B
+	INC	HL
+	INC	HL
+ZX7B:	LD	(PTR3),HL	; ..Save ptr to Col 3
+	POP	DE		; Get count back in DE
+
+; Main entry print routine
+
+ZX7C:	LD	D,1		; set Columns counter to initial value
+ZX8:	LD	HL,(PTR1)	; Pt to first entry
+	CALL	PRENTRY		; Print entry
+	LD	(PTR1),HL	; Put pointer
+	LD	A,(WFLG)	; Wide print?
+	OR	A
+	JR	NZ,ZX9		; ..jump if so
+	LD	A,(HFLG)	; Horizontal Display?
+	OR	A
+	JR	Z,ZX8A		; ..jump if Not
+	DEC	D		; Last entry in line?
+	CALL	NZ,SP2		; ..print 2 spaces if so
+	INC	D		; ...correct counter
+	JR	ZX9		; Continue below
+
+ZX8A:	DEC	E		; count down
+	JR	Z,ZX10
+	LD	HL,(PTR2)	; get ptr
+	CALL	PRENTSP		; Print entry with 2 leadin spaces
+	LD	(PTR2),HL	; put ptr
+	LD	A,(NFLG)	; Are we listing with No Dates?
+	OR	A
+	JR	Z,ZX9		; ..jump if listing Dates
+	DEC	E		; Count down
+	JR	Z,ZX10		; ..jump exit if done with screen
+	LD	HL,(PTR3)	; Get ptr to 3rd list
+	CALL	PRENTSP		; ..and list
+	LD	(PTR3),HL	; Save ptr
+ZX9:	DEC	E		; count down
+	JR	NZ,ZX8		; continue if not zero
+	LD	(FIRSTF),HL	; Save ptr to next set of entries to print
+	LD	HL,(COUNTF)	; get count of remaining entries
+
+; At this point, HL=number of entries left
+
+	LD	A,H		; anything left?
+	OR	L
+	JR	Z,ZX10
+	LD	A,(PFLG)	; printer output?
+	OR	A		; 0=no
+	JP	NZ,ZX6
+	CALL	SPRINT		; screen break
+	DEFB	CR,LF,'[more] ',0
+	CALL	CIN		; get response
+	CP	3		; abort?
+	JP	Z,RETURN
+	JP	ZX6		; new screen display
+
+; No files were found.  Print message and fall thru to exit stats
+
+NFMSG:	CALL	SPRINT		; print everywhere
+	DEFB	CR,LF,'-- No files --',0
+			;..fall thru..
+
+; Print end statistics and exit
+; Print DU
+
+ZX10:	CALL	SCRLF		; Print everywhere
+	CALL	SP2		; Give some space
+	CALL	RETUD		; Get current disk
+	LD	A,B
+	ADD	A,'A'		; convert to ASCII
+	CALL	SOUT		; print everywhere
+	LD	A,(UFLG)	; Are we printing all users?
+	OR	A
+	PUSH	AF
+	LD	A,C
+	CALL	Z,SAFDC		; ..print user # if not
+	LD	A,':'
+	CALL	SOUT		; Print Colon
+	POP	AF
+	JR	NZ,ZX11		; Jump if printing all users
+	CALL	DUTDIR		; Convert to DIR form
+	JR	Z,ZX11		; ..bypass if error
+
+	LD	B,8		; Print DIR name
+DIROUT:	LD	A,(HL)		; get char
+	CP	' '		; don't print spaces
+	CALL	NZ,SOUT
+	INC	HL		; pt to next
+	DJNZ	DIROUT
+
+; Print Selected File Statistics
+
+ZX11:	CALL	SPRINT
+	DEFB	' -- ',0
+	LD	HL,(FCOUNT)	; print file count
+	XOR	A		; .dummy a 3-byte value
+	CALL	PRBIG		; ..and use common routine
+	CALL	SPRINT
+	DEFB	' Files Using ',0
+	LD	HL,(TOTSIZ)	; Get total of file sizes
+	LD	A,(TOTSIZ+2)	; ..including 3rd byte
+	CALL	PRBIG		; Print it everywhere
+	CALL	SPRINT
+	DEFB	'K',0
+
+; Print Space Remaining on Disk
+;  Entry Point if No Files Found
+
+	CALL	SPACE
+	CALL	STNDOUT		; Highlight this
+	LD	A,'('
+	CALL	SOUT
+	LD	HL,(FREESZ)	; Get amount of free space
+	LD	A,(FREESZ+2)
+	CALL	PRBIG		; Print it everywhere
+	CALL	SPRINT
+	DEFB	'K Free)',0
+	CALL	STNDEND
+	LD	A,(PFLG)	; new line if printer output
+	OR	A
+	JP	Z,RETURN
+	CALL	SCRLF		; new line for printer
+	LD	A,(PFLG)	; print output
+	LD	B,A
+	LD	A,(FFFLG)	; form feed
+	AND	B		; if print and form feed ... NZ is set
+	LD	A,FF		; form feed char
+	CALL	NZ,LOUT		; form feed to printer
+	JP	RETURN
+
+;********* General Utility Routines ********
+
+; Print one or two spaces
+
+SP2:	LD	A,' '
+	CALL	SOUT
+SPACE:	LD	A,' '
+	JP	SOUT
+
+;.....
+; Print BCD digits as two ASCII digits
+; ENTER: BCD digits in A
+
+OUTBCD:	PUSH	AF
+	RRA
+	RRA
+	RRA
+	RRA
+	CALL	PT1
+	POP	AF
+PT1:	AND	0FH
+	ADD	A,'0'
+	JP	SOUT
+
+;.....
+; Print B chars pted to by HL
+
+PRCH:	LD	A,(HL)		; get char
+	INC	HL		; pt to next
+	BIT	7,A		; Check MSB, print lowercase if set
+	JR	Z,PRCH0
+	AND	7FH		; Mask out MSB
+	CP	'A'		; Convert char to Lower case
+	JR	C,PRCH2		; ..jump if less than "A"
+	CP	'Z'+1		; Greater than "Z"?
+	JR	NC,PRCH2	; ..jump if so
+	OR	20H		; Else Make lowercase Alpha char
+PRCH2:	CP	' '		; Within printable range?
+	JR	NC,PRCH3	; ..jump if so
+	LD	A,'?'
+PRCH3:	SET	7,A		; Set MSB again
+	JR	PRCH1
+
+PRCH0:	CP	' '		; Within printable range?
+	JR	NC,PRCH1	; ..jump to print if so
+	LD	A,'?'		; Print "?" if not valid char
+PRCH1:	BIT	7,A		; Is MSB Set?
+	PUSH	AF
+	CALL	NZ,STNDOUT	;   set reverse video if so
+	POP	AF
+	PUSH	AF
+	AND	7FH		;    and mask MSB
+	CALL	SOUT		; Print it
+	POP	AF
+	CALL	NZ,STNDEND	;  set normal video if so
+	DJNZ	PRCH		;   loop til done
+	RET
+
+;.....
+; Print individual file entry per established flags: UFLG, NFLG, WFLG, DFLG
+; Enter: HL --> Addresses element in sorted DDIRQS entry
+;	  D = Number of entries per line remaining
+;	  E = Number of entries remaining until end or screen break
+; Exit : HL --> Start of Next entry
+;	  D = # entries/line remaining + 1
+;	  E = Unaffected
+
+PRENTSP: CALL	SP2		; Print entry with 2 leading spaces
+PRENTRY: DEC	D		; Count <CRLF> counter
+	JR	NZ,PRFENT
+	LD	A,(NCOLS)	; Get count of columns
+	LD	D,A		;   and Reset Count
+	CALL	SCRLF
+
+; Print a single file entry
+
+PRFENT:	LD	(ENTPT0),hl	; Save entry pointer to Ptr Table
+	LD	A,(HL)		; Get Record Addr pointed to
+	INC	HL
+	LD	H,(HL)
+	LD	L,A		; We now point to Record
+	LD	(ENTPTR),HL	;   and Save
+	LD	A,(UFLG)	; Are we to print all users?
+	OR	A
+	JR	Z,PREN1A	; ..jump if not
+	LD	A,(HL)		; If so, get user #
+	AND	1FH		;   mask other bits
+	CALL	SADC		; Print user #
+	LD	A,':'		;   and colon separator
+	CALL	SOUT
+PREN1A:	INC	HL		; Pt to first char of File Name
+	LD	B,8		;   print 8 chars
+	CALL	PRCH
+	LD	A,'.'		; Print dot
+	CALL	SOUT
+	LD	B,3		; Print 3 chars
+	CALL	PRCH
+	PUSH	DE		; save Counts
+	PUSH	HL		;   and pointer
+	LD	HL,(ENTPTR)	; Restore Ptr to entry
+	CALL	FSIZE		; compute file size
+	LD	HL,(TOTSIZ)	; Get total file size counter
+	LD	A,(TOTSIZ+2)	;   including 3rd byte
+	ADD	HL,DE		; Add in new file
+	ADC	A,0		;   into 3rd byte
+	LD	(TOTSIZ),HL	; Save new total file size counter
+	LD	(TOTSIZ+2),A	;   for 3 bytes
+	EX	DE,HL		; Get file size into HL
+	CALL	SHLDC		;   and print (HL) value in decimal
+	LD	A,'k'
+	CALL	SOUT
+	POP	HL		; pt to Extent
+	LD	BC,4		;   offset to date/time fields
+	ADD	HL,BC
+	LD	A,(NFLG)	; Are we printing Dates?
+	OR	A
+	LD	BC,ESIZE-FNSIZE	;   (set offset to next entry in case not)
+
+	CALL	Z,PRDDAT	; Print date entry(s) if Not NFLG
+
+	POP	DE		; Restore counters
+	LD	HL,(ENTPT0)	; Get entry pointer
+	INC	HL		;  advance
+	INC	HL		;   to next entry
+	LD	A,(UFLG)	; Are we working with all users?
+	OR	A
+	RET	NZ		; ..return if So
+	DEC	D		; Last entry in line?
+	CALL	NZ,SPACE	;   Print a space if not
+	INC	D
+	RET
+
+;.....
+; Print appropriate separator based on value of DFLG (US/European)
+
+PRSEP:	LD	A,(DFLG)
+	OR	A		; Get separator for Date
+	LD	A,'.'		;   set European for default
+	JR	NZ,EUR1		; Jump if European
+	LD	A,'/'
+EUR1:	JP	SOUT
+
+;.....
+; Print Date field in display in "  HH:MM-DD.MM.YY" or "  HH:MM-MM/DD/YY"
+;   form depending on USEUR flag.
+; Enter: HL --> Created time field of sorted DDIRQS Directory list
+;	<WFLG> = 0 if just Modified desired, FF for both Create and Modified
+
+PRDDAT:	LD	A,(WFLG)	; Check for Wide Display
+	LD	B,3		;   preset for 3 Date entries
+	OR	A
+	JR	NZ,DATTIM	; jump if both dates
+	DEC	B		;   else just one..
+	DEC	B
+	LD	DE,10
+	ADD	HL,DE		;   and offset to modified
+DATTIM:	PUSH	BC		; Save pass counter
+	CALL	SP2		;   and give some space
+	LD	A,(HL)		; Get Years byte
+	INC	HL		;   advance to Month field
+	OR	(HL)		; "Or" Years and Months
+	JR	NZ,DATTI0	; ..jump to print if Ok
+	LD	A,(WFLG)	; Are we printing wide?
+	OR	A
+	JR	NZ,NULDAT	; ..jump to Null date if so
+	DEC	HL		; Else back up to field start
+	PUSH	HL		; Save regs
+	PUSH	BC
+	EX	DE,HL		; Put Mod date addr in DE
+	LD	HL,-10		; Back up to Create date
+	ADD	HL,DE
+	LD	BC,5
+	LDIR			; Copy Create to Modify
+	POP	BC
+	POP	HL
+	LD	A,(HL)		; Check for validity
+	INC	HL
+	OR	(HL)
+	JR	Z,NULDAT	; ..print blank field if no date stamp
+
+DATTI0:	PUSH	HL		; Save Ptr to Month
+	INC	HL		;   advance to Hours
+	INC	HL
+	BIT	7,(HL)		; Is it a Relative count?
+	JR	NZ,TIME0	; ..jump if so
+	CALL	PR2DIG		; Else Print 2-digit time
+	JR	TIME1		; ..and continue below
+
+TIME0:	CALL	PRREL		; Print Relative time
+TIME1:	LD	A,'-'		; Separate Time from Date
+	CALL	SOUT
+	POP	HL		; Restore ptr to Month
+
+	LD	A,(DFLG)	; US or Eur formats?
+	OR	A
+	JR	NZ,EUR0		; ..jump if European format
+EUR2:	LD	A,(HL)
+	CALL	OUTBCD		; Print BCD digits for Month
+	LD	A,(DFLG)
+	OR	A		; Get separator for Date
+	JR	NZ,PRYEAR	; ..and jump to year if European
+	CALL	PRSEP		; Else print appropriate separator
+
+EUR0:	INC	HL		; Advance to Day
+	LD	A,(HL)
+	DEC	HL		; Back up to Month
+	CALL	OUTBCD		; Print BCD digits for Day
+	LD	A,(DFLG)
+	OR	A		; Get separator for Date
+	PUSH	AF
+	CALL	NZ,PRSEP	; Print Seperator if Not current year
+	POP	AF
+	JR	NZ,EUR2		; ..and jump if European form for Month
+
+PRYEAR:	DEC	HL		; Back up from Month to Year
+	LD	A,(BLNKYR)	; Blank current Year?
+	OR	A
+	JR	Z,PRYEA0	; ..jump if not
+	LD	A,(CURYR)	; Get current year
+	CP	(HL)		; Is this file from the same year?
+	JR	NZ,PRYEA0	; ..jump if not
+	CALL	SP2		; Else fill in with spaces
+	CALL	SPACE
+	JR	PRYEA1
+
+PRYEA0:	CALL	PRSEP		; Not current year, print seperator
+	LD	A,(HL)
+	CALL	OUTBCD		; Print Year BCD digits
+PRYEA1:	LD	BC,5		; Offset to after current date field
+	ADD	HL,BC
+	POP	BC
+	DJNZ	DATTIM		; ..loop for second date if necessary
+	RET
+
+; Print Date and Time field as all spaces for Null date
+
+NULDAT:	LD	B,14		; 14 for entry
+NULDA0:	CALL	SPACE		; Print a space
+	DJNZ	NULDA0
+	DEC	HL		; Back up to Year byte
+	JR	PRYEA1		; Exit thru above code
+
+;.....
+; Read and Print Time of day in default form as indicated by USEUR flag
+
+PRTOD:	CALL	SPRINT		; Give some space
+	DEFB	'      ',0
+	LD	HL,BUFF		; Read time here
+	CALL	RCLOCK		;   using Library routine
+	RET	NZ		; Return if Invalid Clock
+PRTOD1:	CALL	STNDOUT		; Print it in reverse video
+	LD	A,(BUFF+2)	; Get Day
+	CALL	OUTBCD		;   and print
+	CALL	SPACE		; Space off one
+
+	LD	A,(BUFF+1)	; Get Month
+	CP	10H		; See if >SEPT
+	JR	C,PRDMJ0
+	SUB	6		; If so, Get rid of BCD bias
+PRDMJ0:	LD	E,A
+	LD	D,0		; Put month in DE
+	LD	HL,MONTHS-3
+	ADD	HL,DE
+	ADD	HL,DE
+	ADD	HL,DE		; Index into month table
+	LD	B,3
+PRDMJL:	LD	A,(HL)
+	INC	HL
+	CALL	SOUT
+	DJNZ	PRDMJL
+	CALL	SPACE		; Space off one
+
+	LD	A,(BUFF)
+	PUSH	AF
+	CP	78H		; See which century (78-99 are 19xx)
+	LD	A,20H		;   (00-77 are 20xx)
+	JR	C,PRDMJ1	; If 21st
+	LD	A,19H
+PRDMJ1:	CALL	OUTBCD		; Print prefix
+	POP	AF
+	CALL	OUTBCD		; Now last two digits
+	CALL	SP2		; Separate time from date
+	LD	HL,BUFF+3	; Point to Hours
+	BIT	7,(HL)		;   MSB Set for Relative time
+	JR	NZ,PRREL	; Use different print routine for rel time
+	LD	A,(HL)		; Get Hours
+	INC	HL
+	CALL	OUTBCD		; Output hour
+	LD	A,':'
+	CALL	SOUT		; Separate with a colon
+	CALL	PR2DIG		;   then print minutes & seconds
+	CALL	STNDEND		; Turn off reverse vid
+	XOR	A		; Insure Zero flag set
+	RET			; ..and return
+
+PR2DIG:	LD	A,(HL)		; Get Minutes
+	INC	HL
+	CALL	OUTBCD		;   and output
+	LD	A,':'
+	CALL	SOUT		; Separate with a colin
+	LD	A,(HL)		; Get Seconds
+	CALL	OUTBCD		;   and output
+	RET
+
+; Print Relative Stamp
+
+PRREL:	LD	A,'+'
+	CALL	SOUT		; Prefix with a +
+	LD	D,(HL)
+	RES	7,D		; Clear Rel count flag for dsp
+	INC	HL
+	LD	E,(HL)		; Get Rel count
+	EX	DE,HL		; Put count in HL
+	LD	DE,-1000
+	CALL	SUBTR
+	LD	DE,-100
+	CALL	SUBTR
+	LD	DE,-10
+	CALL	SUBTR
+	LD	A,L		; Remainder
+	ADD	A,'0'		; Ascii bias
+	CALL	SOUT		; Display
+	XOR	A		; Ensure Zero Set when returning
+	RET
+
+SUBTR:	LD	C,'0'-1		; Ascii count
+SUBT2:	INC	C
+	ADD	HL,DE		; Really subtract
+	JR	C,SUBT2		; Keep going
+	SBC	HL,DE		; One too many,add back
+	LD	A,C		; Ascii count
+	JP	SOUT		; Else display
+
+MONTHS:	DEFB	'JanFebMarAprMayJunJulAugSepOctNovDec'
+
+;.....
+; Dummy routine to use DOS IO instead of BIOS IO
+
+COUT:	JP	BOUT		; Use DOS character output
+
+;.....
+; Print separator spaces between header entries
+
+HDRSEP:	LD	HL,SPCS		; Point to three spaces
+	LD	A,(UFLG)	; Are we printing all user areas?
+	OR	A
+	JR	Z,HDRSE0	; ..jump if not
+	INC	HL		; Else advance for just 2 spaces
+HDRSE0:	DEC	B		; Count down entries
+	CALL	NZ,SPSTR	; Print if Not last entry
+	RET
+
+;.....
+; Header strings used for formatting
+
+HDR1:	DEFB	' UU '
+HDR1A:	DEFB	'Filename.Typ  Size',0
+
+HDR2:	DEFB	' -- '
+HDR2A:	DEFB	'-------- ---  ----',0
+
+HDR1B:	DEFB	'     Created    '
+	DEFB	'    Last Access '
+HDR1C:	DEFB	'     Modified   ',0
+
+HDR2B:	DEFB	'     -------    '
+	DEFB	'    ---- ------ '
+HDR2C:	DEFB	'     --------   ',0
+
+SPCS:	DEFB	'   ',0
+
+;.....
+; Divide DE by 3 and Return:  BC = Result * 2 (ptr size);  A = Remainder
+
+DIVDE3:	PUSH	HL
+	LD	D,0		; Make sure D=0
+	LD	A,E		; Value to A
+DIVD31:	SUB	3
+	JR	C,DIVD32	; Jump if too much
+	JR	Z,DIVD33	; ..or exactly
+	INC	D		; Add 1 to Result
+	JR	DIVD31
+
+DIVD32:	ADD	A,3		; Add back for underflow
+	DEC	D		; (prepare for next INC)
+DIVD33:	INC	D		; Add 1 for even division
+	LD	E,D		; Prepare for 16-bit Add
+	LD	D,0
+	LD	L,E		; Copy the result to HL
+	LD	H,D
+	ADD	HL,HL		;   and double for Pointer size (2 bytes)
+DIVD36:	LD	B,H		; BC is result
+	LD	C,L
+	POP	HL		; Restore regs
+	RET
+
+;.....
+; Print Sizes in decimal with provisions for 3-byte values up to 999,999
+; Enter: A,H,L contains 24-bit value to print
+; Exit : None.  Value printed as up to 6 decimal digits
+
+PRBIG:	LD	E,A		; Save MSB
+	XOR	A		; Set flag for no digits yet
+	LD	(BIGFLG+1),A	;   and save
+	LD	A,E		; Restore flag
+	LD	DE,86A0H	; 100,000 = 0186A0H, set lower 2 bytes
+	LD	B,01		;   and MSB
+	CALL	DIVBIG		; Divide and print
+	LD	DE,10000	; Set 10k lower 2 bytes
+	LD	B,0		; and MSB
+	CALL	DIVBIG		; Divide and print
+BIGFLG:	LD	B,00		;  to register (inline modified)
+	LD	DE,1000
+	CALL	DECDSP		; Print if non-0 or previous print
+	LD	DE,100
+	CALL	DECDSP		; Print if non-0 or previous print
+	LD	DE,10
+	CALL	DECDSP		; Print if non-0 or previous print
+	LD	A,L		; Get 1's
+	JR	DECDS0		; ..and print
+
+
+DIVBIG:	LD	C,-1		; Set initial result
+	OR	A		; Clear Carry
+DIVBL:	INC	C		; Bump count
+	SBC	HL,DE		;  subtract lower 2 bytes
+	SBC	A,B		;   and upper byte
+	JR	NC,DIVBL	;    looping til done
+	ADD	HL,DE		; Correct for underflow
+	ADC	A,B
+	LD	E,A		;  (save MSB)
+	LD	A,C		; Get Result
+	OR	A		; Is digit 0?
+	JR	NZ,DIVBP	; ..jump if Not
+	LD	A,(BIGFLG+1)	; Get Prior digit print flag
+	OR	A		; Anything printed yet?
+	JR	Z,DIVBX		; ..jump if Not
+	XOR	A		; Else print a Zero
+DIVBP:	ADD	A,'0'		; Make digit Ascii
+	LD	(BIGFLG+1),A	;   save as new flag
+	CALL	SOUT		; Print digit
+DIVBX:	LD	A,E		; Get MSB back
+	RET			; ..and quit
+
+;.....
+; Divide HL by DE converting remainder to ascii digit and printing it if
+; the number is Non-Zero or a digit was previously printed
+
+DECDSP:	OR	-1		; Clear flag and set initial count
+DECDSL:	SBC	HL,DE		; Divide by subtraction
+	INC	A		;  adjust counter
+	JR	NC,DECDSL	; ..loop til done
+	ADD	HL,DE		; Compensate for underflow
+	JR	NZ,DECDS0	; ..jump if Non-zero div result
+	OR	B		; Else check for previous print
+	RET	Z		; ..return if No prev char & Zero result
+	XOR	A		; Otherwise print a Zero
+DECDS0:	ADD	A,'0'		; Convert to Ascii digit
+	LD	B,A		;   and set flag for next pass
+	JP	SOUT		; Jump to switched output routine & return
+
+;.....
+;2.1 Initialize Display and Printer parameters from Z3 ENV if available
+
+INIDSP:	PUSH	HL		;2.1 Save Ptr to ENV
+	LD	A,H		;2.1
+	OR	L		;2.1 Any Env Present?
+	JR	Z,INID20	;2.1 ..jump if Not to Set defaults
+	EX	DE,HL		;2.1 Re-position ENV Ptr
+	LD	HL,39H		;2.1 Offset to # Print Lines per Page
+	ADD	HL,DE		;2.1
+	LD	C,(HL)		;2.1   fetch
+	LD	HL,33H		;2.1 Offset to # Displayable Lines per Screen
+	ADD	HL,DE		;2.1
+	LD	L,(HL)		;2.1   fetch
+	DEC	L		;2.1
+	DEC	L		;2.1    adjust for Header
+	JR	INIDEX		;2.1   ..continue
+
+INID20:	LD	C,58		;2.1 Default Printer Lines/Page
+	LD	L,20		;2.1   Default Lines/Screen
+INIDEX:	LD	B,0		;2.1 Set values to Words
+	LD	H,B		;2.1
+	LD	(MAXENT),HL	;2.1 Save # Screen Entry Lines
+	LD	(PTRENT),DE	;2.1   and # Printer Lines
+	POP	HL		;2.1
+	RET			;2.1
+
+;=========================================================================
+;		Modified From DSLIB routine DDIRQS
+;-------------------------------------------------------------------------
+; Author  : Harold F. Bower
+;		Derived from SDIRQS.Z80 Ver 1.5 by Richard Conn
+; Date    : 10 Jul 93
+; Version : 1.4
+; Module  : DDDIRQS
+; Abstract: This module contains the routine DDIRQS which is a
+;	general-purpose directory select routine WITH sizing and
+;	Time Stamp information.  It Uses a Shell Sort in memory to
+;	return a sorted listing of directory entries.  Limited capa-
+;	bility is provided to alter the sort basis.  This routine
+;	is intended for use where the full capabilities of DDIR are
+;	not needed, and sizing information is needed which is not
+;	provided by DDIRQ.
+;	   Time Selection may be set to search for DateStamper or
+;	MS-DOS/P2Dos/NZTIME Time stamps.  If DateStamper is selected,
+;	and either DateStamper is not resident, or no valid TIME&.DAT
+;	file is found, the program defaults to MS/P2Dos specs.  The
+;	search first attempts to locate a DosDisk-generated flag word,
+;	and adds MS-DOS time in modified field if found.  If no flag
+;	word is found, P2Dos/NZTIME stamps are selected.  If entry
+;	conditions specify MS/P2Dos search, the search begins with
+;	DosDisk validation, then P2D/NZTIME if necessary.  No
+;	defaulting to DateStamper format is provided.
+; Revision of DSLIB routine DDIRQS:
+;  1.2 - 13 Sep 88 - Initial version.				HFB
+;  1.3 -  5 Jan 91 - Use SYSLIB's SSORT mods by Joe Wright	HFB
+;  1.4 - 10 Jul 93 - Add NZTime support, Mod logic flow.	HFB
+;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+; Definitions
+
+SETDMA	EQU	26		; Dos command to set DMA transfer address
+SRCHF	EQU	17		; Dos Command to Search for First file match
+SRCHN	EQU	18		; Dos Command to Search for Next file match
+FNSIZE	EQU	16		; Size of basic File Name, Type and size info
+ESIZE	EQU	FNSIZE+15	; 16 Bytes/Entry (+ Creat, Access & Mod Stamps)
+
+;===============================================================
+; NAME - DIRQS
+; Entry: HL - Points to Buffer
+;	 DE - Points to FCB (36 chars)
+;	  A - Contains Select character:
+;		Bit 7 - 1=Select Non-System Files, 0=No Non-sys
+;		Bit 6 - 1=Select System Files, 0=No System files
+;		Bit 5 - 1=Select All Users, 0=Select current users
+;		Bits 4-0 =Desired User Number
+;	  C - Secondary Select character:
+;		Bit 7 - 1=Sort Type then Name, 0=Name then Type
+;		Bit 6 - 1=No Re-order after Sort (w/ptrs), 0=Reorder  <UNUSED>
+;		Bits 5-2 - Unused
+;		Bit 0 - 1=Use DateStamper Stamps, 0=Use MS/P2Dos Stamps
+; Exit :  A <> 0, Zero Flag Reset (NZ) If Ok
+;	      A=0, Zero Flag Set (Z) if TPA Overflowed (err)
+;	  BC - Contains number of files in array
+;	  DE - Points to start of Pointer table (if used, else undefined)
+;	  HL - Points to First file in buffer
+; Special Requirements: Default DMA reset to default of 80H
+;===============================================================
+
+DIRQS:	PUSH	DE		; Save ptr to FCB
+	LD	(SELFLG),A	; Save Select Flag for selection and Alpha
+	LD	(TFCB),HL	; Set ptr to temp FCB
+	LD	A,C		; Get Stamp method flag
+	BIT	0,A		; Are we going for DateStamper type?
+	JR	Z,DDIRV0	; ..jump if P2Dos type
+	PUSH	HL		; Save regs while we test for DS Routines
+	PUSH	DE
+	PUSH	AF		;   including flag byte in A
+	CALL	FINDCK		; Is DateStamper alive and well?
+	JR	Z,NODS		; ..jump to P2D if not
+	CALL	CKTDF		; Do we have a valid !!!TIME&.DAT file?
+	JR	Z,NODS		; ..jump to P2D if not
+	POP	AF		; Else we have everything ready for DS, Do it
+	JR	DSOK		; ..bypass defaulting to P2D and continue
+
+NODS:	POP	AF		; Restore flag byte
+	AND	0FEH		;   Mask out DS bit
+DSOK:	POP	DE		; Restore rest of regs
+	POP	HL
+DDIRV0:	LD	(S2FLG),A	;   and save Secondary flag byte
+	LD	BC,36		; Offset to after Temp buffer
+	ADD	HL,BC		; HL now pts to scratch area
+	CALL	DPARAMS		; Set parameters for logged disk
+
+; Set values in the Sort Selection Block
+
+	EX	DE,HL		; Save in DE while we set up SSB
+	LD	HL,(DIRMAX)	; Get Max Number of DIR entries
+	LD	(FCOUNT),HL	;   save in SSB
+	LD	HL,ESIZE	; Get Size of records
+	LD	(ELSIZ),HL	;   save in SSB
+	LD	HL,0		; Let SSBINIT set buffer addr
+	LD	(DSTART),HL
+	LD	HL,DICOMP	; Address User Compare routine
+	LD	(COMPIT),HL	;   place addr in SSB
+	EX	DE,HL		; Put Memory base back in HL
+	LD	DE,SSB		;  point to SSB
+	CALL	SSBINIT		;   and Initialize the sort routine
+	LD	(DIRBUF),HL	; Save returned Record Buffer Address
+	POP	DE		; Get ptr to FCB
+	CALL	NZ,DIRLOAD	; Load directory with Sizing Info (if space)
+	RET	Z		; Abort if TPA overflow
+	LD	DE,SSB		; Set parm for Sort routine
+	CALL	SORT		;   and do it!
+	CALL	DELDUP		; Delete Duplicate entries, save Stamps & Size
+	LD	DE,(ORDBUF)
+	LD	HL,(DSTART)	;  and load exit parms
+	OR	0FFH		; Set Ok status and return
+	RET
+
+;.....
+; Build Directory Table at DIRBUF
+;  This is the Optimal Directory load routine; It loads unique file names from
+;  disk and information to compute the file sizes
+; On Input : HL pts to Directory Buffer (ESIZE x N Max)
+;	     DE pts to FCB (only 12 bytes needed)
+; On Output: BC is Number of Files
+;	     A = 0 and Zero Flag set if TPA overflow
+
+DIRLOAD: LD	(DSTART),HL	; Set start of Buffer area
+	INC	DE		; Pt to File Name
+	LD	HL,(TFCB)	; Pt to TFCB
+	LD	A,(SELFLG)
+	BIT	5,A		; Are we selecting All users?
+	LD	A,'?'		;  (assume Yes)
+	JR	NZ,DIRLO0	; ..jump if So
+	XOR	A		; Else set for current User
+DIRLO0:	LD	(HL),A		; Stash User selects
+	INC	HL		; Pt to File Name in TFCB
+	LD	BC,11		; 11 chars
+	EX	DE,HL
+	LDIR			; Copy the Name and Type
+	EX	DE,HL
+	LD	(HL),'?'	; Select all extents
+	INC	HL		; Pt to next char
+	XOR	A		; Zero rest of TFCB
+	LD	(HL),A
+	INC	HL
+	LD	(HL),'?'	;   and all Data Modules
+	INC	HL
+	LD	B,21		; 21 chars remain to be nulled
+
+DLLOOP1: LD	(HL),A		; Store Zero
+	INC	HL		; Pt to next 
+	DJNZ	DLLOOP1		; Count down
+
+	LD	L,A		; Initialize counters (A has a Null)
+	LD	H,A
+	LD	(FCOUNT),HL	; Total Files on Disk = 0
+
+;  Begin by setting default DMA address to 80H
+
+	LD	DE,BUFF
+	LD	C,SETDMA
+	CALL	BDOS		; Set DMA address to default
+
+;  Now we begin scanning for files to place into the Memory Buffer
+
+	LD	C,SRCHF		; Search for file
+	JR	DIRLP1
+
+DIRLP:	CALL	PENTRY		; Place entry in Dir
+	JR	Z,DIRDNX	; Memory overflow error
+	LD	C,SRCHN		; Search for Next Match
+
+DIRLP1:	LD	DE,(TFCB)	; Pt to FCB
+	CALL	FSTNXT
+	CP	0FFH		; Done?
+	JR	NZ,DIRLP	; ..loop if not
+
+	LD	A,(S2FLG)	; Are we loading P2D or NZTIME Stamps?
+	RRA
+	JR	NC,DIRPDN	; ..jump to exit if so
+
+; We are using DateStamper stamps, so append stamps to FN.FT string
+
+	XOR	A		; Open T&D for Read-only
+	CALL	OPENTD		;   don't check errs cause CKTD was Ok
+	LD	BC,(FCOUNT)	; Load this many records
+	LD	HL,(DSTART)	;   starting with this entry
+	LD	DE,0FFFFH	; Set dummy Random record # to force read
+
+TDLOOP:	LD	A,B		; Are we done?
+	OR	C
+	JR	Z,DIRDDN	; ..exit if so
+	PUSH	BC		; Save count
+	LD	BC,FNSIZE	; Offset to RR #
+	ADD	HL,BC
+	LD	A,(HL)		; Get Index #
+	PUSH	HL		; Save index to entry TD field
+	PUSH	AF		;   and index
+	INC	HL
+	LD	A,(HL)		; Get RR # to HL
+	INC	HL
+	LD	H,(HL)
+	LD	L,A
+	OR	A		; Compare current (DE) w/desired (HL)
+	SBC	HL,DE
+	ADD	HL,DE
+	JR	Z,SAMREC	; ..jump if we already have the record
+	EX	DE,HL		; Else put desired rec in DE
+	PUSH	DE		;   and save
+	XOR	A
+	CALL	RWTD		; Read the T&D file ignoring errors
+	LD	(TDBUF),HL	; Save TD buffer start addr
+	JR	NZ,TDRDOK	; ..jump if Read Ok
+	LD	B,128		; Else Null out T&D Sector (A already = 0)
+TDNULL:	LD	(HL),A
+	INC	HL
+	DJNZ	TDNULL		; Loop til entire sector clear
+TDRDOK:	POP	DE		;   and restore RR#
+SAMREC:	POP	AF		; Restore record Index
+	ADD	A,A		;   and mult by 16 to get relative addr
+	ADD	A,A
+	ADD	A,A
+	ADD	A,A
+	LD	C,A
+	LD	B,0
+	LD	HL,(TDBUF)
+	ADD	HL,BC		; HL Now points at source T&D string in Buffer
+	EX	DE,HL		; Swap regs..
+	EX	(SP),HL		;   to put RR # on stack, Dest adr in HL
+	EX	DE,HL		;    then Dest in DE, source in HL
+	LD	BC,15		; Move all three stamps
+	LDIR
+	EX	DE,HL		; HL --> Next Dir entry
+	POP	DE		; DE = RR # in BUFF
+	POP	BC		; BC = Count
+	DEC	BC
+	JR	TDLOOP
+
+;  Now we are done with the Load -- Set up Return Values
+
+DIRDDN:	CALL	CLOSTD		; Close the T&D File for safety
+DIRPDN:	OR	0FFH		; Load Ok and set flags to NZ
+DIRDNX:	LD	BC,(FCOUNT)	; Get total number of files to BC
+	RET
+
+
+; PENTRY --  Place entry in Directory Buffer if not an Erased Entry
+
+; On Input : A = 0-3 for adr index in Buff of entry FCB
+;	     FCOUNT = Number of files in Dir so far
+; On Output: FCOUNT = Number of files in Dir so far
+;	     A = 0 and Zero Flag set if Memory Overflow Error
+
+PENTRY:	LD	(INDX),A	; Save index in case of P2Dos Stamp load
+	PUSH	DE		; Save any DS Indices
+	PUSH	BC
+	RRCA			; Multiply by 32 for Offset computation
+	RRCA
+	RRCA
+	LD	DE,BUFF		; Pt to buffer entry
+	LD	L,A		; Let HL = Offset
+	LD	H,0
+	ADD	HL,DE		; HL = Ptr to FCB
+
+	LD	A,(HL)
+	CP	20H		; Is it CP/M Plus Volume ID or T&D?
+	JP	NC,PEDONE	; ..jump if so
+
+	PUSH	HL		; Save the pointer
+	LD	DE,(TFCB)
+	INC	HL		; While
+	INC	DE		;  we
+	EX	DE,HL		;   compare
+	LD	B,11		;    FN.FT
+	CALL	@AFNCMP		;     ambiguously
+	POP	HL		;
+	Jp	NZ,PEDONE	; ..jump exit if no match
+	LD	A,(SELFLG)	; Else load select flags
+
+;  HL = Adr of FCB in Buff.  Check for attributes of file
+
+	PUSH	HL		; Save ptr
+	LD	BC,10		; Pt to System Attribute
+	ADD	HL,BC
+	BIT	7,(HL)		; Check for System Attribute
+	POP	HL		; Restore ptr
+	JR	Z,ATDIR		; ..jump if Not System File (Selflg in A)
+	RLA			; Else Rotate System select bit to B7
+ATDIR:	BIT	7,A		; Check Normal Attribute
+	JR	Z,PEDONE	; Skip if attribute not desired
+
+; Increment total number of files
+
+	LD	DE,(FCOUNT)	; Increment total number of files
+	INC	DE
+	LD	(FCOUNT),DE
+
+; Copy FCB pted to by HL into Directory Buffer
+
+	LD	DE,(DIRBUF)	; DE pts to Next Entry Locn, HL pts to FCB
+	LD	BC,FNSIZE	; Number of Bytes in basic entry
+	LDIR			; Copy FCB into Memory Buffer
+	POP	BC		; Restore any DS indices
+	POP	HL
+	LD	A,(S2FLG)	; Which method do we use?
+	RRA
+	JR	NC,USEMS	; ..jump if using MS-DOS or P2Dos Time Stamps
+	EX	DE,HL		; Put destination in HL
+	LD	(HL),B		; stash Index into T&D Sector
+	INC	HL
+	LD	(HL),E		;   and T&D Sector number
+	INC	HL
+	LD	(HL),D
+	INC	HL
+	EX	DE,HL		; Put Buffer pointer back in DE
+	LD	B,ESIZE-FNSIZE-3
+	JR	FILLIT		; Null out remaining
+
+USEMS:	LD	HL,BUFF+16	; Point to DosDisk Flag bytes
+	LD	A,(HL)		; Get the first byte
+	CP	0FDH		; Is it the MS-DOS 40-track flag?
+	JR	NZ,USEP2D	; ..jump if not
+	INC	HL		; Else check second byte to be sure
+	SUB	(HL)
+	JR	NZ,USEP2D	; ..jump if no match
+	LD	B,10		; Ok, so null Create and Access fields
+	CALL	NULLIT
+	LD	HL,BUFF+22	; Point to source MS-DOS DateSpec
+	CALL	M2UTIM		;   and do the conversions to DE
+	JR	P2DONE		; Continue with common code
+
+USEP2D:	LD	HL,BUFF+60H	; Point to P2D Time indicator
+	LD	A,(HL)
+	AND	7FH		;  (mask diff between P2D and NZTime)
+	CP	21H		; Is there a valid time stamp flag?
+	JR	NZ,NOTP2D	; ..jump if not P2DOS or NZTIME
+	LD	A,(INDX)	; Else calculate offset to correct entry
+	LD	C,A
+	ADD	A,A		; *2
+	ADD	A,A		; *4
+	ADD	A,C		; *5
+	ADD	A,A		; *10
+	INC	A		; +1
+	LD	C,A		; Entries start at offset=1,11,21 decimal
+	LD	B,0
+	LD	A,(HL)		; Get Flag Byte (A1=NZTime, 21=P2Dos)
+	ADD	HL,BC		; Point to Stamp field for desired entry
+	RLA			; Is it NzTime?
+	JR	C,USENZT	; ..jump if NZTime Stamping
+	CALL	P2UTIM		; Parse Create Stamp to Table
+	LD	B,5		;  Null the Last Accessed field
+	CALL	NULLIT
+	CALL	P2UTIM		; Parse Modify Stamp
+	JR	P2DONE		; ..and continue
+
+NOTP2D:	LD	B,ESIZE-FNSIZE	; Set count to fill entire field
+FILLIT:	CALL	NULLIT		; Fill rest of time with Nulls
+P2DONE:	LD	(DIRBUF),DE	; Set ptr to Next Entry
+	CALL	GETMTOP		; Get top available addr in HL
+	LD	A,H		; Get base page of Bdos
+	DEC	A		;   and move one more page down
+	SUB	D		; Is ptr to next entry beyond this?
+	RET	Z		; ..Ret 00=Overflow
+
+	DEFB	11H		; Fall thru trashing DE
+
+; Done with PENTRY and No Error
+
+PEDONE:	POP	BC		; Clear the stack
+	POP	DE
+	OR	0FFH		; Set Flags for No Error (NZ)
+	RET
+
+; Gather File Stamps from NZTime-stamped directory
+
+USENZT:	LD	(IPTR),HL	; Save Pointer to input NZTime stamps
+	LD	L,(HL)
+	LD	A,(INDX)	; Get Index number (0,1,2)
+	LD	B,A		;  save
+	LD	A,8
+	SUB	B		; Compute current byte when starting
+	LD	C,A		;  save
+	INC	B
+	DEC	B		; Is Input byte already aligned?
+	JR	Z,USENZ1	; ..jump if so
+USENZ0:	ADD	HL,HL		; Else rotate input byte (H is don't care)
+	DJNZ	USENZ0		; ..looping til done
+USENZ1:	LD	A,3		; Get all three stamps
+USENZ2:	LD	(LPCTR),A	; Set Outer Loop Counter
+	LD	B,7
+	CALL	GBITS		; Get Year (7 bits)
+	LD	B,4
+	CALL	GBITS		; Month (4 bits)
+	LD	B,5
+	CALL	GBITS		; Day (5 bits)
+	LD	B,5
+	CALL	GBITS		; Hour (5 bits)
+	LD	B,6
+	CALL	GBITS		; Minute (6 bits)
+	LD	A,(LPCTR)
+	DEC	A		; Have we done all 3 fields?
+	JR	NZ,USENZ2	; .loop if Not (saving new count)
+	JR	P2DONE		; ..jump to exit when finished
+
+;.....
+; Find and Delete Duplicate Entries (Extents) by copying the larger Size
+; info to the first entry and moving remaining pointers or records forward.
+; ENTER: FCOUNT contains count of file entries, DIRBUF points to start of
+;		record buffer, ORDBUF points to ptr table start if ptrs used.
+; EXIT : FCOUNT, DIRBUF or ORDBUF updated depending on ptr use.
+
+DELDUP:	LD	BC,(FCOUNT)	; Get # of entries
+	LD	HL,(ORDBUF)	; Else point to start of Order Table
+	LD	A,B
+	OR	C		; Anything there?
+	RET	Z		; ..exit if Not
+PLOOP:	DEC	BC		; Need more than one entry
+	LD	A,B
+	OR	C		; Done?
+	RET	Z		; ..exit if so
+	PUSH	BC		;  (save Cntr)
+	PUSH	HL		;   and Ptr
+	LD	E,(HL)		; Load addrs of two entries
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	LD	A,(HL)
+	INC	HL
+	LD	H,(HL)
+	LD	L,A
+
+	LD	B,12		; Compare User Number, FN, and FT
+	CALL	@FNCMP
+	JR	NZ,NODUPP	; Continue looking for another entry
+
+; Duplicate entries have been identified at this point
+; First check Data Module byte, then Extent
+
+	PUSH	HL		; Save pointers to Extent
+	PUSH	DE
+	INC	HL		; Advance to DM (aka S2)
+	INC	HL
+	INC	DE		;   on both pointers
+	INC	DE
+	EX	DE,HL		; See if 1st entry is bigger
+	LD	A,(DE)		; Get Data Module field from 2nd entry
+	CP	(HL)		;  compare with that in 1st entry
+	POP	DE		;  (Restore pointers to EX)
+ 	POP	HL
+	JR	C,SMALP		; ..jump if 1st entry is bigger than second
+				; Else 2nd is >= to 1st
+	LD	A,(DE)		; Get extent field from 1st entry
+	CP	(HL)		; Compare with that in directory entry
+	JR	C,BIGP		; ..jump if target is bigger
+SMALP:	LD	A,(HL)		; Get Extent
+	CP	2		; Is this the first Extent?
+	JR	NC,SMALP0	; ..don't get Date/Time if Not
+	LD	BC,4		; Else 2nd entry 1st EX, Advance to Stamps
+	ADD	HL,BC
+	EX	DE,HL
+	ADD	HL,BC
+	EX	DE,HL
+	LD	BC,15
+	LDIR			; Copy Stamp from smaller to bigger
+	JR	SMALP0		; ..and delete second entry
+
+; New target is larger than stored entry
+
+BIGP:	LD	BC,FNSIZE-12	; Number of bytes to move (EX, RC, etc)
+	LDIR			; Move it
+
+SMALP0:	POP	HL		; Restore Ptr into ORDBUF
+	POP	BC		;  and remaining count
+	PUSH	BC		;   (keep on stack)
+	RL	C		; Count * 2
+	RL	B
+	PUSH	HL		;  (save ptr)
+	INC	HL
+	INC	HL		; Advance to Base+1 and Base+2
+	LD	E,L
+	LD	D,H		;  copy to DE (Base+1)
+	INC	HL
+	INC	HL		;   Source in one ptr past (Base+2)
+	LDIR			;    move rest of ptrs up
+
+	LD	HL,(FCOUNT)	; Deduct one from file count
+	DEC	HL
+	LD	(FCOUNT),HL
+
+	POP	HL
+	POP	BC
+	JR	PLOOP		; Loop
+
+NODUPP:	POP	HL		; Restore ptr
+	POP	BC		;   and Cntr
+	INC	HL		; Advance to next entry
+	INC	HL
+	JR	PLOOP		; ..and do more
+
+;===============================================================
+; NAME - DICOMP
+; Entry: HL - Points to one FCB extracted entry
+;	 DE - Points to second FCB extracted entry
+; Exit :  F - Carry Set (C) means (DE) < (HL)
+;		 Zero Set (Z) means (DE) = (HL)
+;		 Non-Zero (NZ) and No Carry (NC) means (DE) > (HL)
+; Uses : AF
+; Special Requirements: None
+;===============================================================
+
+DICOMP:	PUSH	BC		; Save count
+	LD	A,(S2FLG)	; Group by File Type?
+	RLA
+	JR	NC,CPFNFT
+
+; Compare by File Type and File Name (in that order)
+
+	PUSH	HL
+	PUSH	DE
+	LD	BC,9		; Pt to FT (8 bytes + 1 byte for User Number)
+	ADD	HL,BC
+	EX	DE,HL
+	ADD	HL,BC
+	EX	DE,HL		; DE, HL now pt to their FT'S
+	LD	B,3		; 3 bytes
+	CALL	@FNCMP		; Compare FT'S
+	POP	DE
+	POP	HL
+	JR	NZ,CMPEX	; Continue if complete match
+	LD	B,8		; 8 bytes
+	JR	CMPFT1
+
+; Compare by File Name and File Type (in that order)
+
+CPFNFT:	LD	B,11		; 11 bytes for FN and FT
+CMPFT1:	PUSH	HL
+	PUSH	DE
+	INC	HL		; Pt to FN
+	INC	DE
+	CALL	@FNCMP		; Do comparison
+	POP	DE
+	POP	HL
+	JR	NZ,CMPEX
+	LD	A,(DE)		; Compare User Number
+	CP	(HL)
+CMPEX:	POP	BC		; Restore Count
+	RET			; ..and exit
+
+;.....
+; NZTime Support Routine.  Gather # of bits speced from NZTIM, Return BCD Digit
+; ENTER: L = Current working byte
+;	DE = Ptr to Dest of Univ stamps
+;	 C = Bit # currently in position (8..1)
+;	 B = Number of bits to gather
+; EXIT : A = BCD Conversion of # bits from entry
+
+GBITS:	LD	H,0		; Clear Bit Accumulator
+GBITS0:	ADD	HL,HL		; Shift B7 of L into B0 of H, H shifts left
+	DEC	C		; Have we shifted last of input Byte?
+	JR	NZ,GBITS1	; ..jump if Not
+
+	PUSH	HL		; Else need a byte, save regs
+	LD	HL,(IPTR)	; Get input ptr
+	INC	HL		;  go to next byte
+	LD	A,(HL)		;   fetch
+	LD	(IPTR),HL	;    save updated ptr
+	POP	HL		;  (restore regs)
+	LD	L,A		; Place new Input byte for shifting
+	LD	C,8		;  and init Bits Remaining counter
+
+GBITS1:	DJNZ	GBITS0		; ..Shift another if not done
+	LD	A,H		; Else get completed output byte
+	CALL	BIN2BCD		;  make BCD for Universal
+	LD	(DE),A		;   store in Output
+	INC	DE		;    and advance to next digit
+	RET
+
+;.....
+; Fill the string addressed by DE with a zero for B bytes
+
+NULLIT:	XOR	A		; Load a cheap Null
+NULL0:	LD	(DE),A		; Stuff a byte
+	INC	DE		; ..and advance
+	DJNZ	NULL0		; Loop til done
+	RET
+
+
+;:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+; Uninitialized Buffer Space
+	DSEG		; Put this in Data Segment
+
+IPTR:	DEFS	2		; Pointer to current NZTime Input Byte
+LPCTR:	DEFS	1		; Loop Counter for NZTime Conversion
+INDX:	DEFS	1		; Directory index into sector
+S2FLG:	DEFS	1		; Secondary Select Flag (Sort & Stamp method)
+TFCB:	DEFS	2		; Address of temporary FCB
+
+SSB:				; Sort Selection Block:
+DSTART:	DEFS	2		; Pointer to first Directory Entry
+FCOUNT:	DEFS	2		; Total Number of Files/Number of Sel Files
+ELSIZ:	DEFS	2		; Size of each element
+COMPIT:	DEFS	2		; Addr of compare routine
+ORDBUF:	DEFS	2		; Addr of Order buffer
+
+TDBUF:	DEFS	2		; Temp storage loc'n for T&D Sector Buffer adr
+
+;-----
+; The Next Eight entries MUST remain in the listed order
+
+UFLG:	 DEFS	1	; 0=Select current user, 0FFH=Select all users
+HFLG:	 DEFS	1	; 0=vertical list
+FFFLG:	 DEFS	1	; Form Feed flag
+SFLG:	 DEFS	1	; Sort order flag
+NFLG:	 DEFS	1	; No Dates flag
+WFLG:	 DEFS	1	; Wide Display flag
+TFLG:	 DEFS	1	; Mode.  0=P2Dos Stamps, FF=DateStamper Stamps
+DFLG:	 DEFS	1	; European/US.  0=US Dates, FF=European Dates
+AFLG:	 DEFS	1	; Attribute Flag
+;-----
+PFLG:	 DEFS	1	; Printer Output ON Flag
+
+WHEEL:	 DEFS	1	; Storage for Wheel byte from ZCPR3
+CURYR:	 DEFS	1	; Storage for current year from clock
+SELUD:	 DEFS	2	; Selected Drive/User from command line
+PFLGT:	 DEFS	1
+PFLGS:	 DEFS	1
+NCOLS:	 DEFS	1	; Storage for Number of columns in output
+			; 3 if NFLG, 2 if Not WFLG, else 1 if WFLG
+FIRSTF:	 DEFS	2	; ptr to first file of group to print
+COUNTF:	 DEFS	2	; down count of files
+FREESZ:	 DEFS	3	; Amount of Free Space on Disk (3-bytes worth)
+TOTSIZ:	 DEFS	3	; Total Size of All files listed (up to 3 byes)
+PTR1:	 DEFS	2	; col output ptrs
+PTR2:	 DEFS	2
+PTR3:	 DEFS	2
+ENTPTR:	 DEFS	2	; current entry ptr
+ENTPT0:	 DEFS	2	; Current Pointer to Pointer
+MAXENT:	 DEFS	2	;2.1 Number of Screen Data Lines
+PTRENT:	 DEFS	2	;2.1 Number of Printer Page Data Lines
+BUFFER:	 DEFS	2	; pointer to free area
+ENTRUD:	 DEFS	2	; Entry DU for restoration on exit
+STACK:	 DEFS	2	; stack ptr
+
+	END
+

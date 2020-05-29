@@ -1,0 +1,14 @@
+mtplus b:typechk
+mtplus b:consttab
+mtplus b:type1tab #tb
+mtplus b:vartab
+mtplus b:routtab
+mtplus b:scanner
+mtplus b:inputstd
+mtplus b:inputfas
+mtplus b:markrel
+mtplus b:blockr
+libmt b:typechk
+l b:typechk,typelib/s,mylib/s,paslib/s/d:8500
+era typelib.erl
+

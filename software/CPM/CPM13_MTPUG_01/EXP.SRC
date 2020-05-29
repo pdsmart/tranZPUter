@@ -1,0 +1,130 @@
+MODULE  EXPONENT;   { Copyright (c) by  T. W. Lougheed  24 April 1981 }
+
+{ First version   8 March 1981
+
+  By    T. W. Lougheed
+        Dept. T. & A. Mechanics
+        Thurston Hall, Cornell U.
+        Ithaca,  NY  14853
+
+  Last version  27 April 1981
+
+  This software is in the public domain, and may not be sold by any
+  person or corperation without permission of the author.  }
+
+
+FUNCTION  EXP( Z :REAL) :REAL;
+
+CONST  E = 2.718281828459045;   { Base of the natural logarithms. }
+
+       MAXREAL = 9.9999999E17;  { Result of overflow. }
+       MINREAL = 1.0E-17;       { Result of an underflow.  Could be
+                                set to be zero just as resonably. }
+
+       CAUSES_OVERFLOW = 41.4465; { Any argument greater in absolute
+                                value than this will cause overflow. }
+
+VAR  Y :REAL;  N :INTEGER;      { Intermediate values. }
+
+
+
+   { The following funtion returns  e  raised to an INTEGER
+   power  N.  The sign of N is ignored: its absolute value
+   is used. }
+
+   FUNCTION  POWER( R :REAL;  N :INTEGER ) :REAL;
+
+   VAR  X, F      : REAL;
+        M         : INTEGER;
+
+
+
+   { This algorithm uses the 'invariant' method.  The following
+   equasion is always true, it is the 'invariant':
+
+                 n          m
+                R  = Y = X F
+
+   "n" is the power we want to raise "R" to, "Y" is the answer we
+   are seeking, "X" is on its way to being the answer (starts at 1)
+   and "m" starts at "n" and arrives at "0" when "X" has arrived
+   at the answer "Y".  "F" initially starts at "R" and increases
+   as necessary to keep the invariant formula true.
+
+     Since   M = 2 (M div 2) + M mod 2,  if we replace  X  with
+   X * F**(M mod 2)  and then  F  with  F**2  and  M  with  M div 2,
+   the invariant formula is unchanged.  So we itterate this set of
+   replacements until we see that M is zero. As mentioned before,
+   M is zero,  X  must be the desired answer  "Y".
+
+      The only fact left to note is that  M mod 2 = M bit 0,  and
+   M div 2 = M shr 1, so we can do all that jazz cheaply. }
+
+   BEGIN
+   F := R;  X := 1;  M := ABS( N );
+   IF M <> 0 THEN REPEAT
+      IF TSTBIT(M, 0) THEN X := X*F;
+      M := SHR(M, 1);  F := SQR(F);
+      UNTIL M = 0;
+   POWER := X;
+   END;
+
+   { Note that the description is much longer than the algorithm:
+   a hallmark of the method of programming with 'invariants'. }
+   { Note also that the method only works well if you're clever
+   at guessing what a good invariant could be. }
+
+
+   { The following function gives a Tchebyshev polinomial
+   approximation for EXP(X) for 0 < X < 0.69;  the error without truncation
+   would be less than  2E-10.  Adapted from quasion 4.2.45 from
+   THE HANDBOOK OF MATHEMATICAL FUNCTIONS, by Abramowicz
+   and Stegun.  This is really SUPPOSED to have negative arguments ...
+   to give 1/EXP ... but I'm using it differently. }
+
+   FUNCTION TCHEBYSHEV( X :REAL ) :REAL;
+
+   CONST  A1 = 0.9999999995;
+          A2 = 0.4999999206;
+          A3 = 0.1666653019;
+          A4 = 0.0416573475;
+          A5 = 0.0083013598;
+          A6 = 0.0013298820;
+          A7 = 0.0001413161;
+
+   BEGIN
+   TCHEBYSHEV := ((((((A7*X + A6)*X + A5)*X + A4)*X +
+    A3)*X + A2)*X + A1)*X + 1;
+   END;
+
+
+
+BEGIN  { Main }
+
+IF Z > CAUSES_OVERFLOW THEN  EXP := MAXREAL
+{ These are special cases that we would like to handle exactly }
+ELSE IF Z =  1 THEN EXP := E
+ELSE IF Z =  0 THEN EXP := 1
+ELSE IF Z = -1 THEN EXP := 1/E
+ELSE IF Z > 0 THEN BEGIN
+   { Split up  Z  into its nearest integer part, N, and the
+   remainder, Z.  Let  POWER  handle the integer part and
+   have TCHEBYSHEV handle the fractional part. }
+   N := ROUND( Z );
+   Z := Z - N;
+   Y := POWER( E, N );
+   EXP := Y*TCHEBYSHEV( Z );
+   END
+ELSE IF Z > -CAUSES_OVERFLOW THEN BEGIN
+   N := ROUND( - Z );
+   Z := Z + N;
+   Y := POWER( E, N );
+   EXP := Y/TCHEBYSHEV(Z);
+   END
+ELSE EXP := MINREAL;  { Underflow. }
+
+END;
+
+MODEND
+.
+

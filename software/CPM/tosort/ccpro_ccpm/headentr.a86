@@ -1,0 +1,491 @@
+TITLE	'Xios Header and Device	Tables'
+;
+;********************************************************
+;********************************************************
+;					  		*		
+;	    CONCURRENT CPM/8-16 HARDWARE INTERFACE	*
+;	   						*
+;							*
+;     	Extensive development  time has been invested 	*
+;	in this implementation of CCP/M 86 by CompuPro.	*
+;	The source and  object for this  XIOS are 	*
+;	copyright by CompuPro Corp. A Godbout Company. 	*
+;	Any portion whether in source or object may  	*
+;	not be resold, reproduced or copied without 	*
+;	the written consent of CompPro Corporation.     *
+;							*
+;	     Copyright (c) 1984				*
+;	     CompuPro					*
+;            3506 Breakwater Ct.			*
+;	     Hayward, Ca. 94549				*
+;	     (415) 786-0909				*
+;							*
+;	     4/84 - Origin 				*
+;		Version D.				*
+;		D.W. Neumann				*
+;		L.L. Ott				*
+;							*
+;							*
+;							*
+;********************************************************
+;
+;This module contains the Xios header and entry points.
+;It also includes the disk parameter headers and blocks.
+;
+;Last Update to headentr.a86 = 12/19/84
+;
+;
+include	SYSTEM.LIB
+include	SYSDAT.LIB
+include	GLOBAL.EQU	
+eject
+;
+CGROUP	GROUP CODE, DATA	; this group definition forces an 8080
+				; model when used with a link command
+				; of xios = mod[data[o[0]]],mod2,mod3,...
+;
+	DSEG
+;
+PUBLIC	SYSDAT,	DISPATCH
+;
+PUBLIC	TICK
+PUBLIC	DPH_TBL
+PUBLIC	DOOROP
+PUBLIC	SUPERVISOR
+PUBLIC	STOPPOLL
+PUBLIC	NPCNS
+PUBLIC	NVCNS
+PUBLIC	NLCB
+PUBLIC	MEM_ALLOC
+PUBLIC	PCBOARD, PCBUFFER
+;
+PUBLIC	F8SET, F5SET
+PUBLIC	SS_STRING
+PUBLIC	MASTER_INT_MASK
+PUBLIC	SLAVE_INT_MASK
+;
+PUBLIC	CONTABLE
+PUBLIC	LSTABLE
+PUBLIC	PC_TABLE, NUMPC
+PUBLIC	AUXTBL,	AUXNUM
+;
+EXTRN	VCCB0:byte, LCB0:byte
+;
+;Terminal Support Data
+PUBLIC	VCPHY, VMASK, PAGE0, HOME
+PUBLIC	FUNC0
+PUBLIC	KEYLOCK, CLEAR_HOME, READ_CURSOR, SET_CURSOR, KEYUNLOCK
+PUBLIC	CUR_READ_LEN
+PUBLIC	SEC_IN_FOUR, SEC_IN_THREE
+PUBLIC	USERLINE, STAT_SEND, STAT_DISPLAY 
+;
+	CSEG
+;
+EXTRN	ENTRY:near
+EXTRN	INIT:near
+;
+;
+;----------------------------------------------------------------------
+;               XIOS    ORIGIN    AT    C00
+;----------------------------------------------------------------------
+;
+	ORG	0C00h		; this org forces the xios to start at
+				; offset 0c00h in the system data area.
+;
+	JMP INIT		; hardware and i/o system initialization
+	JMP ENTRY		; xios entry point
+;
+SYSDAT		DW	0	; sysdat segment
+SUPERVISOR	RW	2
+;
+EJECT
+;------------------------------------------------------------------------
+;                BEGIN    XIOS    HEADER
+;------------------------------------------------------------------------
+;
+; Location specific data structures defined by DRI
+;
+	ORG	0C0Ch
+;
+TICK		DB	FALSE		; tick enable flag
+TICKS_SEC	DB	60		; # of ticks per second
+DOOROP		DB	0		; global door open interrupt flag
+		DB	0		; reserved
+NPCNS		DB	NPCONS		; number of physical consoles, 14 max.
+NVCNS		DB	NVCONS		; number of virtual consoles, 56 max.
+NCCB		DB	NVCONS		; total number of ccbs
+NLCB		DB	NLST		; number of list devices, 5 max.
+CCB		DW	offset VCCB0	; offset of the first ccb
+LCB		DW	offset LCB0	; offset of first lcb
+;
+;
+; disk parameter header offset table. Location defined by DRI.
+; For logical to physical device map see dpbs.a86.
+;
+DPH_TBL		DW	DPH1	;A:
+		DW	DPH2	;B:
+		DW	DPH3	;C:   
+		DW	DPH4	;D:
+		DW	DPH5	;E:	
+		DW	DPH6	;F:
+		DW	DPH7	;G:
+		DW	DPH8	;H:
+		DW	DPH9	;I:
+		DW	DPH10	;J:
+		DW	DPH11	;K:
+		DW	DPH12	;L:
+		DW	DPH13	;M:
+		DW	DPH14	;N:
+		DW	DPH15	;O:
+		DW	DPH16	;P:
+;
+MEM_ALLOC	DW	MEMBUFF		; buffer space for virtual consoles
+;
+;----------------------------------------------------------------------
+;               END     XIOS     HEADER
+;----------------------------------------------------------------------
+;
+;----------------------------------------------------------------------
+;		FLOPPY DISK SPECIFY BYTES		
+;----------------------------------------------------------------------
+;Located here for easy access by the many happy patchers.
+;
+;Controller specify values for 8 inch drives
+SRT8	EQU	16-4	;Step rate = 4 ms
+HUT8	EQU	240/16	;Head unload time delay/16
+HDLT8	EQU	35	;Head settling time (ms)
+;
+;Controller specify values for 5 1/4 inch drives
+SRT5	EQU	16-3	;Step rate = 3 ms
+HUT5	EQU	0Fh	;Head unload time
+HDLT5	EQU	15	;Head settling time (ms)
+;
+;
+F8SET	DB	(SRT8 SHL 4) + HUT8	;Step rate and head unload time
+	DB	HDLT8 SHL 1		;Head load time and dma mode
+;
+F5SET	DB	(SRT5 SHL 4) + HUT5	;Step rate and head unload time
+	DB	HDLT5 SHL 1		;Head load time and dma mode
+;
+;-----------------------------------------------------------------------
+;		System Support Board Initialization String
+;-----------------------------------------------------------------------
+;
+SS_STRING DB	11101110b		  ;; mode register 1, async,
+					  ;; 16x, 8 bits, no parity, 
+					  ;;  even, 2 stop
+	  DB	01111110b		  ;; mode register 2, 9600 baud
+	  DB	00100111b		  ;; command register, trans. on,
+					  ;; dtr low, rec. on, 
+					  ;; no break, no reset, rts low
+;
+;----------------------------------------------------------------------
+;Mapping tables for character I/O devices
+;----------------------------------------------------------------------
+;
+;Physical console to Usart # translation table. Note Usart 0 is on the System
+;Support Board, Usart 1 - 16 are on the Interfacer 3,4.
+;Maximum number of consoles supported is 14. 
+; To add more printers or auxilary devices, move the uart number out of one
+;  table and into another.
+;NOTE:  (System Support should always be the first console!!!)
+;
+CONTABLE	DB	0,8,7,4,3,2,1,10,11,12,13,14,15,16
+;
+;Physical list to Usart # translation table. 
+;Maximum number of list devices supported is 5.
+;
+LSTABLE		DB	5,6,9,0,0
+;
+;
+;PC Video Board Mapping from Board to Queue number (=Usart #)
+;Maximum number of boards supported is four.
+;Note that the numbers in the table set the correspondence between
+; the PC Board number and the queue used. See contable for the
+; map between physical console number and queue.
+;
+PC_TABLE	DB	0,0,0,0
+;
+NUMPC		DB	NPC_BRD		;Number of boards in the system
+;
+	
+;Auxiliary device table (i.e. modem ports, etc.)
+;
+AUXTBL	DB	0,0,0,0		;Space for 4 auxiliary ports, maps device
+				; number to actual port to use.
+;
+AUXNUM	DB	0		;Number of auxiliary ports in use
+;
+;
+;----------------------------------------------------------------------
+;		Terminal Definition Tables
+;______________________________________________________________________
+;These tables provide all the information necessary for the system to 
+;interface to any terminal which does not require system memory for screen
+;buffering. Although the routines will support a terminal with no extra
+;pages of memory and/or no user addressable 25th line, both are highly 
+;recommended for optimal operation.
+;
+CTRLA	EQU	01
+CR	EQU	0Dh
+ESC	EQU	01bh
+;
+	if TELEVIDEO
+;
+VCPHY	DB	NVCONS/NPCONS	;Number of virtual consoles per physical console
+;
+VMASK	DB	(NVCONS/NPCONS)-1
+;
+PAGE0	DB	30h		;Terminal value for memory page 0. used to
+				;set the page for terminals with extra screen
+				;memory. set to 0ffh if terminal has no extra
+				;memory or screen buffering is not desired.
+;
+HOME	DB	20h,20h		;Terminal row, column values for the home position
+;
+USERLINE DB	TRUE		;True if this terminal can display the 25th line
+;
+;Note: The format of all terminal function strings given below
+;is length, string.
+;
+;String sent by function key corresponding to relative virtual console 0
+;Used by the conin_0 routine to determine if a switch has been requested.
+;
+FUNC0	DB	3,CTRLA,'@',CR,0,0
+;
+;
+;Console switching strings. Used by vs_switch.
+;
+CLEAR_HOME	DB	2,ESC,'+',0,0,0	;Clear the screen, home the cursor
+;
+KEYLOCK		DB	2,ESC,'#',0,0,0	;Lock the keyboard
+;
+KEYUNLOCK	DB	2,ESC,'"',0,0,0	;Unlock the keyboard
+;
+READ_CURSOR	DB	2,ESC,'?',0,0,0	;Read the cursor position (row, column)
+;
+SET_CURSOR	DB	2,ESC,'-',0,0,0	;Set the cursor position 
+					;Note: switch determines and sends
+					;the page, row and column
+;
+CUR_READ_LEN	DW	3		;Number of characters to read after
+					;requesting cursor position.
+;
+;
+;Second character values in output esc sequences. Used by serial_out to
+;keep track of the current esc count to prevent console switching
+;or status line display in the middle of an esc sequence.
+;
+SEC_IN_FOUR	DB	1,'=',0,0,0,0	;Second chars in 4 character sequences
+;
+SEC_IN_THREE	DB	3,'G','.','!',0	;Second chars in 3 character sequences
+		DB	0
+;
+;Status line strings
+;Note: Currently the terminal must be able to receive the status line without
+; requiring reading the current cursor position. (However, if the terminal has 
+; save and restore cursor position commands those CAN be used. The save command
+; should be placed at the beginning of the stat_send string and the restore
+; command should be placed at the end of the stat_display string)
+;
+STAT_SEND	DB	2,ESC,'f',0,0,0	;Send the status line
+;
+STAT_DISPLAY	DB	2,ESC,'g',0,0,0	;Display the status line
+;
+	endif
+;
+	if QUME102
+;
+;Note: Qume 102 has no extra pages of memory and cannot display a status line.
+;It represents a "Vanilla" terminal -- Virtual console switches can be carried
+;out using the available function keys. However, on a switch the screen is
+;cleared and the cursor homed -- i.e. no screen buffering occurs.
+;
+VCPHY	DB	NVCONS/NPCONS	;Number of virtual consoles per physical console
+;
+VMASK	DB	(NVCONS/NPCONS)-1
+;
+PAGE0	DB	0FFh		;Terminal value for memory page 0. used to
+				;set the page for terminals with extra screen
+				;memory. set to 0ffh if terminal has no extra
+				;memory or screen buffering is not desired.
+;
+HOME	DB	20h,20h		;Terminal row, column values for the home position
+;
+USERLINE DB	FALSE		;True if this terminal can display the 25th line
+;
+;Note: The format of all terminal function strings given below
+;is length, string.
+;
+;String sent by function key corresponding to relative virtual console 0
+;Used by the conin_0 routine to determine if a switch has been requested.
+;
+FUNC0	DB	3,CTRLA,'@',CR,0,0
+;
+;
+;Console switching strings. Used by vs_switch.
+;
+CLEAR_HOME	DB	2,ESC,'+',0,0,0	;Clear the screen, home the cursor
+;
+KEYLOCK		DB	0,0,0,0,0,0	;Lock the keyboard
+;
+KEYUNLOCK	DB	0,0,0,0,0,0	;Unlock the keyboard
+;
+READ_CURSOR	DB	0,0,0,0,0,0	;Read the cursor position (row, column)
+;
+SET_CURSOR	DB	0,0,0,0,0,0	;Set the cursor position 
+					;Note: switch determines and sends
+					;the page, row and column
+;
+CUR_READ_LEN	DW	0		;Number of characters to read after
+					;requesting cursor position.
+;
+;
+;Second character values in output esc sequences. Used by serial_out to
+;keep track of the current esc count to prevent console switching
+;or status line display in the middle of an esc sequence.
+;
+SEC_IN_FOUR	DB	1,'=',0,0,0,0	;Second chars in 4 character sequences
+;
+SEC_IN_THREE	DB	5,'G','X','F'	;Second chars in 3 character sequences
+		DB	'[',']'
+;
+;Status line strings
+;Note: Currently the terminal must be able to receive the status line without
+; requiring reading the current cursor position. (However, if the terminal has 
+; save and restore cursor position commands those CAN be used. The save command
+; should be placed at the beginning of the stat_send string and the restore
+; command should be placed at the end of the stat_display string)
+;
+STAT_SEND	DB	0,0,0,0,0,0	;Send the status line
+;
+STAT_DISPLAY	DB	0,0,0,0,0,0	;Display the status line
+;
+	endif
+;
+;
+	if Z19
+;
+;The Z19 virtual console driver uses reserved memory in the computer
+;for screen buffering.  Users interested in this method of screen storage
+;should examine the vscz19 module. Note that each virtual console will require
+;nearly 4k of internal storage, as well as emulation of most screen functions.
+;
+;The information in the table below is not used by the z19 driver, but is 
+;reserved for other uses.
+;
+VCPHY	DB	NVCONS/NPCONS	;Number of virtual consoles per physical console
+;
+VMASK	DB	(NVCONS/NPCONS)-1
+;
+PAGE0	DB	0FFh		;Terminal value for memory page 0. used to
+				;set the page for terminals with extra screen
+				;memory. set to 0ffh if terminal has no extra
+				;memory or screen buffering is not desired.
+;
+HOME	DB	00h,00h		;Terminal row, column values for the home position
+;
+USERLINE DB	TRUE		;True if this terminal can display the 25th line
+;
+;Note: The format of all terminal function strings given below
+;is length, string.
+;
+;String sent by function key corresponding to relative virtual console 0
+;Used by the conin_0 routine to determine if a switch has been requested.
+;
+FUNC0	DB	0,0,0,0,0,0
+;
+;
+;Console switching strings. Used by vs_switch.
+;
+CLEAR_HOME	DB	0,0,0,0,0,0	;Clear the screen, home the cursor
+;
+KEYLOCK		DB	0,0,0,0,0,0	;Lock the keyboard
+;
+KEYUNLOCK	DB	0,0,0,0,0,0	;Unlock the keyboard
+;
+READ_CURSOR	DB	0,0,0,0,0,0	;Read the cursor position (row, column)
+;
+SET_CURSOR	DB	0,0,0,0,0,0	;Set the cursor position 
+					;Note: switch determines and sends
+					;the page, row and column
+;
+CUR_READ_LEN	DW	0		;Number of characters to read after
+					;requesting cursor position.
+;
+;
+;Second character values in output esc sequences. Used by serial_out to
+;keep track of the current esc count to prevent console switching
+;or status line display in the middle of an esc sequence.
+;
+SEC_IN_FOUR	DB	0,0,0,0,0,0	;Second chars in 4 character sequences
+;
+SEC_IN_THREE	DB	0,0,0,0,0,0	;Second chars in 3 character sequences
+;
+;
+;Status line strings
+;Note: Currently the terminal must be able to receive the status line without
+; requiring reading the current cursor position. (However, if the terminal has 
+; save and restore cursor position commands those CAN be used. The save command
+; should be placed at the beginning of the stat_send string and the restore
+; command should be placed at the end of the stat_display string)
+;
+STAT_SEND	DB	0,0,0,0,0,0	;Send the status line
+;
+STAT_DISPLAY	DB	0,0,0,0,0,0	;Display the status line
+;
+	endif
+;
+;
+;----------------------------------------------------------------------
+;
+;----------------------------------------------------------------------
+;		Initial PIC Interrupt Masks
+;----------------------------------------------------------------------
+;
+MASTER_INT_MASK	DB	043H		; floppies, transmit and 
+					; receive for interfacer 3,
+					; pc keyboard,
+					; and slave pic
+;
+SLAVE_INT_MASK	DB	07CH		; receive interrupts, 8087
+					; and the timer tick
+;
+;
+;----------------------------------------------------------------------
+;               BEGIN    MISC     DEFINITIONS
+;----------------------------------------------------------------------
+;
+;
+DISPATCH	RW	2		; used by the i/o system as the entry 
+					; into the dispatcher.intialized by
+					; the xios init code.
+;
+STOPPOLL	DB	 0
+;
+;----------------------------------------------------------------------
+;               END   MISC    DEFINITIONS
+;----------------------------------------------------------------------
+;
+;
+;----------------------------------------------------------------------
+;		CONFIGURATION INFORMATION
+;----------------------------------------------------------------------
+;
+PCBOARD		DB	PCBRD
+;
+PCBUFFER	DW	PCBUFF
+;
+eject
+;
+;-----------------------------------------------------------------------
+;	      DISK PARAMETER DATA
+;_______________________________________________________________________
+;
+include	DPBS.EQU
+include	DPBS.A86
+;
+	END
+;
+;
+

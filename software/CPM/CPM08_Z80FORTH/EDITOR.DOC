@@ -1,0 +1,71 @@
+          Z80 fig-FORTH Line Editor Commands
+          ----------------------------------
+
+
+B         Back cursor to the beginning of the string in the PAD.
+
+C         Spread text at cursor to insert the following string.   Characters
+          pushed off the end of the line are lost.
+
+D         n ---
+          Delete the nth line and move subsequent lines 1 up.   The  deleted
+          line is held in the PAD.
+
+E         n ---
+          Erase the nth line by filling it with 64 blanks.
+
+F         Find the first occurrence of the following text string.
+
+H         n ---
+          Copy the nth line to the PAD and hold it there.
+
+I         n ---
+          Insert text from PAD into line n. Shift the original nth and sub-
+          sequent lines down 1 line. The original line 15 is lost.
+
+L         Re-list the screen being edited.
+
+M         n ---
+          Move cursor n characters.
+
+N         Find the next occurence of the text already in the PAD.
+
+P         n ---
+          Put the following text on line n. Write over its old contents.
+
+R         n ---
+          Replace the nth line with the text stored in the PAD.
+
+S         n ---
+          Spread line n with blanks. Shift the original line n and subse-
+          quent lines down 1 line. The original line 15 is lost.
+
+T         n ---
+          Type line n of the current screen and copy it to the PAD.
+
+X         Delete the following text from the current line.
+
+CLEAR     n ---
+          Clear screen n by filling it with blanks and make it current.
+
+COPY      n1 n2 ---
+          Copy screen n1 to screen n2.
+
+DELETE    n ---
+          Delete n characters in front of the cursor. Move the text from the
+          end of the line to fill up the space.  Fill with blanks at the end
+          of the line.
+
+FIND      Search the entire screen for the string stored in the PAD and move
+          the cursor to the end of the string. Issue an error message if the
+          search failed.
+
+TILL      Delete all characters from the  cursor location  up to  the end of
+          the following text string.
+
+TOP       Move the cursor to the leftmost position at line 0.
+
+TS        Type Screen. Useful for finding hidden NULL characters which would
+          prematurely end compilation.  If line numbers  at  the right don't
+          line up, retype the line or use E command if line is empty.
+

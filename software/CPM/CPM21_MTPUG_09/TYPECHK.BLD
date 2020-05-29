@@ -1,0 +1,11 @@
+typelib.erl
+b:consttab.erl
+b:type1tab.erl
+b:vartab.erl
+b:routtab.erl
+b:scanner.erl
+b:inputstd.erl
+b:inputfas.erl
+b:markrel.erl
+b:blockr.erl
+

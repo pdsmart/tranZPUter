@@ -1,0 +1,195 @@
+program writedata;
+
+type
+
+    vector = -512..511;
+    posn = -128..127;
+    
+    roff =	PACKED ARRAY [1..64] of vector;
+    vec =	PACKED ARRAY [1..393] of posn;
+
+    
+var
+
+    chroff:	roff;
+    chrvec:	vec;
+    
+    x:	FILE of roff;
+    y:	FILE of vec;
+    
+    result:	integer;
+    
+    
+  PROCEDURE init1;
+
+  BEGIN
+      chroff[ 1]:=   1;chroff[ 2]:=   4;chroff[ 3]:=  10;chroff[ 4]:=  18;
+      chroff[ 5]:=  28;chroff[ 6]:=  37;chroff[ 7]:=  46;chroff[ 8]:=  49;
+      chroff[ 9]:=  53;chroff[10]:=  57;chroff[11]:=  63;chroff[12]:= -67;
+      chroff[13]:=  69;chroff[14]:=  71;chroff[15]:=  72;chroff[16]:=  74;
+      chroff[17]:=  85;chroff[18]:=  90;chroff[19]:=  99;chroff[20]:= 112;
+      chroff[21]:= 116;chroff[22]:= 125;chroff[23]:= 136;chroff[24]:= 141;
+      chroff[25]:= 157;chroff[26]:= 169;chroff[27]:=-171;chroff[28]:= 174;
+      chroff[29]:= 177;chroff[30]:= 181;chroff[31]:= 184;chroff[32]:= 192;
+      chroff[33]:= 205;chroff[34]:= 212;chroff[35]:= 225;chroff[36]:= 233;
+      chroff[37]:= 240;chroff[38]:= 246;chroff[39]:= 251;chroff[40]:= 261;
+      chroff[41]:= 267;chroff[42]:= 273;chroff[43]:= 278;chroff[44]:= 284;
+      chroff[45]:= 287;chroff[46]:= 292;chroff[47]:= 296;chroff[48]:= 305;
+      chroff[49]:= 312;chroff[50]:= 323;chroff[51]:= 332;chroff[52]:= 344;
+      chroff[53]:= 348;chroff[54]:= 354;chroff[55]:= 357;chroff[56]:= 362;
+      chroff[57]:= 366;chroff[58]:= 371;chroff[59]:= 377;chroff[60]:= 381;
+      chroff[61]:= 383;chroff[62]:= 387;chroff[63]:=-392;chroff[64]:= 394;
+  END;
+
+  PROCEDURE init2;
+
+  BEGIN
+      chrvec[  1]:=  39;chrvec[  2]:=  33;chrvec[  3]:= -30;chrvec[  4]:=  19;
+      chrvec[  5]:=  29;chrvec[  6]:=  17;chrvec[  7]:= -49;chrvec[  8]:=  59;
+      chrvec[  9]:=  47;chrvec[ 10]:=  21;chrvec[ 11]:=  27;chrvec[ 12]:= -47;
+      chrvec[ 13]:=  41;chrvec[ 14]:= -63;chrvec[ 15]:=   3;chrvec[ 16]:=  -5;
+      chrvec[ 17]:=  65;chrvec[ 18]:=  30;chrvec[ 19]:=  39;chrvec[ 20]:= -57;
+      chrvec[ 21]:=  38;chrvec[ 22]:=  17;chrvec[ 23]:=  15;chrvec[ 24]:=  54;
+      chrvec[ 25]:=  52;chrvec[ 26]:=  31;chrvec[ 27]:=  12;chrvec[ 28]:=  29;
+      chrvec[ 29]:=  17;chrvec[ 30]:=   9;chrvec[ 31]:=  69;chrvec[ 32]:=   0;
+      chrvec[ 33]:= -60;chrvec[ 34]:=  40;chrvec[ 35]:=  52;chrvec[ 36]:=  60;
+      chrvec[ 37]:=   0;chrvec[ 38]:=  57;chrvec[ 39]:=  49;chrvec[ 40]:=  28;
+      chrvec[ 41]:=  26;chrvec[ 42]:=  62;chrvec[ 43]:=  40;chrvec[ 44]:=  20;
+      chrvec[ 45]:=  13;chrvec[ 46]:=  29;chrvec[ 47]:=  39;chrvec[ 48]:=  27;
+      chrvec[ 49]:=  49;chrvec[ 50]:=  27;chrvec[ 51]:=  22;chrvec[ 52]:=  40;
+      chrvec[ 53]:=  29;chrvec[ 54]:=  47;chrvec[ 55]:=  42;chrvec[ 56]:=  20;
+      chrvec[ 57]:=  17;chrvec[ 58]:=  51;chrvec[ 59]:= -57;chrvec[ 60]:=  11;
+      chrvec[ 61]:=  -4;chrvec[ 62]:=  64;chrvec[ 63]:=   4;chrvec[ 64]:=  64;
+  END;
+
+  PROCEDURE init3;
+
+  BEGIN
+      chrvec[ 65]:= -37;chrvec[ 66]:=  31;chrvec[ 67]:=  34;chrvec[ 68]:=  22;
+      chrvec[ 69]:=  14;chrvec[ 70]:=  64;chrvec[ 71]:=  30;chrvec[ 72]:=  10;
+      chrvec[ 73]:=  69;chrvec[ 74]:=   0;chrvec[ 75]:=  69;chrvec[ 76]:= -49;
+      chrvec[ 77]:=  29;chrvec[ 78]:=   7;chrvec[ 79]:=   2;chrvec[ 80]:=  20;
+      chrvec[ 81]:=  40;chrvec[ 82]:=  62;chrvec[ 83]:=  67;chrvec[ 84]:=  49;
+      chrvec[ 85]:=  27;chrvec[ 86]:=  39;chrvec[ 87]:=  30;chrvec[ 88]:= -20;
+      chrvec[ 89]:=  40;chrvec[ 90]:=   7;chrvec[ 91]:=  29;chrvec[ 92]:=  49;
+      chrvec[ 93]:=  67;chrvec[ 94]:=  54;chrvec[ 95]:=  24;chrvec[ 96]:=   1;
+      chrvec[ 97]:=   0;chrvec[ 98]:=  60;chrvec[ 99]:=   7;chrvec[100]:=  29;
+      chrvec[101]:=  59;chrvec[102]:=  68;chrvec[103]:=  66;chrvec[104]:=  55;
+      chrvec[105]:=  25;chrvec[106]:= -55;chrvec[107]:=  64;chrvec[108]:=  61;
+      chrvec[109]:=  50;chrvec[110]:=  20;chrvec[111]:=   2;chrvec[112]:=  40;
+      chrvec[113]:=  49;chrvec[114]:=   3;chrvec[115]:=  63;chrvec[116]:=  69;
+      chrvec[117]:=   9;chrvec[118]:=   5;chrvec[119]:=  55;chrvec[120]:=  64;
+      chrvec[121]:=  61;chrvec[122]:=  50;chrvec[123]:=  10;chrvec[124]:=   1;
+      chrvec[125]:=  49;chrvec[126]:=  19;chrvec[127]:=   8;chrvec[128]:=   1;
+      chrvec[129]:=  10;chrvec[130]:=  50;chrvec[131]:=  61;chrvec[132]:=  64;
+  END;
+
+  PROCEDURE init4;
+
+  BEGIN
+      chrvec[133]:=  55;chrvec[134]:=  15;chrvec[135]:=   4;chrvec[136]:=   9;
+      chrvec[137]:=  69;chrvec[138]:=  67;chrvec[139]:=  21;chrvec[140]:=  20;
+      chrvec[141]:=  15;chrvec[142]:=   6;chrvec[143]:=   8;chrvec[144]:=  19;
+      chrvec[145]:=  59;chrvec[146]:=  68;chrvec[147]:=  66;chrvec[148]:=  55;
+      chrvec[149]:=  15;chrvec[150]:=   4;chrvec[151]:=   1;chrvec[152]:=  10;
+      chrvec[153]:=  50;chrvec[154]:=  61;chrvec[155]:=  64;chrvec[156]:=  55;
+      chrvec[157]:=   1;chrvec[158]:=  10;chrvec[159]:=  50;chrvec[160]:=  61;
+      chrvec[161]:=  68;chrvec[162]:=  59;chrvec[163]:=  19;chrvec[164]:=   8;
+      chrvec[165]:=   5;chrvec[166]:=  14;chrvec[167]:=  54;chrvec[168]:=  65;
+      chrvec[169]:=  35;chrvec[170]:= -31;chrvec[171]:=  39;chrvec[172]:= -34;
+      chrvec[173]:=  22;chrvec[174]:=  58;chrvec[175]:=  14;chrvec[176]:=  50;
+      chrvec[177]:=  52;chrvec[178]:=  12;chrvec[179]:= -15;chrvec[180]:=  55;
+      chrvec[181]:=  18;chrvec[182]:=  54;chrvec[183]:=  10;chrvec[184]:=  18;
+      chrvec[185]:=  29;chrvec[186]:=  49;chrvec[187]:=  58;chrvec[188]:=  56;
+      chrvec[189]:=  34;chrvec[190]:=  32;chrvec[191]:= -30;chrvec[192]:=  62;
+      chrvec[193]:=  40;chrvec[194]:=  20;chrvec[195]:=   2;chrvec[196]:=   7;
+  END;
+
+  PROCEDURE init5;
+
+  BEGIN
+      chrvec[197]:=  29;chrvec[198]:=  49;chrvec[199]:=  67;chrvec[200]:=  63;
+      chrvec[201]:=  42;chrvec[202]:=  34;chrvec[203]:=  46;chrvec[204]:=  66;
+      chrvec[205]:=   0;chrvec[206]:=   6;chrvec[207]:=  39;chrvec[208]:=  66;
+      chrvec[209]:=  60;chrvec[210]:=  -4;chrvec[211]:=  64;chrvec[212]:=   0;
+      chrvec[213]:=  50;chrvec[214]:=  61;chrvec[215]:=  64;chrvec[216]:=  55;
+      chrvec[217]:=  15;chrvec[218]:= -55;chrvec[219]:=  66;chrvec[220]:=  68;
+      chrvec[221]:=  59;chrvec[222]:=   9;chrvec[223]:= -19;chrvec[224]:=  10;
+      chrvec[225]:=  68;chrvec[226]:=  59;chrvec[227]:=  29;chrvec[228]:=   7;
+      chrvec[229]:=   2;chrvec[230]:=  20;chrvec[231]:=  50;chrvec[232]:=  61;
+      chrvec[233]:=   0;chrvec[234]:=   9;chrvec[235]:=  49;chrvec[236]:=  67;
+      chrvec[237]:=  62;chrvec[238]:=  40;chrvec[239]:=   0;chrvec[240]:=  69;
+      chrvec[241]:=   9;chrvec[242]:=   0;chrvec[243]:=  60;chrvec[244]:= -45;
+      chrvec[245]:=   5;chrvec[246]:=  69;chrvec[247]:=   9;chrvec[248]:=   0;
+      chrvec[249]:= -45;chrvec[250]:=   5;chrvec[251]:=  68;chrvec[252]:=  59;
+      chrvec[253]:=  29;chrvec[254]:=   7;chrvec[255]:=   2;chrvec[256]:=  20;
+      chrvec[257]:=  50;chrvec[258]:=  61;chrvec[259]:=  64;chrvec[260]:=  44;
+      chrvec[261]:=   0;chrvec[262]:=   9;chrvec[263]:= -60;chrvec[264]:=  69;
+  END;
+
+  PROCEDURE init6;
+
+  BEGIN
+      chrvec[265]:=  -5;chrvec[266]:=  65;chrvec[267]:=  29;chrvec[268]:=  49;
+      chrvec[269]:= -39;chrvec[270]:=  30;chrvec[271]:= -20;chrvec[272]:=  40;
+      chrvec[273]:=  69;chrvec[274]:=  62;chrvec[275]:=  40;chrvec[276]:=  20;
+      chrvec[277]:=   2;chrvec[278]:=   9;chrvec[279]:=   0;chrvec[280]:=  -5;
+      chrvec[281]:=  69;chrvec[282]:= -37;chrvec[283]:=  60;chrvec[284]:=   9;
+      chrvec[285]:=   0;chrvec[286]:=  60;chrvec[287]:=   0;chrvec[288]:=   9;
+      chrvec[289]:=  34;chrvec[290]:=  69;chrvec[291]:=  60;chrvec[292]:=   0;
+      chrvec[293]:=   9;chrvec[294]:=  60;chrvec[295]:=  69;chrvec[296]:=  10;
+      chrvec[297]:=   2;chrvec[298]:=   7;chrvec[299]:=  19;chrvec[300]:=  59;
+      chrvec[301]:=  67;chrvec[302]:=  62;chrvec[303]:=  50;chrvec[304]:=  10;
+      chrvec[305]:=   0;chrvec[306]:=   9;chrvec[307]:=  59;chrvec[308]:=  68;
+      chrvec[309]:=  66;chrvec[310]:=  55;chrvec[311]:=   5;chrvec[312]:=  10;
+      chrvec[313]:=   2;chrvec[314]:=   7;chrvec[315]:=  19;chrvec[316]:=  59;
+      chrvec[317]:=  67;chrvec[318]:=  62;chrvec[319]:=  50;chrvec[320]:=  10;
+      chrvec[321]:= -42;chrvec[322]:=  60;chrvec[323]:=   0;chrvec[324]:=   9;
+      chrvec[325]:=  59;chrvec[326]:=  68;chrvec[327]:=  66;chrvec[328]:=  55;
+  END;
+
+  PROCEDURE init7;
+
+  BEGIN
+      chrvec[329]:=   5;chrvec[330]:= -35;chrvec[331]:=  60;chrvec[332]:=  68;
+      chrvec[333]:=  59;chrvec[334]:=  19;chrvec[335]:=   8;chrvec[336]:=   6;
+      chrvec[337]:=  15;chrvec[338]:=  55;chrvec[339]:=  64;chrvec[340]:=  61;
+      chrvec[341]:=  50;chrvec[342]:=  10;chrvec[343]:=   1;chrvec[344]:=   9;
+      chrvec[345]:=  69;chrvec[346]:= -39;chrvec[347]:=  30;chrvec[348]:=   9;
+      chrvec[349]:=   2;chrvec[350]:=  10;chrvec[351]:=  50;chrvec[352]:=  62;
+      chrvec[353]:=  69;chrvec[354]:=   9;chrvec[355]:=  30;chrvec[356]:=  69;
+      chrvec[357]:=   9;chrvec[358]:=  10;chrvec[359]:=  35;chrvec[360]:=  50;
+      chrvec[361]:=  69;chrvec[362]:=   9;chrvec[363]:=  60;chrvec[364]:= -69;
+      chrvec[365]:=   0;chrvec[366]:=   9;chrvec[367]:=  35;chrvec[368]:= -69;
+      chrvec[369]:=  35;chrvec[370]:=  30;chrvec[371]:=   9;chrvec[372]:=  69;
+      chrvec[373]:=   0;chrvec[374]:=  60;chrvec[375]:= -25;chrvec[376]:=  45;
+      chrvec[377]:=  49;chrvec[378]:=  29;chrvec[379]:=  20;chrvec[380]:=  40;
+      chrvec[381]:=  19;chrvec[382]:=  50;chrvec[383]:=  29;chrvec[384]:=  49;
+      chrvec[385]:=  40;chrvec[386]:=  20;chrvec[387]:=  17;chrvec[388]:=  39;
+      chrvec[389]:=  57;chrvec[390]:= -39;chrvec[391]:=  30;chrvec[392]:=   3;
+      chrvec[393]:=  63;
+  END;
+
+    
+BEGIN
+    init1;
+    init2;
+    init3;
+    init4;
+    init5;
+    init6;
+    init7;
+    assign(x,'B:CHROFF.DAT');
+    rewrite(x);
+    x^:=chroff;
+    put(x);
+    close(x,result);
+    if result = 255 then writeln('Error in closing CHROFF.DAT');
+    assign(y,'B:CHRVEC.DAT');
+    rewrite(y);
+    y^:=chrvec;
+    put(y);
+    close(y,result);
+    if result = 255 then writeln('Error in closing CHRVEC.DAT');
+END.
+    
