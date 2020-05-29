@@ -147,15 +147,11 @@ BKTOBKRET:  EX      (SP),HL                                              ; Retri
             LD      HL,PRTSTR                                            ; Real function to call.
             LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
             JP      BANKTOBANK_
-
 ?HELP:      LD      (HLSAVE),HL
             PUSH    AF
             LD      HL,HELP                                              ; Real function to call.
             LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
             JP      BANKTOBANK_
-
-
-            
             ;-----------------------------------------
 
 
@@ -276,12 +272,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 002H
             DB      "EC"                                                 ; Erase file.
             DW      ERASESD
-         ;  DB      000H | 000H | 000H | 001H
-         ;  DB      'F'                                                  ; RFS Floppy boot code.
-         ;  DW      FLOPPY
-         ;  DB      000H | 000H | 000H | 001H
-         ;  DB      0AAH                                                 ; Original Floppy boot code.
-         ;  DW      FDCK
+            DB      000H | 000H | 000H | 001H
+            DB      'F'                                                  ; RFS Floppy boot code.
+            DW      FLOPPY
             DB      000H | 000H | 000H | 001H
             DB      'H'                                                  ; Help screen.
             DW      ?HELP
@@ -552,6 +545,7 @@ HEXIYX2:    POP     AF                                                   ; Waste
 ;-------------------------------------------------------------------------------------------
 
 
+            ORG     BANKRAMADDR
 
             ;-------------------------------------------------------------------------------
             ; START OF MEMORY CMDLINE TOOLS FUNCTIONALITY
@@ -569,30 +563,24 @@ GOTOX:      CALL    HEXIYX
             ;
             ;====================================
 
-SETMODE40:; LD      A, ROMBANK0                                          ; Switch to 40Char monitor.
-          ; LD      (ROMBK1),A
-          ; LD      (BNKSELMROM),A
-            LD      A, 0
+SETMODE40:  LD      A, 0
             LD      (DSPCTL), A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
-            JP      MONIT
- 
-SETMODE80:; LD      A, ROMBANK1                                          ; Switch to 80char monitor.
-          ; LD      (ROMBK1),A
-          ; LD      (BNKSELMROM),A
-            LD      A, 128
+            ;
+            LD      A,TZSVC_CMD_LOAD40BIOS                               ; Request the I/O processor loads the SA1510 40column BIOS into memory.
+SETBIOS:    CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the result of load operation.
+            OR      A
+            JP      Z,MONIT
+            LD      DE,MSGFAILBIOS
+            CALL    ?PRINTMSG
+            RET                                                          ; Return status to caller, 0 = success.
+SETMODE80:  LD      A, 128
             LD      (DSPCTL), A
             LD      A,1
             LD      (SCRNMODE),A
-            JP      MONIT
+            LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
+            JR      SETBIOS
 
-
-            ; A method used when testing hardware, scope and code will change but one of its purposes is to generate a scope signal pattern.
-            ;
-LOCALTEST:  LD      A,0
-            LD      C,SVCREQ
-            OUT     (C),A
-            RET
 
             ;
             ;       Memory correction
@@ -789,9 +777,9 @@ GETCMT1:    LD      C,1                                                  ; C = 1
             ; END OF MEMORY CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-           ;-------------------------------------------------------------------------------
-           ; START OF CMT CONTROLLER FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+            ;-------------------------------------------------------------------------------
+            ; START OF CMT CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; CMT Utility to Load a program from tape.
             ;
@@ -1087,10 +1075,19 @@ SLPT:       DB      01H                                                  ; TEXT 
             ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP1BLK
+            ORG      FDCJMP1BLK
+            ALIGN_NOPS FDCJMP1
+            ORG      FDCJMP1
+FDCJMPL:    JP       (IX)                                                
 
-           ;-------------------------------------------------------------------------------
-           ; START OF MEMORY TEST FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF MEMORY TEST FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
 MEMTEST:    LD      B,240       ; Number of loops
 LOOP:       LD      HL,MEMSTART ; Start of checked memory,
@@ -1218,13 +1215,13 @@ L0324:      CALL    DLY12
             POP     AF
             RET
             
-           ;-------------------------------------------------------------------------------
-           ; END OF MEMORY TEST FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+            ;-------------------------------------------------------------------------------
+            ; END OF MEMORY TEST FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
-           ;-------------------------------------------------------------------------------
-           ; START OF TIMER TEST FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+            ;-------------------------------------------------------------------------------
+            ; START OF TIMER TEST FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; Test the 8253 Timer, configure it as per the monitor and display the read back values.
 TIMERTST:   CALL    NL
@@ -1721,6 +1718,15 @@ LOADSDERR:  LD      DE,MSGSDRERR
             JR      LOADSDX1
 
 
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP2BLK
+            ORG      FDCJMP2BLK
+            ALIGN_NOPS FDCJMP2
+            ORG      FDCJMP2               
+FDCJMPH:    JP       (IY)
+
 
             ; Method to erase a file on the SD. Details of the file are passed to the I/O processor and if the file is found
             ; it is deleted from the SD.
@@ -1811,7 +1817,6 @@ SAVESD4:    LD      A,0                                                  ; Succe
 SAVESD5:    LD      (RESULT),A
             RET
 
-
             ; Method to change the directory on the SD card where files are loaded and saved into. This involves getting a name
             ; and storing it in the service command structure for the I/O processor to use when searching for a file to read or saving a file.
             ; If the cache is in operation it is flushed and reloaded, any errors are reported and the user has to correct the error before issuing further
@@ -1890,6 +1895,400 @@ SD2TAPEERR: LD      DE,MSGSD2TERR
             ;-------------------------------------------------------------------------------
             ; END OF TAPE/SD CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF FLOPPY DISK CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ; Method to check if the floppy interface ROM is present and if it is, jump to its entry point.
+            ;
+FDCK:       CALL    FDCKROM                                              ; Check to see if the Floppy ROM is present, exit if it isnt.
+            CALL    Z,FDCROMADDR
+            RET                               ; JP       CMDCMPEND
+FDCKROM:    LD      A,(FDCROMADDR)
+            OR      A
+            RET
+
+FLOPPY:     PUSH    DE                                                   ; Preserve pointer to input buffer.
+            LD      DE,BPARA                                             ; Copy disk parameter block into RAM work area. (From)
+            LD      HL,PRMBLK                                            ; (To)
+            LD      BC,0000BH                                            ; 11 bytes of config data.
+            LDIR                                                         ; BC=0, HL=F0E8, DE=1013
+            POP     DE                                                   ; init 1001-1005, port $DC mit $00
+            LD      A,(DE)                                               ; If not at the end of the line, then process as the boot disk number.
+            CP      00Dh                                                 ; 
+            JR      NZ,GETBOOTDSK                                        ; 
+            CALL    DSKINIT                                              ; Initialise disk and flags.
+L000F:      LD      DE,MSGBOOTDRV                                        ; 
+            CALL    ?PRINTMSG
+            LD      DE,BUFER                                             ; 
+            CALL    GETL                                                 ; 
+            LD      A,(DE)                                               ; 
+            CP      01BH                                                 ; Check input value is in range 1-4.
+            RET     Z                                                    ; 
+            LD      HL,MSGLOADERR - MSGBOOTDRV - 2                       ; Address of input location after printing out prompt.
+            ADD     HL,DE                                                ; 
+            LD      A,(HL)                                               ; 
+            CP      00DH                                                 ; 
+            JR      Z,L003A                                              ; 
+GETBOOTDSK: CALL    HEX                                                  ; Convert number to binary
+            JR      C,L000F                                              ; If illegal, loop back and re-prompt.
+            DEC     A                                                    ; 
+            CP      004H                                                 ; Check in range, if not loop back.
+            JR      NC,L000F                                             ; 
+            LD      (BPARA),A                                            ; Store in parameter block.
+L003A:      LD      IX,BPARA                                             ; Point to drive number.,
+            CALL    DSKREAD                                              ; Read sector 1 of trk 0
+            LD      HL,0CE00H                                            ; Now compare the first 7 bytes of what was read to see if this is a bootable disk.
+            LD      DE,DSKID                                             ; 
+            LD      B,007H                                               ; 
+L0049:      LD      C,(HL)                                               ; 
+            LD      A,(DE)                                               ; 
+            CP      C                                                    ; 
+            JP      NZ,L008C                                             ; If NZ then this is not a master disk, ie not bootable, so error exit with message.
+            INC     HL                                                   ; 
+            INC     DE                                                   ; 
+            DJNZ    L0049                                                ; 
+            LD      DE,MSGIPLLOAD                                        ; 
+            CALL    ?PRINTMSG
+            LD      DE,0CE07H                                            ; Program name stored at 8th byte in boot sector.
+            CALL    ?PRTFN
+            LD      HL,(0CE16H)                                          ; Get the load address
+            LD      (IX+005H),L                                          ; And store in parameter block at 100D/100E
+            LD      (IX+006H),H                                          ; 
+            INC     HL
+            DEC     HL
+            JR      NZ, NOTCPM                                           ; If load address is 0 then where loading CPM.
+    ;        LD      A,(MEMSW)                                            ; Page out ROM.
+NOTCPM:     LD      HL,(0CE14H)                                          ; Get the size
+            LD      (IX+003H),L                                          ; And store in parameter block at 100B/100C
+            LD      (IX+004H),H                                          ; 
+            LD      HL,(0CE1EH)                                          ; Get logical sector number
+            LD      (IX+001H),L                                          ; And store in parameter block at 1009/100A
+            LD      (IX+002H),H                                          ; 
+            CALL    DSKREAD                                              ; Read the required data and store in memory.
+            CALL    DSKINIT                                              ; Reset the disk ready for next operation.
+            LD      HL,(0CE18H)                                          ; Get the execution address
+            JP      (HL)                                                 ; And execute.
+
+DSKLOADERR: LD      DE,MSGLOADERR                                        ; Loading error message
+            JR      L008F                                                ; (+003h)
+
+L008C:      LD      DE,MSGDSKNOTMST                                      ; This is not a boot/master disk message.
+L008F:      CALL    ?PRINTMSG
+            LD      DE,ERRTONE                                           ; Play error tone.
+            CALL    MELDY
+            JP      ST1X                                                 ; Stack may be a mess due to the way the original AFI was written.
+
+L0104:      LD      A,(MOTON)                                            ; motor on flag
+            RRCA                                                         ; motor off?
+            CALL    NC,DSKMOTORON                                        ; yes, set motor on and wait
+            LD      A,(IX+000H)                                          ;drive no
+            OR      084H                                                 ;
+            OUT     (0DCH),A                                             ; Motor on for drive 0-3
+            XOR     A                                                    ;
+            LD      (FDCCMD),A                                           ; clr latest FDC command byte
+            LD      HL,00000H                                            ;
+L0119:      DEC     HL                                                   ;
+            LD      A,H                                                  ;
+            OR      L                                                    ;
+            JP      Z,DSKERR                                             ; Reset and print message that this is not a bootable disk.
+            IN      A,(0D8H)                                             ; Status register.
+            CPL                                                          ;
+            RLCA                                                         ;
+            JR      C,L0119                                              ; Wait on motor off (bit 7)
+            LD      C,(IX+000H)                                          ; Drive number
+            LD      HL,TRK0FD1                                           ; 1 track 0 flag for each drive
+            LD      B,000H                                               ;
+            ADD     HL,BC                                                ; Compute related flag 1002/1003/1004/1005
+            BIT     0,(HL)                                               ;
+            JR      NZ,L0137                                             ; 
+            CALL    DSKSEEKTK0                                           ; Seek track 0.
+            SET     0,(HL)                                               ; Set bit 0 of trk 0 flag
+L0137:      RET     
+
+            ; Turn disk motor on.
+DSKMOTORON: LD      A,080H
+            OUT     (0DCH),A                                             ; Motor on
+            LD      B,010H                                               ; 
+L013E:      CALL    L02C7                                                ; 
+            DJNZ    L013E                                                ; Wait until becomes ready.
+            LD      A,001H                                               ; Set motor on flag.
+            LD      (MOTON),A                                            ; 
+            RET     
+
+L0149:      LD      A,01BH
+            CALL    DSKCMD
+            AND     099H
+            RET     
+
+            ; Initialise drive and reset flags, Set motor off
+DSKINIT:    XOR     A                                                    
+            OUT     (0DCH),A                                             ; Motor on/off
+            LD      (TRK0FD1),A                                          ; Track 0 flag drive 1
+            LD      (TRK0FD2),A                                          ; Track 0 flag drive 2
+            LD      (TRK0FD3),A                                          ; Track 0 flag drive 3
+            LD      (TRK0FD4),A                                          ; Track 0 flag drive 4
+            LD      (MOTON),A                                            ; Motor on flag
+            RET     
+
+DSKSEEKTK0: LD      A,00BH                                               ; Restore command, seek track 0.
+            CALL    DSKCMD                                               ; Send command to FDC.
+            AND     085H                                                 ; Process result.
+            XOR     004H   
+            RET     Z      
+            JP      DSKERR
+
+DSKCMD:     LD      (FDCCMD),A                                           ; Store latest FDC command.
+            CPL                                                          ; Compliment it (FDC bit value is reversed).
+            OUT     (0D8H),A                                             ; Send command to FDC.
+            CALL    L017E                                                ; Wait to become ready.
+            IN      A,(0D8H)                                             ; Get status register.
+            CPL                                                          ; Inverse (FDC is reverse bit logic).
+            RET     
+
+L017E:      PUSH    DE
+            PUSH    HL
+            CALL    L02C0
+            LD      E,007H
+L0185:      LD      HL,00000H
+L0188:      DEC     HL
+            LD      A,H
+            OR      L
+            JR      Z,L0196                                              ; (+009h)
+            IN      A,(0D8H)
+            CPL     
+            RRCA    
+            JR      C,L0188                                              ; (-00bh)
+            POP     HL
+            POP     DE
+            RET     
+
+L0196:      DEC     E
+            JR      NZ,L0185                                             ; (-014h)
+            JP      DSKERR
+
+L019C:      PUSH    DE
+            PUSH    HL
+            CALL    L02C0
+            LD      E,007H
+L01A3:      LD      HL,00000H
+L01A6:      DEC     HL
+            LD      A,H
+            OR      L
+            JR      Z,L01B4                                              ; (+009h)
+            IN      A,(0D8H)
+            CPL     
+            RRCA    
+            JR      NC,L01A6                                             ; (-00bh)
+            POP     HL
+            POP     DE
+            RET     
+
+L01B4:      DEC     E
+            JR      NZ,L01A3                                             ; (-014h)
+            JP      DSKERR
+
+            ; Read disk starting at the first logical sector in param block 1009/100A
+            ; Continue reading for the given size 100B/100C and store in the location 
+            ; Pointed to by the address stored in the parameter block. 100D/100E
+DSKREAD:    CALL    L0220                                                ; Compute logical sector-no to track-no & sector-no, retries=10
+L01BD:      CALL    L0229                                                ; Set current track & sector, get load address to HL
+L01C0:      CALL    L0249                                                ; Set side reg
+            CALL    L0149                                                ; Command 1b output (seek)
+            JR      NZ,L0216                                             ; 
+            CALL    L0259                                                ; Set track & sector reg
+            PUSH    IX                                                   ; Save 1008H
+            LD      IX, FDCJMPL                                          ; As below. L03FE
+            LD      IY,L01DF                                             ; Read sector into memory.
+            DI      
+            LD      A,094H                                               ; Latest FDC command byte
+            CALL    L028A
+L01DB:      LD      B,000H
+            JP      (IX)
+
+            ; Get data from disk sector to staging area (CE00).
+L01DF:      INI     
+            LD      A,(DE)                                               ; If not at the end of the line, then process as the boot disk number.
+            JP      NZ, FDCJMPL                                          ; This is crucial, as the Z80 is running at 2MHz it is not fast enough so needs
+                                                                         ; hardware acceleration in the form of a banked ROM, if disk not ready jumps to IX, if
+                                                                         ; data ready, jumps to IY. L03FE
+            POP     IX
+            INC     (IX+008H)                                            ; Increment current sector number
+            LD      A,(IX+008H)                                          ; Load current sector number
+            PUSH    IX                                                   ; Save 1008H
+            LD      IX, FDCJMPL                                          ; As above. L03FE
+            CP      011H                                                 ; Sector 17? Need to loop to next track.
+            JR      Z,L01FB                 
+            DEC     D
+            JR      NZ,L01DB                
+            JR      L01FC                                                ; (+001h)
+
+L01FB:      DEC     D
+L01FC:      CALL    L0294
+            CALL    L02D2
+            POP     IX
+            IN      A,(0D8H)
+            CPL     
+            AND     0FFH
+            JR      NZ,L0216                                             ; (+00bh)
+            CALL    L0278
+            JP      Z,L021B
+            LD      A,(IX+007H)
+            JR      L01C0                                                ; (-056h)
+
+L0216:      CALL    L026A
+            JR      L01BD                                                ; (-05eh)
+
+L021B:      LD      A,080H
+            OUT     (0DCH),A                                             ; Motor on
+            RET     
+
+L0220:      CALL    L02A3                                                ; compute logical sector no to track no & sector no
+            LD      A,00AH                                               ; 10 retries
+            LD      (RETRIES),A
+            RET     
+
+            ; Set current track & sector, get load address to HL
+L0229:      CALL    L0104
+            LD      D,(IX+004H)                                          ; Number of sectors to read
+            LD      A,(IX+003H)                                          ; Bytes to read
+            OR      A                                                    ; 0?
+            JR      Z,L0236                                              ; Yes
+            INC     D                                                    ; Number of sectors to read + 1
+L0236:      LD      A,(IX+00AH)                                          ; Start sector number
+            LD      (IX+008H),A                                          ; To current sector number
+            LD      A,(IX+009H)                                          ; Start track number
+            LD      (IX+007H),A                                          ; To current track number
+            LD      L,(IX+005H)                                          ; Load address low byte
+            LD      H,(IX+006H)                                          ; Load address high byte
+            RET     
+
+            ; Compute side/head.
+L0249:      SRL     A                                                    ; Track number even?
+            CPL                                                          ; 
+            OUT     (0DBH),A                                             ; Output track no.
+            JR      NC,L0254                                             ; Yes, even, set side/head 1
+            LD      A,001H                                               ; No, odd, set side/head 0
+            JR      L0255                   
+
+            ; Set side/head register.
+L0254:      XOR     A                                                    ; Side 0
+L0255:      CPL                                                          ; Side 1
+            OUT     (0DDH),A                                             ; Side/head register.
+            RET     
+
+            ; Set track and sector register.
+L0259:      LD      C,0DBH                  
+            LD      A,(IX+007H)                                          ; Current track number
+            SRL     A                       
+            CPL                             
+            OUT     (0D9H),A                                             ; Track reg
+            LD      A,(IX+008H)                                          ; Current sector number
+            CPL                            
+            OUT     (0DAH),A                                             ; Sector reg
+            RET                      
+
+L026A:      LD      A,(RETRIES)
+            DEC     A
+            LD      (RETRIES),A
+            JP      Z,DSKERR
+            CALL    DSKSEEKTK0
+            RET     
+
+L0278:      LD      A,(IX+008H)
+            CP      011H
+            JR      NZ,L0287                                             ; (+008h)
+            LD      A,001H
+            LD      (IX+008H),A
+            INC     (IX+007H)
+L0287:      LD      A,D
+            OR      A
+            RET     
+
+L028A:      LD      (FDCCMD),A
+            CPL     
+            OUT     (0D8H),A
+            CALL    L019C
+            RET     
+
+L0294:      LD      A,0D8H
+            CPL     
+            OUT     (0D8H),A
+            CALL    L017E
+            RET     
+
+DSKERR:     CALL    DSKINIT
+            JP      DSKLOADERR
+
+            ; Logical sector number to physical track and sector.
+L02A3:      LD      B,000H
+            LD      DE,00010H                                            ; No of sectors per trk (16)
+            LD      L,(IX+001H)                                          ; Logical sector number
+            LD      H,(IX+002H)                                          ; 2 bytes in length
+            XOR     A
+L02AF:      SBC     HL,DE                                                ; Subtract 16 sectors/trk 
+            JR      C,L02B6                                              ; Yes, negative value
+            INC     B                                                    ; Count track
+            JR      L02AF                                                ; Loop
+L02B6:      ADD     HL,DE                                                ; Reset HL to the previous
+            LD      H,B                                                  ; Track
+            INC     L                                                    ; Correction +1
+            LD      (IX+009H),H                                          ; Start track no
+            LD      (IX+00AH),L                                          ; Start sector no
+            RET     
+
+L02C0:      PUSH    DE
+            LD      DE,00007H
+            JP      L02CB
+
+L02C7:      PUSH    DE
+            LD      DE,01013H
+L02CB:      DEC     DE
+            LD      A,E
+            OR      D
+            JR      NZ,L02CB                                             ; (-005h)
+            POP     DE
+            RET     
+
+L02D2:      PUSH    AF
+            LD      A,(0119CH)
+            CP      0F0H
+            JR      NZ,L02DB                                             ; (+001h)
+            EI      
+L02DB:      POP     AF
+            RET     
+
+;wait on bit 0 and bit 1 = 0 of state reg
+L0300:      IN      A,(0D8H)	                                 	     ; State reg
+            RRCA    
+            JR      C,L0300	                                             ; Wait on not busy
+            RRCA    
+            JR      C,L0300	                                             ; Wait on data reg ready
+            JP      (IY)	                                             ; to f1df
+
+            ;-------------------------------------------------------------------------------
+            ; END OF FLOPPY DISK CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+            ; A method used when testing hardware, scope and code will change but one of its purposes is to generate a scope signal pattern.
+            ;
+LOCALTEST:  LD      A,0
+            LD      C,SVCREQ
+            OUT     (C),A
+            RET
+
+
+            ; Error tone.
+ERRTONE:    DB      "A0", 0D7H, "ARA", 0D7H, "AR", 00DH
+
+            ; Identifier to indicate this is a valid boot disk
+DSKID:      DB      002H, "IPLPRO"
+
+            ; Parameter block to indicate configuration and load area.
+PRMBLK:     DB      000H, 000H, 000H, 000H, 001H, 000H, 0CEH, 000H, 000H, 000H, 000H
+
 
             ;-------------------------------------------------------------------------------
             ; END OF TZFS COMMAND FUNCTIONS.

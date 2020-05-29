@@ -42,6 +42,10 @@ UROMBSTBL               EQU     UROMADDR + 020H                          ; Entry
 TZFSJMPTABLE            EQU     UROMADDR + 00080H                        ; Start of jump table.
 BANKRAMADDR             EQU     0F000H                                   ; Start address of the banked RAM used for TZFS functionality.
 FDCROMADDR              EQU     0F000H
+FDCJMP1BLK              EQU     0F3C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+FDCJMP1                 EQU     0F3FEH                                   ; ROM paged vector 1.
+FDCJMP2BLK              EQU     0F7C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+FDCJMP2                 EQU     0F7FEH                                   ; ROM paged vector 2.
 
 ;-----------------------------------------------
 ; Common character definitions.
@@ -326,6 +330,8 @@ TZSVC_CMD_LOADFILE:     EQU     08H                                      ; Servi
 TZSVC_CMD_SAVEFILE:     EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
 TZSVC_CMD_ERASEFILE:    EQU     0AH                                      ; Service command to erase a file on the SD card.
 TZSVC_CMD_CHANGEDIR:    EQU     0BH                                      ; Service command to change the active directory on the SD card.
+TZSVC_CMD_LOAD40BIOS:   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD80BIOS:   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
 TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
 TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
 TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.
@@ -355,6 +361,14 @@ DTADRSTORE:             DS      virtual 2                                ; Backu
 SDCOPY:                 DS      virtual 1                                ; Flag to indicate an SD copy is taking place, either CMT->SD or SD->CMT.
 RESULT:                 DS      virtual 1                                ; Result variable needed for interbank calls when a result is needed.
 SDAUTOEXEC:             DS      virtual 1                                ; Flag to indicate if a loaded file should be automatically executed.
+FDCCMD:                 DS      virtual 1                                ; Floppy disk command storage. 
+MOTON:                  DS      virtual 1                                ; Motor on flag.
+TRK0FD1:                DS      virtual 1                                ; Floppy Disk 1 track 0 indicator.
+TRK0FD2:                DS      virtual 1                                ; Floppy Disk 2 track 0 indicator.
+TRK0FD3:                DS      virtual 1                                ; Floppy Disk 3 track 0 indicator.
+TRK0FD4:                DS      virtual 1                                ; Floppy Disk 4 track 0 indicator.
+RETRIES:                DS      virtual 1                                ; Retries count for a command.
+BPARA:                  DS      virtual 1   
                         DS      virtual (TZVARMEM + TZVARSIZE) - $       ; Top of variable area downwards is used as the working stack, SA1510 space isnt used.
 TZSTACK:                EQU     TZVARMEM + TZVARSIZE
 

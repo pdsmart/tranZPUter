@@ -223,36 +223,6 @@ void setMap(uint8_t set, uint32_t inSignals)
     //printf("Signals(%u): Z80_WR=%u, Z80_RD=%u, Z80_IORQ=%u, Z80_MREQ=%u, Z80_ADDR=%u, Z80_IO_ADDR=%u\n", inSignals, Z80_WR, Z80_RD, Z80_IORQ, Z80_MREQ, Z80_ADDR, Z80_IO_ADDR);
     //printf("MEMWR=%u, MEMRD=%u, IOWR=%u, IORD=%u\n", Z80_MEM_WRITE, Z80_MEM_READ, Z80_IO_WRITE, Z80_IO_WRITE);
 
-    // Defaults for IO operations, can be overriden for a specific set but should be present in all other sets.
-    //
-    if(Z80_IO_WRITE || Z80_IO_READ)
-    {
-        // If the address is within configured IO control register range, activate the IODECODE signal.
-        if(Z80_IO_ADDR == ioAddr)
-        {
-            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
-            flashRAM[set].tranche[inSignals].IODECODE    = 0;
-        } else
-        {
-            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-            flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-            flashRAM[set].tranche[inSignals].IODECODE    = 1;
-        }  
-    }
-
-    // If the non-standard case of Z80 RD and Z80 WR being set low occurs, enable the ENABLE_BUS signal as the K64F is requesting access to the MZ80A motherboard.
-    // This signal is not set dependent, it can occur at any time and with any set.
-    //
-    if(Z80_RD == 0 && Z80_WR == 0 && Z80_MREQ == 1 && Z80_IORQ == 1)
-    {
-        flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
-        flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
-        flashRAM[set].tranche[inSignals].RAM_OE      = 1;
-        flashRAM[set].tranche[inSignals].RAM_WE      = 1;
-        flashRAM[set].tranche[inSignals].IODECODE    = 1;
-    }
-
     // Upper address bits are always 0 unless modified by input parameters.
     //
     flashRAM[set].tranche[inSignals].A16 = 0;
@@ -286,10 +256,11 @@ void setMap(uint8_t set, uint32_t inSignals)
             }
             break;
 
-        // Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
+        // Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes at F3FE and F7FE exist for the Floppy disk controller (which have to be 64
+        // bytes from F3C0 and F7C0 due to the granularity of the address lines into the Flash RAM), these locations  need to be on the mainboard.
         // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
         case 2:
-            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000)) 
+            if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
             {
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                 flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
@@ -307,7 +278,7 @@ void setMap(uint8_t set, uint32_t inSignals)
             {
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                 flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
-            } else if ((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            } else if ((Z80_ADDR >= 0xF000 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000))
             {
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                 flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
@@ -497,6 +468,36 @@ void setMap(uint8_t set, uint32_t inSignals)
             break;
     }
 
+    // If the non-standard case of Z80 RD and Z80 WR being set low occurs, enable the ENABLE_BUS signal as the K64F is requesting access to the MZ80A motherboard.
+    //
+    if(Z80_RD == 0 && Z80_WR == 0 && Z80_MREQ == 1 && Z80_IORQ == 1)
+    {
+        flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+        flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
+        flashRAM[set].tranche[inSignals].RAM_OE      = 1;
+        flashRAM[set].tranche[inSignals].RAM_WE      = 1;
+        flashRAM[set].tranche[inSignals].IODECODE    = 1;
+    }
+
+
+    // Defaults for IO operations, can be overriden for a specific set but should be present in all other sets.
+    //
+    if(Z80_IO_WRITE || Z80_IO_READ)
+    {
+        // If the address is within configured IO control register range, activate the IODECODE signal.
+        if(Z80_IO_ADDR == ioAddr)
+        {
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
+            flashRAM[set].tranche[inSignals].IODECODE    = 0;
+        } else
+        {
+            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
+            flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+            flashRAM[set].tranche[inSignals].IODECODE    = 1;
+        }  
+    }
+
     // Specific mapping for Memory Writes.
     if(Z80_MEM_WRITE)
     {
@@ -521,7 +522,7 @@ void setMap(uint8_t set, uint32_t inSignals)
             // Set 2 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory Block 0.
             // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             case 2:
-                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE840 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
@@ -532,12 +533,12 @@ void setMap(uint8_t set, uint32_t inSignals)
             // Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
             // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             case 3:
-                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE801 && Z80_ADDR < 0x10000) ) 
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE840 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
                     flashRAM[set].tranche[inSignals].RAM_OE = 1;
-                } 
+                }
                 break;
                
             // Set 4 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
@@ -678,7 +679,7 @@ void setMap(uint8_t set, uint32_t inSignals)
             // Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
             // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             case 2:
-                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 1;
@@ -689,7 +690,7 @@ void setMap(uint8_t set, uint32_t inSignals)
             // Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
             // NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             case 3:
-                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0x10000) ) 
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 1;

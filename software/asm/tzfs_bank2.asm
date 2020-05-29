@@ -311,6 +311,26 @@ ATBLE:      EQU     $
             ;-------------------------------------------------------------------------------
 
 
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP1BLK
+            ORG      FDCJMP1BLK
+            ALIGN_NOPS FDCJMP1
+            ORG      FDCJMP1
+FDCJMPL2:   JP       (IX)      
+
+
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP2BLK
+            ORG      FDCJMP2BLK
+            ALIGN_NOPS FDCJMP2
+            ORG      FDCJMP2               
+FDCJMPH2:   JP       (IY)
+
+
             ;-------------------------------------------------------------------------------
             ; START OF HELP SCREEN FUNCTIONALITY
             ;-------------------------------------------------------------------------------
@@ -326,21 +346,20 @@ HELP:       ;CALL    NL
 HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
             DB      "8     - 80 col mode.",                                 00DH
             DB      "B     - toggle keyboard bell.",                        00DH
-            DB      "C     - clear memory $1200-$D000.",                    00DH
+            DB      "C[b]  - clear memory $1200-$D000.",                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[fn]- erase file, fn=No or Filename",                00DH
             DB      "F[x]  - boot fd drive x.",                             00DH
-            DB      "f     - boot fd original rom.",                        00DH
             DB      "H     - this help screen.",                            00DH
             DB      "IC[wc]- SD dir listing, wc=wildcard.",                 00DH
             DB      "JXXXX - jump to location XXXX.",                       00DH
             DB      "LT[fn]- load tape, fn=Filename",                       00DH
             DB      "LC[fn]- load from SD, fn=No or Filename",              00DH
-            DB      "      - add NX for no exec, ie.LRNX.",                 00DH
+            DB      "      - add NX for no exec, ie.LCNX.",                 00DH
             DB      "MXXXX - edit memory starting at XXXX.",                00DH
             DB      "P     - test printer.",                                00DH
             DB      "R     - test dram memory.",                            00DH
-            DB      "SDD d - Change to SD dir 'd'.",                        00DH
+            DB      "SDD[d]- change to SD dir 'd'.",                        00DH
             DB      "SD2T  - copy sd card to tape.",                        00DH
             DB      "ST[XXXXYYYYZZZZ] - save mem to tape.",                 00DH
             DB      "SC[XXXXYYYYZZZZ] - save mem to card.",                 00DH
@@ -364,31 +383,29 @@ MSGSON:     DB      "+ TZFS v1.0 **"               ,00DH, 000H                  
 MSGNOTFND:  DB      "Not Found",                    00DH, 000H
 MSGBADCMD:  DB      "???",                          00DH, 000H
 MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,           000H
-;MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,          000H
 MSGSVFAIL:  DB      "Save failed.",                 00DH, 000H
 MSGERAFAIL: DB      "Erase failed.",                00DH, 000H
 MSGCDFAIL:  DB      "Directory invalid.",           00DH, 000H
-;MSGSVDIRENT:DB      "Saving into dir entry:",0FBH,  00DH, 000H
 MSGERASEDIR:DB      "Deleted dir entry:",0FBH,            000H
 MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",0FBH, 00DH, 000H
 MSGNOTBIN:  DB      "Not binary",                   00DH, 000H
 MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',  00DH, 000H
 MSGSAVE:    DB      00DH, "Filename: ",                   000H
-;MSGDIRFULL: DB      "Directory full",               00DH, 000H
 MSGE1:      DB      00DH, "Check sum error!",       00DH, 000H                      ; Check sum error.
 MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"', 00DH, 000H
 MSGOK:      DB      00DH, "OK!",                    00DH, 000H
 MSGSAVEOK:  DB      "Tape image saved.",            00DH, 000H
-;MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",          000H
-;MSGLOADERR: DB      00DH, "Disk loading error",     00DH, 000H
-;MSGIPLLOAD: DB      00DH, "Disk loading ",                000H
-;MSGDSKNOTMST:DB     00DH, "This is not a boot disk",00Dh, 000H
+MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",          000H
+MSGLOADERR: DB      00DH, "Disk loading error",     00DH, 000H
+MSGIPLLOAD: DB      00DH, "Disk loading ",                000H
+MSGDSKNOTMST:DB     00DH, "This is not a boot disk",00Dh, 000H
 MSGINITM:   DB      "Init memory",                  00DH, 000H
 MSGREAD4HEX:DB      "Bad hex number",               00DH, 000H
 MSGT2SDERR: DB      "Copy from Tape to SD Failed",  00DH, 000H
 MSGSD2TERR: DB      "Copy from SD to Tape Failed",  00DH, 000H
 MSGT2SDOK:  DB      "Success, Tape to SD done.",    00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",    00DH, 000H
+MSGFAILBIOS:DB      "Failed to load alternate BIOS!",00DH, 000H
 ;
 OKCHECK:    DB      ", CHECK: ",                    00Dh, 000H
 OKMSG:      DB      " OK.",                         00Dh, 000H
@@ -408,6 +425,8 @@ SVCIOERR:   DB      "I/O Error, time out!",         00DH, 000H
 
 TESTMSG:  DB      "HL is:",0FBH,    00DH,       000H
 TESTMSG2:  DB      "DE is:",0FBH,    00DH,       000H
+TESTMSG3:  DB      "BC is:",0FBH,    00DH,       000H
+TESTMSG4:  DB      "4 is:",0FBH,    00DH,       000H
             ;
             ; Ensure we fill the entire 4K by padding with FF's.
             ;
