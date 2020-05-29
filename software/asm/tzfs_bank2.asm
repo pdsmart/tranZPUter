@@ -94,7 +94,7 @@ PRINTMSG:   LD      A,(DE)
             CALL    PRINTASCII
 PRINTMSG2:  INC     DE
             JR      PRINTMSG
-PRINTMSG3:  LD      HL,2+0                                               ; Get first stack parameter, there are 2 pushes on the stack plus return address before the parameters.
+PRINTMSG3:  LD      HL,6+0                                               ; Get first stack parameter, there are 2 pushes on the stack plus return address before the parameters.
 PRINTMSG4:  ADD     HL,SP
             LD      A,(HL)
             INC     HL
@@ -102,11 +102,11 @@ PRINTMSG4:  ADD     HL,SP
             LD      L,A
 PRINTMSG5:  CALL    PRTHL
             JR      PRINTMSG2
-PRINTMSG6:  LD      HL,2+2
+PRINTMSG6:  LD      HL,6+2
             JR      PRINTMSG4
-PRINTMSG7:  LD      HL,2+4
+PRINTMSG7:  LD      HL,6+4
             JR      PRINTMSG4
-PRINTMSG8:  LD      HL,2+6
+PRINTMSG8:  LD      HL,6+6
             JR      PRINTMSG4
 PRINTMSG9:  PUSH    BC                                                   ; Print out contents of BC as 4 digit hex.
             POP     HL

@@ -810,11 +810,14 @@ LOADTAPE2:  LD      (CMTCOPY),A                                          ; Set c
             LD      HL,(DTADR)                                           ; Common code, store load address in case we shift or manipulate loading.
             LD      (DTADRSTORE),HL
 
-            LD      A,(CMTCOPY)                                          ; If were copying we always load at 0x1200.
+            LD      A,(CMTCOPY)                                          ; If were copying we always load at 0x1200 if the load address is below 0x1000.
             OR      A
             JR      Z,LOADTAPE3
+            LD      A,H
+            CP      001H
+            JR      NC,LOADTAPE2A
             LD      HL,01200H
-            LD      (DTADR),HL
+LOADTAPE2A: LD      (DTADR),HL
 
 LOADTAPE3:  LD      HL,(DTADR)                                           ; If were loading and the load address is below 0x1200, shift it to 0x1200 to load then move into correct location.
             LD      A,H
@@ -1794,7 +1797,7 @@ SAVESD1:    LD      (SDCOPY),A
             LD      (ATRB),A
 
             ; Save the file by making a service call to the I/O processor, it will allocate a filename on the SD, read the tranZPUter memory directly based on the values in the
-            ; service recordlocate the file and delete it.
+            ; service record.
 SAVESD2:    LD      A,TZSVC_CMD_SAVEFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
