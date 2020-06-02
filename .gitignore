@@ -107,3 +107,9 @@ tools/Master1.z80
 tools/assemble_rfs.sh
 software/src/tools/.flashmmcfg.c.swo
 software/src/tools/x
+software/CPM/1M44/DSK/CPM_1M44_RFS_1.DSK
+software/CPM/1M44/DSK/CPM_1M44_RFS_2.DSK
+software/CPM/1M44/RAW/CPM_1M44_RFS_1.RAW
+software/CPM/1M44/RAW/CPM_1M44_RFS_2.RAW
+software/CPM/SDC16M/
+

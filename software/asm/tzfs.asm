@@ -65,58 +65,14 @@ TZFS:       NOP                                                          ; Nop i
             ; Bank switching code, allows a call to code in another bank.
             ; For TZFS, the area E800-EFFF is locked and the area F000-FFFF is paged as needed.
             ;------------------------------------------------------------------------------------------
-            ;
 
-
-
-
-            ; Methods to access public functions in paged area F0000-FFFF. The memory mode is switched
+            ; Methods to access public functions in paged area F000-FFFF. The memory mode is switched
             ; which means any access to F000-FFFF will be directed to a different portion of the 512K
-            ; static RAM. One the memody mode is switched a call is made to the required function and upon
-            ; return the memory mode is returned to the previous value. The memory mode is stored on the
-            ; stack meaning multipe bank calls are permissible.
-
-            
-            ; Method to allow one bank to call a routine in another bank with all registers preserved in and out and
-            ; reentrant so banks can call banks. It is costly in processing time and should only be
-            ; used infrequently.
-            ;
-            ; Input: A       = Memory mode to switch into.
-            ;        (HLSAVE)= Original HL to pass to caller.
-            ;        HL      = Address to call.
-            ;        AF      = Stored on stack to pass to called function.
-            ;        All other registers passed to called function.
-            ; All registers are passed untouched to the caller.
-            ; Stack; BKTOBKRET:AF (original memory mode) : Caller return address.
-            ; Output: All registers and flags returned to caller.
-            ;
-BANKTOBANK_:LD      (TMPADR),HL                                          ; Save the function to call address stored in HL
-            POP     HL
-            LD      (AFSAVE),HL                                          ; Save AF as we pass this to the called function unmodified.
-            LD      L,A                                                  ; Save A to retrieve the old Memory mode and push it on the stack so it can be restored after return.
-            LD      A,(MMCFGVAL)
-            PUSH    AF
-            LD      A,L
-            LD      (MMCFGVAL),A                                         ; Store the value in a memory variable as we cant read the latch once programmed.
-            OUT     (MMCFG),A                                            ; Switch to the TZFS memory mode, SA1510 is now in RAM at 0000H
-            LD      HL,BKTOBKRET                                         ; Store the return address which must come back to this functionality before original caller.
-            PUSH    HL
-            LD      HL,(TMPADR)                                          ; Push the address of the function to call onto the stack.
-            PUSH    HL
-            LD      HL,(AFSAVE)                                          ; Restore AF
-            PUSH    HL
-            POP     AF
-            LD      HL,(HLSAVE)                                          ; Restore HL to pass to function.
-            RET                                                          ; Call the required function by popping address off stack.
-BKTOBKRET:  EX      (SP),HL                                              ; Retrieve original memory mode from stack.
-            PUSH    AF
-            LD      A,H
-            LD      (MMCFGVAL),A                                         ; Store the value in a memory variable as we cant read the latch once programmed.
-            OUT     (MMCFG),A                                            ; Switch to the TZFS memory mode, SA1510 is now in RAM at 0000H
-            POP     AF                                                   ; Restore AF.
-            POP     HL                                                   ; Restore HL.
-            RET
-
+            ; static RAM - this is coded into the FlashRAM decoder. Once the memory mode is switched a
+            ; call is made to the required function and upon return the memory mode is returned to the
+            ; previous value. The memory mode is stored on the stack and all registers are preserved for
+            ; full re-entrant functionality.
+BANKTOBANK_:JMPTOBNK
 
             ALIGN   TZFSJMPTABLE
             ORG     TZFSJMPTABLE
@@ -127,31 +83,11 @@ BKTOBKRET:  EX      (SP),HL                                              ; Retri
             ; page. The name is the same as the original function but prefixed by a ?.
             ; All registers are preserved going to the called function and returning from it.
             ;------------------------------------------------------------------------------------------
-?PRINTMSG:  LD      (HLSAVE),HL
-            PUSH    AF
-            LD      HL,PRINTMSG                                          ; Real function to call.
-            LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
-            JP      BANKTOBANK_
-?PRINTASCII:LD      (HLSAVE),HL
-            PUSH    AF
-            LD      HL,PRINTASCII                                        ; Real function to call.
-            LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
-            JP      BANKTOBANK_
-?PRTFN:     LD      (HLSAVE),HL
-            PUSH    AF
-            LD      HL,PRTFN                                             ; Real function to call.
-            LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
-            JP      BANKTOBANK_
-?PRTSTR:    LD      (HLSAVE),HL
-            PUSH    AF
-            LD      HL,PRTSTR                                            ; Real function to call.
-            LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
-            JP      BANKTOBANK_
-?HELP:      LD      (HLSAVE),HL
-            PUSH    AF
-            LD      HL,HELP                                              ; Real function to call.
-            LD      A,TZMM_TZFS2                                         ; Bank in which the function resides.
-            JP      BANKTOBANK_
+?PRINTMSG:  CALLBNK PRINTMSG,    TZMM_TZFS2
+?PRINTASCII:CALLBNK PRINTASCII,  TZMM_TZFS2
+?PRTFN:     CALLBNK PRTFN,       TZMM_TZFS2
+?PRTSTR:    CALLBNK PRTSTR,      TZMM_TZFS2
+?HELP:      CALLBNK HELP,        TZMM_TZFS2
             ;-----------------------------------------
 
 
@@ -263,6 +199,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 001H
             DB      'B'                                                  ; Bell.
             DW      SGX
+            DB      000H | 000H | 000H | 003H
+            DB      "CPM"                                                ; Load and run CPM.
+            DW      LOADCPM
             DB      000H | 000H | 000H | 001H
             DB      'C'                                                  ; Clear Memory.
             DW      INITMEMX
@@ -519,15 +458,6 @@ HEXIYX2:    POP     AF                                                   ; Waste
 ; RAM STORAGE AREA
 ;-------------------------------------------------------------------------------------------
             ;-------------------------------------------------------------------------------
-            ; TZ SERVICE STRUCTURE AND VARIABLES
-            ;-------------------------------------------------------------------------------
-            ALIGN      TZSVCMEM
-            ALIGN_NOPS TZSVCMEM + TZSVCSIZE
-            ;-------------------------------------------------------------------------------
-            ; END OF TZ SERVICE STRUCTURE AND VARIABLES
-            ;-------------------------------------------------------------------------------
-
-            ;-------------------------------------------------------------------------------
             ; VARIABLES AND STACK SPACE
             ;-------------------------------------------------------------------------------
             ALIGN      TZVARMEM
@@ -536,9 +466,13 @@ HEXIYX2:    POP     AF                                                   ; Waste
             ; END OF VARIABLES AND STACK SPACE
             ;-------------------------------------------------------------------------------
 
-
             ;-------------------------------------------------------------------------------
-            ; START OF TZFS COMMAND FUNCTIONS.
+            ; TZ SERVICE STRUCTURE AND VARIABLES
+            ;-------------------------------------------------------------------------------
+            ALIGN      TZSVCMEM
+            ALIGN_NOPS TZSVCMEM + TZSVCSIZE
+            ;-------------------------------------------------------------------------------
+            ; END OF TZ SERVICE STRUCTURE AND VARIABLES
             ;-------------------------------------------------------------------------------
 ;-------------------------------------------------------------------------------------------
 ; END OF RAM STORAGE AREA
@@ -1079,13 +1013,15 @@ SLPT:       DB      01H                                                  ; TEXT 
             ;-------------------------------------------------------------------------------
 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
-            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
-            ; enough to process the signal by polling.
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz
+            ; Z80 not being quick enough to process the signal by polling.
+            ;------------ 0xF3C0 -----------------------------------------------------------
             ALIGN_NOPS FDCJMP1BLK
-            ORG      FDCJMP1BLK
+            ORG        FDCJMP1BLK
             ALIGN_NOPS FDCJMP1
-            ORG      FDCJMP1
-FDCJMPL:    JP       (IX)                                                
+            ORG        FDCJMP1
+FDCJMPL:    JP       (IX)    
+            ;------------ 0xF400 -----------------------------------------------------------
 
 
             ;-------------------------------------------------------------------------------
@@ -1639,6 +1575,10 @@ DIRSD3:     INC     D                                                    ; Onto 
 DIRSD4:     RET
             ;
 
+            ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
+LOADCPM:    LD      DE,CPMFILENAME
+            JR      LOADSDCARD
+
             ; Entry point when copying the SD file. Setup flags to indicate copying to effect any special processing.
             ; The idea is to load the file into memory, dont execute and pass back the parameters within the CMT header.
             ;
@@ -1668,7 +1608,7 @@ LOADSD2A:   POP     HL
             LD      A,(TZSVC_FILE_NO)                                    ; Test to see if a file number was found, if one wasnt then a filename was given, so copy.
             CP      0FFH
             JR      NZ,LOADSD3A
-            LD      DE,TZSVC_FILENAME
+LOADSD3:    LD      DE,TZSVC_FILENAME
             LD      BC,TZSVCFILESZ
             LDIR                                                         ; Copy in the MZF filename.
 LOADSD3A:   LD      A,TZSVC_CMD_LOADFILE
@@ -1694,9 +1634,11 @@ LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoe
             CP      0FFh
             JP      Z,LOADSD15                                           ; Go back to monitor if it has been, else execute.
             LD      A,(ATRB)
-            CP      OBJCD
-            JR      NZ,LOADSD17
-            LD      HL,(EXADR)
+            CP      OBJCD                                                ; Standard binary file?
+            JR      Z,LOADSD14A
+            CP      TZOBJCD0                                             ; TZFS binary file for a particular bank?
+            JR      C,LOADSD17
+LOADSD14A:  LD      HL,(EXADR)
             JP      (HL)                                                 ; Execution address.
 LOADSD15:   LD      DE,MSGCMTDATA                                        ; Indicate where the program was loaded and the execution address.
             LD      HL,(DTADR)
@@ -1722,13 +1664,15 @@ LOADSDERR:  LD      DE,MSGSDRERR
 
 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
-            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
-            ; enough to process the signal by polling.
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz
+            ; Z80 not being quick enough to process the signal by polling.
+            ;------------ 0xF7C0 -----------------------------------------------------------
             ALIGN_NOPS FDCJMP2BLK
-            ORG      FDCJMP2BLK
+            ORG        FDCJMP2BLK
             ALIGN_NOPS FDCJMP2
-            ORG      FDCJMP2               
-FDCJMPH:    JP       (IY)
+            ORG        FDCJMP2
+FDCJMPH:    JP       (IY)    
+            ;------------ 0xF800 -----------------------------------------------------------
 
 
             ; Method to erase a file on the SD. Details of the file are passed to the I/O processor and if the file is found
@@ -2282,6 +2226,8 @@ LOCALTEST:  LD      A,0
             OUT     (C),A
             RET
 
+            ; Quick load program names.
+CPMFILENAME:DB      "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
 
             ; Error tone.
 ERRTONE:    DB      "A0", 0D7H, "ARA", 0D7H, "AR", 00DH

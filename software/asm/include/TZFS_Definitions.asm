@@ -50,21 +50,20 @@ FDCJMP2                 EQU     0F7FEH                                   ; ROM p
 ;-----------------------------------------------
 ; Common character definitions.
 ;-----------------------------------------------
-SCROLL                  EQU     001H                                     ; Set scrool direction UP.
+SCROLL                  EQU     001H                                     ;Set scroll direction UP.
 BELL                    EQU     007H
 SPACE                   EQU     020H
-TAB                     EQU     009H                                     ; TAB ACROSS (8 SPACES FOR SD-BOARD)
+TAB                     EQU     009H                                     ;TAB ACROSS (8 SPACES FOR SD-BOARD)
 CR                      EQU     00DH
 LF                      EQU     00AH
 FF                      EQU     00CH
-ESC                     EQU     01BH
 DELETE                  EQU     07FH
 BACKS                   EQU     008H
 SOH                     EQU     1                                        ; For XModem etc.
 EOT                     EQU     4
 ACK                     EQU     6
-NAK                     EQU     15H
-NUL                     EQU     00H
+NAK                     EQU     015H
+NUL                     EQU     000H
 NULL                    EQU     000H
 CTRL_A                  EQU     001H
 CTRL_B                  EQU     002H
@@ -92,6 +91,7 @@ CTRL_W                  EQU     017H
 CTRL_X                  EQU     018H
 CTRL_Y                  EQU     019H
 CTRL_Z                  EQU     01AH
+ESC                     EQU     01BH
 CTRL_SLASH              EQU     01CH
 CTRL_RB                 EQU     01DH
 CTRL_CAPPA              EQU     01EH
@@ -200,10 +200,9 @@ TZMM_TZFS               EQU     002H                                     ; TZFS 
 TZMM_TZFS2              EQU     003H                                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 1.
 TZMM_TZFS3              EQU     004H                                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 2.
 TZMM_TZFS4              EQU     005H                                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 3.
-TZMM_CPM                EQU     014H                                     ; CPM main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used as the static CBIOS and F000-FFFF is the paged CBIOS, TPA is from 0000-D000(BDOS+CCP = 1800), all is in 64K Block 4, F000-FFFF is in 64K Block 4.
-TZMM_CPM2               EQU     015H                                     ; CPM main memory configuration. E800-EFFF and TPA 0000-D000 are in tranZPUter RAM 64K block 4, CBIOS2 F000-FFFF is in 64K block 5 and video and memory control D000-E7FF are on the mainboard.
-TZMM_CPM3               EQU     016H                                     ; CPM main memory configuration. E800-EFFF and TPA 0000-D000 are in tranZPUter RAM 64K block 4, CBIOS2 F000-FFFF is in 64K block 6 and video and memory control D000-E7FF are on the mainboard.
-TZMM_CPM4               EQU     017H                                     ; CPM main memory configuration. E800-EFFF and TPA 0000-D000 are in tranZPUter RAM 64K block 4, CBIOS2 F000-FFFF is in 64K block 7 and video and memory control D000-E7FF are on the mainboard.
+TZMM_CPM                EQU     006H                                     ; CPM main memory configuration, all memory on the tranZPUter board, 64K block 4 selected. Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+TZMM_CPM2               EQU     007H                                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+                                                                         ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_TZPU0              EQU     018H                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU1              EQU     019H                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 1 is selected.
 TZMM_TZPU2              EQU     01AH                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 2 is selected.
@@ -247,7 +246,15 @@ ROMBANK1                EQU     1                                        ; TZFS 
 ROMBANK2                EQU     2                                        ; TZFS Bank 2 - 
 ROMBANK3                EQU     3                                        ; TZFS Bank 3 - 
 
-OBJCD                   EQU     001h
+OBJCD                   EQU     001h                                     ; MZF contains a binary object.
+TZOBJCD0                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 0.
+TZOBJCD1                EQU     0F8H
+TZOBJCD2                EQU     0F8H
+TZOBJCD3                EQU     0F8H
+TZOBJCD4                EQU     0F8H
+TZOBJCD5                EQU     0F8H
+TZOBJCD6                EQU     0F8H
+TZOBJCD7                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 7.
 
 ;-----------------------------------------------
 ;    SA-1510 MONITOR WORK AREA (MZ80A)
@@ -296,58 +303,18 @@ RATIO:                  DS      virtual 2                                ; ONPU 
 BUFER:                  DS      virtual 81                               ; GET LINE BUFFER
 
 
-                        ; Variables and control structure used by the I/O processor for service calls and requests.
-                        ORG     TZSVCMEM
 
-TZSVCMEM:               EQU     0EC80H                                   ; Start of a memory structure used to communicate with the K64F I/O processor for services such as disk access.
-TZSVCSIZE:              EQU     00280H                                   ;
-TZSVCDIRSZ:             EQU     8                                        ; Size of the directory/file name.
-TZSVCFILESZ:            EQU     17                                       ; Size of a Sharp filename.
-TZSVCWILDSZ:            EQU     8                                        ; Size of the wildcard.
-TZSVCSECSIZE:           EQU     512
-TZSVCDIR_ENTSZ:         EQU     32                                       ; Size of a directory entry.
-TZSVCWAITIORETRIES:     EQU     5                                        ; Wait retries for IO response.
-TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
-TZSVCCMD:               DS      virtual 1                                ; Service command.
-TZSVCRESULT:            DS      virtual 1                                ; Service command result.
-TZSVCDIRSEC:            DS      virtual 1                                ; Storage for the directory sector number.
-TZSVC_FILE_SEC:         EQU     TZSVC_DIR_SEC                            ; Union of the file and directory sector as only one can be used at a time.
-;TZSVCSECNO:             DS      virtual 2                                ; Storage for the directory sector number.
-TZSVC_FILE_NO:          DS      virtual 1                                ; File number to be opened in a file service command.
-TZSVC_DIRNAME:          DS      virtual TZSVCDIRSZ                       ; Service directory/file name.
-TZSVC_FILENAME:         DS      virtual TZSVCFILESZ                      ; Filename to be opened/created.
-TZSVCWILDC:             DS      virtual TZSVCWILDSZ                      ; Directory wildcard for file pattern matching.
-TZSVCSECTOR:            DS      virtual TZSVCSECSIZE                     ; Service command sector - to store directory entries, file sector read or writes.
-
-TZSVC_CMD_READDIR:      EQU     01H                                      ; Service command to open a directory and return the first block of entries.
-TZSVC_CMD_NEXTDIR:      EQU     02H                                      ; Service command to return the next block of an open directory.
-TZSVC_CMD_READFILE:     EQU     03H                                      ; Service command to open a file and return the first block.
-TZSVC_CMD_MEXTREADFILE: EQU     04H                                      ; Service command to return the next block of an open file.
-TZSVC_CMD_WRITEFILE:    EQU     05H                                      ; Service command to create a file and write the first block into it.
-TZSVC_CMD_NEXTWRITEFILE:EQU     06H                                      ; Service command to write the next block into the open file.
-TZSVC_CMD_CLOSE:        EQU     07H                                      ; Service command to close any open file or directory.
-TZSVC_CMD_LOADFILE:     EQU     08H                                      ; Service command to load a file directly into tranZPUter memory.
-TZSVC_CMD_SAVEFILE:     EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
-TZSVC_CMD_ERASEFILE:    EQU     0AH                                      ; Service command to erase a file on the SD card.
-TZSVC_CMD_CHANGEDIR:    EQU     0BH                                      ; Service command to change the active directory on the SD card.
-TZSVC_CMD_LOAD40BIOS:   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
-TZSVC_CMD_LOAD80BIOS:   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
-TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
-TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
-TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.
-
-
-
-                        ; Starting EF00H - variables used by the filing system.
+                        ; Starting EC80H - variables used by the filing system.
                         ORG     TZVARMEM
 
-TZVARMEM:               EQU     0EF00H
+TZVARMEM:               EQU     0EC80H
 TZVARSIZE:              EQU     00100H
 WARMSTART:              DS      virtual 1                                ; Warm start mode, 0 = cold start, 1 = warm start.
 SCRNMODE:               DS      virtual 1                                ; Mode of screen, 0 = 40 char, 1 = 80 char.
 MMCFGVAL:               DS      virtual 1                                ; Current memory model value.
 HLSAVE:                 DS      virtual 2                                ; Storage for HL during bank switch manipulation.
 AFSAVE:                 DS      virtual 2                                ; Storage for AF during bank switch manipulation.
+FNADDR:                 DS      virtual 2                                ; Function to be called address.
 TMPADR:                 DS      virtual 2                                ; TEMPORARY ADDRESS STORAGE
 TMPSIZE:                DS      virtual 2                                ; TEMPORARY SIZE
 TMPCNT:                 DS      virtual 2                                ; TEMPORARY COUNTER
@@ -371,6 +338,53 @@ RETRIES:                DS      virtual 1                                ; Retri
 BPARA:                  DS      virtual 1   
                         DS      virtual (TZVARMEM + TZVARSIZE) - $       ; Top of variable area downwards is used as the working stack, SA1510 space isnt used.
 TZSTACK:                EQU     TZVARMEM + TZVARSIZE
+
+
+                        ; Variables and control structure used by the I/O processor for service calls and requests.
+                        ORG     TZSVCMEM
+
+TZSVCMEM:               EQU     0ED80H                                   ; Start of a memory structure used to communicate with the K64F I/O processor for services such as disk access.
+TZSVCSIZE:              EQU     00280H                                   ;
+TZSVCDIRSZ:             EQU     8                                        ; Size of the directory/file name.
+TZSVCFILESZ:            EQU     17                                       ; Size of a Sharp filename.
+TZSVCWILDSZ:            EQU     8                                        ; Size of the wildcard.
+TZSVCSECSIZE:           EQU     512
+TZSVCDIR_ENTSZ:         EQU     32                                       ; Size of a directory entry.
+TZSVCWAITIORETRIES:     EQU     5                                        ; Wait retries for IO response.
+TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
+TZSVCCMD:               DS      virtual 1                                ; Service command.
+TZSVCRESULT:            DS      virtual 1                                ; Service command result.
+TZSVCDIRSEC:            DS      virtual 1                                ; Storage for the directory sector number.
+TZSVC_FILE_SEC:         EQU     TZSVC_DIR_SEC                            ; Union of the file and directory sector as only one can be used at a time.
+TZSVC_TRACK_NO:         DS      virtual 2                                ; Storage for the virtual drive track number.
+TZSVC_SECTOR_NO:        DS      virtual 2                                ; Storage for the virtual drive sector number.
+TZSVC_FILE_NO:          DS      virtual 1                                ; File number to be opened in a file service command.
+TZSVC_LOADADDR:         DS      virtual 2                                ; Dynamic load address for rom/images.
+TZSVC_LOADSIZE:         DS      virtual 2                                ; Size of image to load.
+TZSVC_DIRNAME:          DS      virtual TZSVCDIRSZ                       ; Service directory/file name.
+TZSVC_FILENAME:         DS      virtual TZSVCFILESZ                      ; Filename to be opened/created.
+TZSVCWILDC:             DS      virtual TZSVCWILDSZ                      ; Directory wildcard for file pattern matching.
+TZSVCSECTOR:            DS      virtual TZSVCSECSIZE                     ; Service command sector - to store directory entries, file sector read or writes.
+
+TZSVC_CMD_READDIR:      EQU     01H                                      ; Service command to open a directory and return the first block of entries.
+TZSVC_CMD_NEXTDIR:      EQU     02H                                      ; Service command to return the next block of an open directory.
+TZSVC_CMD_READFILE:     EQU     03H                                      ; Service command to open a file and return the first block.
+TZSVC_CMD_MEXTREADFILE: EQU     04H                                      ; Service command to return the next block of an open file.
+TZSVC_CMD_CLOSE:        EQU     05H                                      ; Service command to close any open file or directory.
+TZSVC_CMD_LOADFILE:     EQU     06H                                      ; Service command to load a file directly into tranZPUter memory.
+TZSVC_CMD_SAVEFILE:     EQU     07H                                      ; Service command to save a file directly from tranZPUter memory. 
+TZSVC_CMD_ERASEFILE:    EQU     08H                                      ; Service command to erase a file on the SD card.
+TZSVC_CMD_CHANGEDIR:    EQU     09H                                      ; Service command to change the active directory on the SD card.
+TZSVC_CMD_LOAD40BIOS:   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD80BIOS:   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOADBDOS:     EQU     30H                                      ; Service command to reload CPM BDOS+CCP.
+TZSVC_CMD_ADDSDDRIVE:   EQU     31H                                      ; Service command to attach a CPM disk to a drive number.
+TZSVC_CMD_READSDDRIVE:  EQU     32H                                      ; Service command to read an attached SD file as a CPM disk drive.
+TZSVC_CMD_WRITESDDRIVE: EQU     33H                                      ; Service command to write to a CPM disk drive which is an attached SD file.
+TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
+TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
+TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.
+
 
 ; Quickdisk work area
 ;QDPA                   EQU     01130h                                   ; QD code 1

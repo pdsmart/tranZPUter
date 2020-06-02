@@ -31,39 +31,4 @@
 
             ORG     CPMBIOS            
 
-;------------------------------------------------------------------------------------------------------------
-; DISK PARAMETER HEADER
-;
-; Disk parameter headers for disk 0 to 3                                      
-;                                                                             
-; +-------+------+------+------+----------+-------+-------+-------+
-; |  XLT  | 0000 | 0000 | 0000 |DIRBUF    | DPB   | CSV   | ALV   |
-; +------+------+------+-------+----------+-------+-------+-------+      
-;   16B     16B    16B    16B    16B        16B     16B     16B
-;
-; -XLT    Address of the logical-to-physical translation vector, if used for this particular drive,
-;         or the value 0000H if no sector translation takes place (that is, the physical and
-;         logical sectornumbers are the same). Disk drives with identical sector skew factors share
-;         the same translatetables.
-; -0000   Scratch pad values for use within the BDOS, initial value is unimportant.
-; -DIRBUF Address of a 128-byte scratch pad area for directory operations within BDOS. All DPHs
-;         address the same scratch pad area. 
-; -DPB    Address of a disk parameter block for this drive. Drives with identical disk characteristics
-;         address the same disk parameter block.
-; -CSV    Address of a scratch pad area used for software check for changed disks. This address is
-;         different for each DPH.
-; -ALV    Address of a scratch pad area used by the BDOS to keep disk storage allocation information.
-;         This address is different for each DPH.
-;------------------------------------------------------------------------------------------------------------
-            ALIGN_NOPS   DPBASE                                          ; Space for 2xROM, 2xFD, 3xSD or upto 7 drives
-                                                                         ; These entries are created dynamically based on hardware available.
-
-            ; NB. The Disk Parameter Blocks are stored in CBIOS ROM to save RAM space.
-
-;------------------------------------------------------------------------------------------------------------
-; CPN Disk work areas.
-;------------------------------------------------------------------------------------------------------------
-            ALIGN_NOPS   CDIRBUF                                         ; Memory work areas, just allocate the space.
-            ALIGN_NOPS   CSVALVMEM
-            ALIGN_NOPS   CSVALVEND
-            ALIGN        CBIOSDATA
+; All CBIOS code, tables and variables are stored in the CBIOS source code.

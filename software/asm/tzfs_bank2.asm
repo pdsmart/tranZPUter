@@ -379,7 +379,7 @@ HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
             ; Message table
             ;
             ;-------------------------------------------------------------------------------
-MSGSON:     DB      "+ TZFS v1.0 **"               ,00DH, 000H                     ; Version 1.0-> first split from RFS v2.0
+MSGSON:     DB      "+ TZFS v1.0  **"              ,00DH, 000H                     ; Version 1.0-> first split from RFS v2.0
 MSGNOTFND:  DB      "Not Found",                    00DH, 000H
 MSGBADCMD:  DB      "???",                          00DH, 000H
 MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,           000H

@@ -40,8 +40,27 @@
 //
 // Memory Modes:     0 - Default, normal Sharp MZ80A operating mode, all memory and IO (except tranZPUter control IO block) are on the mainboard
 //                   1 - As 0 except User ROM is mapped to tranZPUter RAM.
-//                   2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory.
-//                  31 - tranZPUter, all memory and IO are exclusively to the devices on the tranZPUter board, no mainboard access is made.
+//                   2 - TZFS, Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes at F3FE and F7FE exist for the Floppy disk controller (which have to be 64
+//                       bytes from F3C0 and F7C0 due to the granularity of the address lines into the Flash RAM), these locations  need to be on the mainboard.
+//                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+//                   3 - TZFS, Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
+//                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+//                   4 - TZFS, Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
+//                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+//                   5 - TZFS, Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
+//                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+//                   6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
+//                       Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+//                   7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+//                       Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+//                  24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
+//                  25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
+//                  26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
+//                  27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
+//                  28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
+//                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
+//                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
+//                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
 //
 //
 // Credits:         
@@ -334,57 +353,50 @@ void setMap(uint8_t set, uint32_t inSignals)
             } 
             break;
            
-        // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
-        case 20:
-            flashRAM[set].tranche[inSignals].A16 = 0;
-            flashRAM[set].tranche[inSignals].A17 = 0;
-            flashRAM[set].tranche[inSignals].A18 = 1;
-            break;
-        // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-        case 21:
-            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+        // Set 6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
+        // Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+        case 6:
+            if ((Z80_ADDR >= 0x0000 && Z80_ADDR < 0xF000) || (Z80_ADDR >= 0xF000 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000))
             {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            }
+            break;
+
+        // Set 7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+        // Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+        case 7:
+            if ((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x0100) || (Z80_ADDR >= 0xF000 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            else if((Z80_ADDR >= 0x0100 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
                 flashRAM[set].tranche[inSignals].A16 = 1;
                 flashRAM[set].tranche[inSignals].A17 = 0;
                 flashRAM[set].tranche[inSignals].A18 = 1;
             }
-            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
+            else
             {
-                flashRAM[set].tranche[inSignals].A16 = 0;
-                flashRAM[set].tranche[inSignals].A17 = 0;
-                flashRAM[set].tranche[inSignals].A18 = 1;
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
             }
             break;
-        // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-        case 22:
-            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
-            {
-                flashRAM[set].tranche[inSignals].A16 = 0;
-                flashRAM[set].tranche[inSignals].A17 = 1;
-                flashRAM[set].tranche[inSignals].A18 = 1;
-            }
-            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-            {
-                flashRAM[set].tranche[inSignals].A16 = 0;
-                flashRAM[set].tranche[inSignals].A17 = 0;
-                flashRAM[set].tranche[inSignals].A18 = 1;
-            }
-            break;
-        // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-        case 23:
-            if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
-            {
-                flashRAM[set].tranche[inSignals].A16 = 0;
-                flashRAM[set].tranche[inSignals].A17 = 1;
-                flashRAM[set].tranche[inSignals].A18 = 1;
-            }
-            if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-            {
-                flashRAM[set].tranche[inSignals].A16 = 0;
-                flashRAM[set].tranche[inSignals].A17 = 0;
-                flashRAM[set].tranche[inSignals].A18 = 1;
-            }
-            break;
+
          
         // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
         case 24:
@@ -512,7 +524,7 @@ void setMap(uint8_t set, uint32_t inSignals)
             // and thus loss of data.
             case 1:
                 // Place a bank of RAM into the user ROM area.
-                if( (Z80_ADDR >= 0xEF00 && Z80_ADDR < 0xF000) )
+                if( (Z80_ADDR >= 0xEC80 && Z80_ADDR < 0xF000) )
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
@@ -563,48 +575,25 @@ void setMap(uint8_t set, uint32_t inSignals)
                 } 
                 break;
 
-            // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
-            case 20:
-                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                break;
-            // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 21:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            // Set 6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
+            // Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            case 6:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
                 }
                 break;
-            // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 22:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+
+            // Set 7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            // Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            case 7:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                }
-                break;
-            // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 23:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
                 }
                 break;
 
@@ -720,47 +709,24 @@ void setMap(uint8_t set, uint32_t inSignals)
                 } 
                 break;
                
-            // Set 20 - CPM, all memory and IO are on the tranZPUter board, 64K block 4 selected.
-            case 20:
-                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                break;
-            // Set 21 - CPM, F000-FFFF are on the tranZPUter board, 64K block 5 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 21:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+            // Set 6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
+            // Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            case 6:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
                     flashRAM[set].tranche[inSignals].RAM_OE = 0;
                 }
                 break;
-            // Set 22 - CPM, F000-FFFF are on the tranZPUter board, 64K block 6 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 22:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
+
+            // Set 7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
+            // Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            case 7:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                }
-                break;
-            // Set 23 - CPM, F000-FFFF are on the tranZPUter board, 64K block 7 selected, E800-EFFF in the 64K block 4 and mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            case 23:
-                if((Z80_ADDR >= 0xF000 && Z80_ADDR < 0x10000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
-                }
-                if((Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF000))
-                {
-                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
                     flashRAM[set].tranche[inSignals].RAM_OE = 0;
                 }
                 break;
