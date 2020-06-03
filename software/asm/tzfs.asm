@@ -196,6 +196,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 001H
             DB      '8'                                                  ; 80 Char screen mode.
             DW      SETMODE80
+            DB      000H | 000H | 000H | 005H
+            DB      "BASIC"                                              ; Load and run BASIC SA-5510.
+            DW      LOADBASIC
             DB      000H | 000H | 000H | 001H
             DB      'B'                                                  ; Bell.
             DW      SGX
@@ -1575,6 +1578,10 @@ DIRSD3:     INC     D                                                    ; Onto 
 DIRSD4:     RET
             ;
 
+            ; Quick method to load the basic interpreter. So long as the filename doesnt change this method will load and boot Basic.
+LOADBASIC:  LD      DE,BASICFILENM
+            JR      LOADSDCARD
+
             ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
 LOADCPM:    LD      DE,CPMFILENAME
             JR      LOADSDCARD
@@ -2228,6 +2235,7 @@ LOCALTEST:  LD      A,0
 
             ; Quick load program names.
 CPMFILENAME:DB      "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
+BASICFILENM:DB      "BASIC SA-5510", 000H
 
             ; Error tone.
 ERRTONE:    DB      "A0", 0D7H, "ARA", 0D7H, "AR", 00DH

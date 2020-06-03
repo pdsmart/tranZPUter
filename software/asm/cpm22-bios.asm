@@ -31,4 +31,5 @@
 
             ORG     CPMBIOS            
 
-; All CBIOS code, tables and variables are stored in the CBIOS source code.
+; All CBIOS code, tables and variables are now stored in the cbios.asm and cbiosII.asm as a seperate assembled
+; binary. 

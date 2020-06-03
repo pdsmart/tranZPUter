@@ -345,9 +345,9 @@ TZSTACK:                EQU     TZVARMEM + TZVARSIZE
 
 TZSVCMEM:               EQU     0ED80H                                   ; Start of a memory structure used to communicate with the K64F I/O processor for services such as disk access.
 TZSVCSIZE:              EQU     00280H                                   ;
-TZSVCDIRSZ:             EQU     8                                        ; Size of the directory/file name.
+TZSVCDIRSZ:             EQU     20                                       ; Size of the directory/file name.
 TZSVCFILESZ:            EQU     17                                       ; Size of a Sharp filename.
-TZSVCWILDSZ:            EQU     8                                        ; Size of the wildcard.
+TZSVCWILDSZ:            EQU     20                                       ; Size of the wildcard.
 TZSVCSECSIZE:           EQU     512
 TZSVCDIR_ENTSZ:         EQU     32                                       ; Size of a directory entry.
 TZSVCWAITIORETRIES:     EQU     5                                        ; Wait retries for IO response.

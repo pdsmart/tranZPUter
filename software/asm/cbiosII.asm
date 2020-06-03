@@ -1622,8 +1622,7 @@ MTRDEL2:    DEC     DE
             POP     DE
             RET    
 
-DSKWRITE:   DI
-            LD      A,MAXWRRETRY
+DSKWRITE:   LD      A,MAXWRRETRY
             LD      (RETRIES),A
             LD      A,(SECTORCNT)
             LD      B,A
@@ -1665,8 +1664,7 @@ WRITEDATA:  OUTI
             ; Read disk starting at the first logical sector in param block 1009/100A
             ; Continue reading for the given size 100B/100C and store in the location 
             ; Pointed to by the address stored in the parameter block. 100D/100E
-DSKREAD:    DI
-            LD      A,MAXRDRETRY
+DSKREAD:    LD      A,MAXRDRETRY
             LD      (RETRIES),A
             LD      A,(SECTORCNT)
             LD      B,A
@@ -1882,7 +1880,8 @@ RETRIESERR: BIT     2,A                                                  ; Data 
 RETRIESERR2:
 
             ; Process error, dump debug data and return fail code.
-HDLERROR:   
+HDLERROR:   SCF
+            CALL    DEBUG
 HOLPRTSTR:  LD      A,(DE)
             OR      A
             JR      Z,HDLPRTSTR3
