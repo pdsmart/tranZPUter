@@ -53,6 +53,11 @@
 //                       Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 //                   7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
 //                       Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+//                  10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
+//                  11 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+//                  12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+//                  13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+//                  14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
 //                  24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
 //                  25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
 //                  26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
@@ -396,7 +401,137 @@ void setMap(uint8_t set, uint32_t inSignals)
                 flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
             }
             break;
+          
+        // Set 10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
+        case 10:
+            if((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            else if((Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 0;
+            }
+            break;
 
+        // Set 11 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+        case 11:
+            if((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            break;
+
+        // Set 12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+        case 12:
+            if((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            else if((Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            break;
+
+        // Set 13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+        case 13:
+            if((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            }
+            break;
+
+        // Set 14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+        case 14:
+            if((Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 1;
+                flashRAM[set].tranche[inSignals].A18 = 1;
+            }
+            else if((Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].A16 = 0;
+                flashRAM[set].tranche[inSignals].A17 = 0;
+                flashRAM[set].tranche[inSignals].A18 = 0;
+            }
+            else if((Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS = 1;
+            }
+            break;
          
         // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
         case 24:
@@ -499,9 +634,18 @@ void setMap(uint8_t set, uint32_t inSignals)
         // If the address is within configured IO control register range, activate the IODECODE signal.
         if(Z80_IO_ADDR == ioAddr)
         {
-            flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
-            flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
-            flashRAM[set].tranche[inSignals].IODECODE    = 0;
+            if(set >= 10 && set < 15)
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 1;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
+                flashRAM[set].tranche[inSignals].IODECODE    = 0;
+            }
+            else
+            {
+                flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                flashRAM[set].tranche[inSignals].ENABLE_BUS  = 1;
+                flashRAM[set].tranche[inSignals].IODECODE    = 0;
+            }
         } else
         {
             flashRAM[set].tranche[inSignals].ENABLE_BUS  = 0;
@@ -590,6 +734,56 @@ void setMap(uint8_t set, uint32_t inSignals)
             // Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
             case 7:
                 if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xE800 && Z80_ADDR < 0xF3C0) || (Z80_ADDR >= 0xF400 && Z80_ADDR < 0xF7C0) || (Z80_ADDR >= 0xF800 && Z80_ADDR < 0x10000)) 
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                }
+                break;
+
+            // Set 10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
+            case 10:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                }
+                break;
+
+            // Set 11 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+            case 11:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                }
+                break;
+
+            // Set 12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+            case 12:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                }
+                break;
+
+            // Set 13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+            case 13:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 0;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 1;
+                }
+                break;
+
+            // Set 14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+            case 14:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
                 {
                     flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
                     flashRAM[set].tranche[inSignals].RAM_WE = 0;
@@ -731,6 +925,56 @@ void setMap(uint8_t set, uint32_t inSignals)
                 }
                 break;
 
+            // Set 10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
+            case 10:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
+            // Set 11 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+            case 11:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
+            // Set 12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
+            case 12:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000) || (Z80_ADDR >= 0xD000 && Z80_ADDR < 0x10000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
+            // Set 13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+            case 13:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
+            // Set 14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+            case 14:
+                if( (Z80_ADDR >= 0x0000 && Z80_ADDR < 0x1000) || (Z80_ADDR >= 0x1000 && Z80_ADDR < 0xD000))
+                {
+                    flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
+                    flashRAM[set].tranche[inSignals].RAM_WE = 1;
+                    flashRAM[set].tranche[inSignals].RAM_OE = 0;
+                }
+                break;
+
             // Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
             case 24:
                 flashRAM[set].tranche[inSignals].DISABLE_BUS = 0;
@@ -865,13 +1109,12 @@ int main(int argc, char *argv[])
         {"help",          no_argument,       0,   'h'},
         {"ioaddr",        required_argument, 0,   'i'},
         {"output",        required_argument, 0,   'o'},
-        {"verbose",       no_argument,       0,   'v'},
-        {0,               0,                 0,    0}
+        {"verbose",       no_argument,       0,   'v'}
     };
 
     // Parse the command line options.
     //
-    while((opt = getopt_long(argc, argv, ":hvo;", long_options, &option_index)) != -1)  
+    while((opt = getopt_long(argc, argv, ":hi:vo:", long_options, &option_index)) != -1)  
     {  
         switch(opt)  
         {  
@@ -880,11 +1123,11 @@ int main(int argc, char *argv[])
                 break;
 
             case 'i':
-                ioAddr = atoi(argv[optind]);
+                ioAddr = atoi(argv[optind-1]);
                 break;
 
             case 'o':
-                strcpy(outputFile, argv[optind]);
+                strcpy(outputFile, argv[optind-1]);
                 break;
 
             case 'v':
