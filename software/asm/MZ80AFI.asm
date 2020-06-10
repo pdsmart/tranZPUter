@@ -8,7 +8,7 @@
 ; on Thursday, 06 of February 2020 at 01:38 PM
 ; 
 i          ; Bring in additional resources.
-           INCLUDE "RFS_Definitions.asm"
+           INCLUDE "TZFS_Definitions.asm"
            INCLUDE "Macros.asm"
 
 

@@ -343,13 +343,17 @@ HELP:       ;CALL    NL
 
             ; Help text. Use of lower case, due to Sharp's non standard character set, is not easy, you have to manually code each byte
             ; hence using upper case.
-HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
+HELPSCR:    ;       "--------- 40 column width -------------"
+            DB      "4     - 40 col mode.",                                 00DH
             DB      "8     - 80 col mode.",                                 00DH
+            DB      "700   - Select MZ-700 Mode.",                          00DH
+            DB      "7008  - Select MZ-700 80 col Mode.",                   00DH
             DB      "B     - toggle keyboard bell.",                        00DH
             DB      "C[b]  - clear memory $1200-$D000.",                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[fn]- erase file, fn=No or Filename",                00DH
             DB      "F[x]  - boot fd drive x.",                             00DH
+            DB      "FREQ[n]-set CPU to nKHz, 0 for default.",              00DH
             DB      "H     - this help screen.",                            00DH
             DB      "IC[wc]- SD dir listing, wc=wildcard.",                 00DH
             DB      "JXXXX - jump to location XXXX.",                       00DH
@@ -379,45 +383,46 @@ HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
             ; Message table
             ;
             ;-------------------------------------------------------------------------------
-MSGSON:     DB      "+ TZFS v1.0  **"              ,00DH, 000H                     ; Version 1.0-> first split from RFS v2.0
-MSGNOTFND:  DB      "Not Found",                    00DH, 000H
-MSGBADCMD:  DB      "???",                          00DH, 000H
-MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,           000H
-MSGSVFAIL:  DB      "Save failed.",                 00DH, 000H
-MSGERAFAIL: DB      "Erase failed.",                00DH, 000H
-MSGCDFAIL:  DB      "Directory invalid.",           00DH, 000H
-MSGERASEDIR:DB      "Deleted dir entry:",0FBH,            000H
-MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",0FBH, 00DH, 000H
-MSGNOTBIN:  DB      "Not binary",                   00DH, 000H
-MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',  00DH, 000H
-MSGSAVE:    DB      00DH, "Filename: ",                   000H
-MSGE1:      DB      00DH, "Check sum error!",       00DH, 000H                      ; Check sum error.
-MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"', 00DH, 000H
-MSGOK:      DB      00DH, "OK!",                    00DH, 000H
-MSGSAVEOK:  DB      "Tape image saved.",            00DH, 000H
-MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",          000H
-MSGLOADERR: DB      00DH, "Disk loading error",     00DH, 000H
-MSGIPLLOAD: DB      00DH, "Disk loading ",                000H
-MSGDSKNOTMST:DB     00DH, "This is not a boot disk",00Dh, 000H
-MSGINITM:   DB      "Init memory",                  00DH, 000H
-MSGREAD4HEX:DB      "Bad hex number",               00DH, 000H
-MSGT2SDERR: DB      "Copy from Tape to SD Failed",  00DH, 000H
-MSGSD2TERR: DB      "Copy from SD to Tape Failed",  00DH, 000H
-MSGT2SDOK:  DB      "Success, Tape to SD done.",    00DH, 000H
-MSGSD2TOK:  DB      "Success, SD to Tape done.",    00DH, 000H
-MSGFAILBIOS:DB      "Failed to load alternate BIOS!",00DH, 000H
+MSGSON:     DB      "+ TZFS v1.0  **",                                              00DH, 000H                     ; Version 1.0-> first split from RFS v2.0
+MSGNOTFND:  DB      "Not Found",                                                    00DH, 000H
+MSGBADCMD:  DB      "???",                                                          00DH, 000H
+MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                                           000H
+MSGSVFAIL:  DB      "Save failed.",                                                 00DH, 000H
+MSGERAFAIL: DB      "Erase failed.",                                                00DH, 000H
+MSGCDFAIL:  DB      "Directory invalid.",                                           00DH, 000H
+MSGERASEDIR:DB      "Deleted dir entry:",0FBH,                                            000H
+MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",                     0FBH, 00DH, 000H
+MSGNOTBIN:  DB      "Not binary",                                                   00DH, 000H
+MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',                                  00DH, 000H
+MSGSAVE:    DB      00DH, "Filename: ",                                                   000H
+MSGE1:      DB      00DH, "Check sum error!",                                       00DH, 000H                      ; Check sum error.
+MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"',                                 00DH, 000H
+MSGOK:      DB      00DH, "OK!",                                                    00DH, 000H
+MSGSAVEOK:  DB      "Tape image saved.",                                            00DH, 000H
+MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",                                          000H
+MSGLOADERR: DB      00DH, "Disk loading error",                                     00DH, 000H
+MSGIPLLOAD: DB      00DH, "Disk loading ",                                                000H
+MSGDSKNOTMST:DB     00DH, "This is not a boot disk",                                00Dh, 000H
+MSGINITM:   DB      "Init memory",                                                  00DH, 000H
+MSGREAD4HEX:DB      "Bad hex number",                                               00DH, 000H
+MSGT2SDERR: DB      "Copy from Tape to SD Failed",                                  00DH, 000H
+MSGSD2TERR: DB      "Copy from SD to Tape Failed",                                  00DH, 000H
+MSGT2SDOK:  DB      "Success, Tape to SD done.",                                    00DH, 000H
+MSGSD2TOK:  DB      "Success, SD to Tape done.",                                    00DH, 000H
+MSGFAILBIOS:DB      "Failed to load alternate BIOS!",                               00DH, 000H
+MSGFREQERR: DB      "Error, failed to change frequency!".                           00DH, 000H
+MSGBADNUM:  DB      "Error, bad number supplied!",                                  00DH, 000H
 ;
-OKCHECK:    DB      ", CHECK: ",                    00Dh, 000H
-OKMSG:      DB      " OK.",                         00Dh, 000H
+OKCHECK:    DB      ", CHECK: ",                                                    00Dh, 000H
+OKMSG:      DB      " OK.",                                                         00Dh, 000H
 DONEMSG:    DB      11h
-            DB      "RAM TEST COMPLETE.",           00Dh, 000H
-           
-BITMSG:     DB      " BIT:  ",                      00Dh, 000H
-BANKMSG:    DB      " BANK: ",                      00Dh, 000H
-MSG_TIMERTST:DB     "8253 TIMER TEST",              00Dh, 000H
-MSG_TIMERVAL:DB     "READ VALUE 1: ",               00Dh, 000H
-MSG_TIMERVAL2:DB    "READ VALUE 2: ",               00Dh, 000H
-MSG_TIMERVAL3:DB    "READ DONE.",                   00Dh, 000H
+            DB      "RAM TEST COMPLETE.",                                           00Dh, 000H
+BITMSG:     DB      " BIT:  ",                                                      00Dh, 000H
+BANKMSG:    DB      " BANK: ",                                                      00Dh, 000H
+MSG_TIMERTST:DB     "8253 TIMER TEST",                                              00Dh, 000H
+MSG_TIMERVAL:DB     "READ VALUE 1: ",                                               00Dh, 000H
+MSG_TIMERVAL2:DB    "READ VALUE 2: ",                                               00Dh, 000H
+MSG_TIMERVAL3:DB    "READ DONE.",                                                   00Dh, 000H
 
 SVCRESPERR: DB      "I/O Response Error, time out!",00DH, 000H
 SVCIOERR:   DB      "I/O Error, time out!",         00DH, 000H

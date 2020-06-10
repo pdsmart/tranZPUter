@@ -31,8 +31,8 @@
 ROOTDIR=../../tranZPUter
 TOOLDIR=${ROOTDIR}/software/tools
 JARDIR=${ROOTDIR}/software/tools
-ASM=glass.jar
-BUILDROMLIST="monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510"
+ASM=glass-0.5.jar
+BUILDROMLIST="MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A MZ80B_IPL"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
 BUILDMZFLIST="sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm

@@ -427,13 +427,13 @@ ConvertStringToNumber: IF USE_CNVSTRTONUM = 1
            JR       Z,@Char        ;Yes, so its a character
            CP       '"'            ;Does string start with '"' ?
            JR       Z,@Char        ;Yes, so its a character
-;;         CALL     IsCharNumeric  ;Is first character '0' to '9' ?
-;;         JR       NC,@Failure    ;No, so invalid number
+;          CALL     IsCharNumeric  ;Is first character '0' to '9' ?
+;          JR       NC,@Failure    ;No, so invalid number
 ;          CALL     IsCharHex      ;Is first character hexadecimal ?
 ;          JR       NC,@Failure    ;No, so invalid hex character
            CP       '0'            ;Is first character '0' ?
-           JR       NZ,@HexNext    ;No, so default to hexadecimal
-;          JR       NZ,@DecNext    ;No, so default to decimal
+;          JR       NZ,@HexNext    ;No, so default to hexadecimal
+           JR       NZ,@DecNext    ;No, so default to decimal
            INC      DE             ;Point to next character in string
            LD       A,(DE)         ;Get character from string
            CALL     ConvertCharToUCase

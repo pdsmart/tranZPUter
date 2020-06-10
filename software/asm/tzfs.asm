@@ -196,6 +196,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 001H
             DB      '8'                                                  ; 80 Char screen mode.
             DW      SETMODE80
+            DB      000H | 000H | 000H | 004H
+            DB      "7008"                                               ; Switch to 80 column MZ700 mode.
+            DW      SETMODE7008
+            DB      000H | 000H | 000H | 003H
+            DB      "700"                                                ; Switch to 40 column MZ700 mode.
+            DW      SETMODE700
             DB      000H | 000H | 000H | 005H
             DB      "BASIC"                                              ; Load and run BASIC SA-5510.
             DW      LOADBASIC
@@ -214,6 +220,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 002H
             DB      "EC"                                                 ; Erase file.
             DW      ERASESD
+            DB      000H | 000H | 000H | 004H
+            DB      "FREQ"                                               ; Set or change the CPU frequency.
+            DW      SETFREQ
             DB      000H | 000H | 000H | 001H
             DB      'F'                                                  ; RFS Floppy boot code.
             DW      FLOPPY
@@ -518,6 +527,48 @@ SETMODE80:  LD      A, 128
             LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
 
+SETMODE700: LD      A, 0
+            LD      (DSPCTL), A
+            LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
+            ;
+            LD      A,TZSVC_CMD_LOAD700BIOS40                            ; Request the I/O processor loads the MZ700 1Z-013A 40column BIOS into memory.
+            JR      SETBIOS
+SETMODE7008:LD      A, 128
+            LD      (DSPCTL), A
+            LD      A,1
+            LD      (SCRNMODE),A
+            LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
+            JR      SETBIOS
+
+
+            ; Method to enable/disable the alternate CPU frequency and change it's values.
+            ;
+SETFREQ:    CALL    ConvertStringToNumber                                ; Convert the input into 0 (disable) or frequency in KHz.
+            JR      NZ,BADNUMERR
+            LD      (TZSVC_CPU_FREQ),HL                                  ; Set the required frequency in the service structure.
+            LD      A,H
+            CP      L
+            JR      NZ,SETFREQ1
+            LD      A, TZSVC_CMD_CPU_BASEFREQ                            ; Switch to the base frequency.
+            JR      SETFREQ2
+SETFREQ1:   LD      A, TZSVC_CMD_CPU_ALTFREQ                             ; Switch to the base frequency.
+SETFREQ2:   CALL    SVC_CMD
+            OR      A
+            JR      NZ,SETFREQERR
+            LD      A,H
+            CP      L
+            RET     Z                                                    ; If we are disabling the alternate cpu frequency (ie. = 0) exit.
+            LD      A, TZSVC_CMD_CPU_CHGFREQ                             ; Switch to the base frequency.
+            CALL    SVC_CMD
+            OR      A
+            JR      NZ,SETFREQERR
+            RET
+            ;
+SETFREQERR: LD      DE,MSGFREQERR
+            JR      BADNUM2
+BADNUMERR:  LD      DE,MSGBADNUM
+BADNUM2:    CALL    ?PRINTMSG
+            RET
 
             ;
             ;       Memory correction
@@ -1448,6 +1499,7 @@ PRTDIR4:    OR      A
             POP     DE
             POP     BC
             RET
+
 
 
             ; Method to request a sector full of directory entries from the I/O processor.
