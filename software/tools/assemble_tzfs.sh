@@ -35,12 +35,12 @@ TOOLDIR=${ROOTDIR}/software/tools
 JARDIR=${ROOTDIR}/software/tools
 ASM=glass.jar
 BUILDROMLIST="tzfs"
-BUILDMZFLIST=""
+BUILDMZFLIST="testtz"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms
-MZFDIR=${ROOTDIR}/software/MZB
+MZFDIR=${ROOTDIR}/software/MZF
 
 # Go through list and build image.
 #
@@ -65,8 +65,8 @@ do
 	    # Uncomment if your not using my modified version 0.5.1 which fixes the bug
 	    # echo -n -e '\xff' >> ${ROMDIR}/${f}.rom
         else
-            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
-            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
+            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.MZF"
+            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.MZF
         fi
     fi
 done
