@@ -346,6 +346,7 @@ HELP:       ;CALL    NL
 HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "4     - 40 col mode.",                                 00DH
             DB      "8     - 80 col mode.",                                 00DH
+            DB      "80B   - Select MZ-80B Mode.",                          00DH
             DB      "700   - Select MZ-700 Mode.",                          00DH
             DB      "7008  - Select MZ-700 80 col Mode.",                   00DH
             DB      "B     - toggle keyboard bell.",                        00DH
@@ -410,7 +411,7 @@ MSGSD2TERR: DB      "Copy from SD to Tape Failed",                              
 MSGT2SDOK:  DB      "Success, Tape to SD done.",                                    00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",                                    00DH, 000H
 MSGFAILBIOS:DB      "Failed to load alternate BIOS!",                               00DH, 000H
-MSGFREQERR: DB      "Error, failed to change frequency!".                           00DH, 000H
+MSGFREQERR: DB      "Error, failed to change frequency!",                           00DH, 000H
 MSGBADNUM:  DB      "Error, bad number supplied!",                                  00DH, 000H
 ;
 OKCHECK:    DB      ", CHECK: ",                                                    00Dh, 000H

@@ -193,6 +193,9 @@ CMDCMPEND:  JP      ST1X
 CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
             DB      '4'                                                  ; 40 Char screen mode.
             DW      SETMODE40
+            DB      000H | 000H | 000H | 003H
+            DB      "80B"                                                ; Switch to the Sharp MZ-80B compatbile mode.
+            DW      SETMODE80B
             DB      000H | 000H | 000H | 001H
             DB      '8'                                                  ; 80 Char screen mode.
             DW      SETMODE80
@@ -509,6 +512,7 @@ GOTOX:      CALL    HEXIYX
             ;
             ;====================================
 
+            ; Commands to start the Sharp MZ-80A in its original mode loading either a 40 or 80 column BIOS as directed.
 SETMODE40:  LD      A, 0
             LD      (DSPCTL), A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
@@ -527,6 +531,8 @@ SETMODE80:  LD      A, 128
             LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
 
+            ; Commands to switch into MZ-700 compatible mode. This involves loading the original (but patched for keyboard use) 1Z-013A BIOS
+            ; and changing the frequency, also enabling of additional traps to detect and change memory mode.
 SETMODE700: LD      A, 0
             LD      (DSPCTL), A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
@@ -540,6 +546,14 @@ SETMODE7008:LD      A, 128
             LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
 
+            ; Command to switch into the Sharp MZ-80B compatible mode. This involves loading the IPL, switching
+            ; the frequency to 4MHz and enabling of additional traps to detect and change memory mode.
+SETMODE80B: LD      A, 128
+            LD      (DSPCTL), A
+            LD      A,1
+            LD      (SCRNMODE),A
+            LD      A,TZSVC_CMD_LOAD80BIPL                               ; Request the I/O processor loads the IPL and switches frequency.
+            JR      SETBIOS
 
             ; Method to enable/disable the alternate CPU frequency and change it's values.
             ;
