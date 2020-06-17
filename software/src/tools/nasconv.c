@@ -9,7 +9,7 @@
 // Credits:         
 // Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
 //
-// History:         March 2020   - Initial program written.
+// History:         June 2020   - Initial program written.
 //
 // Notes:           
 //
