@@ -1,7 +1,7 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
 ;- Name:            BASIC_Definitions.asm
-;- Created:         January 2020
+;- Created:         June 2020
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series CPM v2.23
 ;-                  Definitions for the Sharp MZ80A CPM v2.23 OS used in the RFS
@@ -13,7 +13,7 @@
 ;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
-;                   May 2020 - Cut from the RFS version of CPM for the tranZPUter SW board.
+;                   Jun 2020 - Copied and strpped from TZFS for BASIC.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -39,17 +39,6 @@
 ;-----------------------------------------------
 ; Configurable settings.
 ;-----------------------------------------------
-MAXRDRETRY              EQU     002h 
-MAXWRRETRY              EQU     002h
-BLKSIZ                  EQU     4096                                     ; CP/M allocation size
-HSTSIZ                  EQU     512                                      ; host disk sector size
-HSTSPT                  EQU     32                                       ; host disk sectors/trk
-HSTBLK                  EQU     HSTSIZ/128                               ; CP/M sects/host buff
-CPMSPT                  EQU     HSTBLK * HSTSPT                          ; CP/M sectors/track
-SECMSK                  EQU     HSTBLK-1                                 ; sector mask
-WRALL                   EQU     0                                        ; write to allocated
-WRDIR                   EQU     1                                        ; write to directory
-WRUAL                   EQU     2                                        ; write to unallocated
 TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
 COLW:                   EQU     80                                       ; Width of the display screen (ie. columns).
 ROW:                    EQU     25                                       ; Number of rows on display screen.
@@ -58,7 +47,7 @@ SCRLW:                  EQU     COLW / 8                                 ; Numbe
 MODE80C:                EQU     1
 
 ; BIOS equates
-MAXDISKS                EQU     7                                        ; Max number of Drives supported
+;MAXDISKS                EQU     7                                        ; Max number of Drives supported
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
 MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM.
 
