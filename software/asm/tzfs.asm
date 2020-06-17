@@ -565,7 +565,7 @@ SETFREQ:    CALL    ConvertStringToNumber                                ; Conve
             JR      NZ,SETFREQ1
             LD      A, TZSVC_CMD_CPU_BASEFREQ                            ; Switch to the base frequency.
             JR      SETFREQ2
-SETFREQ1:   LD      A, TZSVC_CMD_CPU_ALTFREQ                             ; Switch to the base frequency.
+SETFREQ1:   LD      A, TZSVC_CMD_CPU_ALTFREQ                             ; Switch to the alternate frequency.
 SETFREQ2:   CALL    SVC_CMD
             OR      A
             JR      NZ,SETFREQERR

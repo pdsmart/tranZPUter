@@ -58,8 +58,8 @@ TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
 
 ; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_TZFS              EQU     0                                        ; Build for TZFS where extended memory is available.
+BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_TZFS              EQU     1                                        ; Build for TZFS where extended memory is available.
 INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ; Debugging
