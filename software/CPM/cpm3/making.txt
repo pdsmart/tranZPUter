@@ -1,0 +1,39 @@
+Compiling Caldera CP/M 3
+========================
+
+  The supplied source is (I hope) all that is necessary to build the CP/M 3
+binary distribution under Unix.
+
+  The Makefile has been written for GNU Make. You will need:
+
+* The PL/M development system from the Unofficial CP/M Website
+	<http://www.cpm.z80.de/binary.html>
+* The zxcc emulator (version 0.3 or later) installed 
+	<http://www.seasip.info/Unix/Zxcc/>
+* The thames emulator (version 0.1.0 or later) installed
+	<http://www.seasip.info/Unix/Thames/>
+
+  The PL/M system contains the PLM80 compiler, the ASM80 assembler, and the 
+ISIS emulator. Unpack these to separate directories.
+
+  Edit the shell script run_thames to set the four directories:
+
+ISIS_F0  source code directory
+ISIS_F1  PLM80 compiler
+ISIS_F2  ASM80 assembler
+ISIS_F3  ISIS emulator and libraries
+
+  'make all' will then set the build in motion. Since the build tools do not
+return error codes, you will have to watch for error messages yourself,
+and stop the build if you see one.
+
+  When GENCOM is being run, you may see a "corrupt FCB" message. This is
+caused by GENCOM closing a file it didn't open, and you may safely ignore it.
+
+  The build date is stored in three files:
+
+MCD80A.ASM
+MCD80F.ASM
+MAKEDATE.LIB
+
+and you should change all of these if you are making a new release.

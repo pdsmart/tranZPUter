@@ -1684,7 +1684,9 @@ LOADSD2A:   POP     HL
 LOADSD3:    LD      DE,TZSVC_FILENAME
             LD      BC,TZSVCFILESZ
             LDIR                                                         ; Copy in the MZF filename.
-LOADSD3A:   LD      A,TZSVC_CMD_LOADFILE
+LOADSD3A:   LD      A,TZSVC_FTYPE_MZF                                    ; Set to MZF type files.
+            LD      (TZSVC_FILE_TYPE),A
+            LD      A,TZSVC_CMD_LOADFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
             OR      A
@@ -1765,7 +1767,9 @@ ERASESD1:   POP     HL
             LD      DE,TZSVC_FILENAME
             LD      BC,TZSVCFILESZ
             LDIR                                                         ; Copy in the MZF filename.
-ERASESD2:   LD      A,TZSVC_CMD_ERASEFILE
+ERASESD2:   LD      A,TZSVC_FTYPE_MZF                                    ; Set to MZF type files.
+            LD      (TZSVC_FILE_TYPE),A
+            LD      A,TZSVC_CMD_ERASEFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
             OR      A
@@ -1815,7 +1819,9 @@ SAVESD1:    LD      (SDCOPY),A
 
             ; Save the file by making a service call to the I/O processor, it will allocate a filename on the SD, read the tranZPUter memory directly based on the values in the
             ; service record.
-SAVESD2:    LD      A,TZSVC_CMD_SAVEFILE
+SAVESD2:    LD      A,TZSVC_FTYPE_MZF                                    ; Set to MZF type files.
+            LD      (TZSVC_FILE_TYPE),A
+            LD      A,TZSVC_CMD_SAVEFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
             OR      A

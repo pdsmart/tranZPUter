@@ -922,8 +922,12 @@ TZSVC_FILE_SEC: EQU TZSVC_DIR_SEC                                        ; Union
 TZSVC_TRACK_NO: DS  2                                                    ; Storage for the virtual drive track number.
 TZSVC_SECTOR_NO:DS  2                                                    ; Storage for the virtual drive sector number.
 TZSVC_FILE_NO:  DS  1                                                    ; File number to be opened in a file service command.
+TZSVC_FILE_TYPE:DS  1                                                    ; Type of file being accessed to differentiate between Sharp MZF files and other handled files.
 TZSVC_LOADADDR  DS  2                                                    ; Dynamic load address for rom/images.
+TZSVC_SAVEADDR: EQU TZSVC_LOADADDR                                       ; Union of the load address and the cpu frequency change value, the address  of data to be saved.
+TZSVC_CPU_FREQ: EQU TZSVC_LOADADDR                                       ; Union of the load address and the save address value, only one can be used at a time.
 TZSVC_LOADSIZE  DS  2                                                    ; Size of file to be loaded.
+TZSVC_SAVESIZE: EQU TZSVC_LOADSIZE                                       ; Size of image to be saved.
 TZSVC_DIRNAME:  DS  TZSVCDIRSZ                                           ; Service directory/file name.
 TZSVC_FILENAME: DS  TZSVCFILESZ                                          ; Filename to be opened/created.
 TZSVCWILDC:     DS  TZSVCWILDSZ                                          ; Directory wildcard for file pattern matching.

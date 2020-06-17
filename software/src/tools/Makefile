@@ -52,6 +52,9 @@ COMMON_OBJ      = $(patsubst $(COMMON_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRC))
 FLASHMMCFG_PRJ  = flashmmcfg
 FLASHMMCFG_SRC  = flashmmcfg.c
 FLASHMMCFG_OBJ  = $(COMMON_OBJ) $(patsubst %.c,$(BUILD_DIR)/%.o,$(FLASHMMCFG_SRC))
+NASCONV_PRJ     = nasconv
+NASCONV_SRC     = nasconv.c
+NASCONV_OBJ     = $(COMMON_OBJ) $(patsubst %.c,$(BUILD_DIR)/%.o,$(NASCONV_SRC))
 
 # Commandline options for each tool.
 OPTS            = 
@@ -66,15 +69,17 @@ ASFLAGS         = -I. -I$(COMMON_DIR) -I$(INCLUDE_DIR) -I$(STARTUP_DIR)
 #
 
 # Our target.
-all: clean $(BUILD_DIR) $(FLASHMMCFG_PRJ)
+all: clean $(BUILD_DIR) $(FLASHMMCFG_PRJ) $(NASCONV_PRJ)
 
 install: all
 	cp $(FLASHMMCFG_PRJ) $(INSTALLDIR)
+	cp $(NASCONV_PRJ) $(INSTALLDIR)
 
 clean:
-	rm -f $(BUILD_DIR)/*.o *.hex *.lss *.elf *.map *.lst *.srec *~ */*.o *.bin *.srec *.dmp *.vhd *.rpt $(FLASHMMCFG_PRJ)
+	rm -f $(BUILD_DIR)/*.o *.hex *.lss *.elf *.map *.lst *.srec *~ */*.o *.bin *.srec *.dmp *.vhd *.rpt $(FLASHMMCFG_PRJ) $(NASCONV_PRJ)
 
 $(FLASHMMCFG_PRJ): $(FLASHMMCFG_PRJ).elf $(FLASHMMCFG_PRJ).dmp $(FLASHMMCFG_PRJ).lss
+$(NASCONV_PRJ): $(NASCONV_PRJ).elf $(NASCONV_PRJ).dmp $(NASCONV_PRJ).lss
 
 # Convert ELF binary to bin file.
 %.bin: %.elf
@@ -97,8 +102,16 @@ $(FLASHMMCFG_PRJ): $(FLASHMMCFG_OBJ)
 	$(CC) $(LFLAGS) $(FLASHMMCFG_OBJ) -o $@ $(LIBS)
 	chmod +x $@
 
+$(NASCONV_PRJ): $(NASCONV_OBJ)
+	$(CC) $(LFLAGS) $(NASCONV_OBJ) -o $@ $(LIBS)
+	chmod +x $@
+
 # Link - this produces an ELF binary.
 $(FLASHMMCFG_PRJ).elf: $(FLASHMMCFG_OBJ)
+	$(LD) $(LFLAGS) -o $@ $+ $(LIBS)
+
+# Link - this produces an ELF binary.
+$(NASCONV_PRJ).elf: $(NASCONV_OBJ)
 	$(LD) $(LFLAGS) -o $@ $+ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.c Makefile

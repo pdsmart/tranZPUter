@@ -1,0 +1,11 @@
+#! /bin/sh
+#
+# Set up environment variables for thames, and run it
+#
+ISIS_F0=`pwd`
+ISIS_F1=`pwd`/plm80
+ISIS_F2=`pwd`/asm80
+ISIS_F3=`pwd`/utils
+export ISIS_F0 ISIS_F1 ISIS_F2 ISIS_F3
+
+thames $*

@@ -1,0 +1,20 @@
+Assembling CP/M 3
+=================
+
+  The original CP/M 3 build process seems to have been written for a CP/M 3
+computer; it uses the MAC, RMAC, LINK, GENCOM and HEXCOM tools, which are
+not readily available for other platforms in this day and age.
+
+  HEXCOM.C (based on LOAD.C in <ftp://oak.oakland.edu/pub/unix-c/> ) serves
+as a suitable replacement for HEXCOM. The command syntax is:
+
+  HEXCOM comfile <hexfile
+
+  Similarly, to build SID and the CCP, HEXPAT.C has been supplied to overlay 
+a COM file with a HEX file.
+
+  The other tools are run under emulation rather than being ported. You will
+need to install two emulators for this: ZXCC (version 0.3 or later) and 
+Thames (version 0.1.0 or later). ZXCC is used to run the CP/M-hosted build
+tools, while Thames runs the ISIS-hosted build tools.
+

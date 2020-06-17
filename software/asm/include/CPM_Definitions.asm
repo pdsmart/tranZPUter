@@ -305,16 +305,21 @@ TZSVCSECSIZE:           EQU     512
 TZSVCDIR_ENTSZ:         EQU     32                                       ; Size of a directory entry.
 TZSVCWAITIORETRIES:     EQU     500                                      ; Wait retries for IO response.
 TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
+TZSVC_FTYPE_MZF:        EQU     0                                        ; File type being handled is an MZF
+TZSVC_FTYPE_CAS:        EQU     1                                        ; File type being handled is an CASsette BASIC script.
+TZSVC_FTYPE_BAS:        EQU     2                                        ; File type being handled is an BASic script
 
 TZSVC_CMD_READDIR:      EQU     01H                                      ; Service command to open a directory and return the first block of entries.
 TZSVC_CMD_NEXTDIR:      EQU     02H                                      ; Service command to return the next block of an open directory.
 TZSVC_CMD_READFILE:     EQU     03H                                      ; Service command to open a file and return the first block.
-TZSVC_CMD_MEXTREADFILE: EQU     04H                                      ; Service command to return the next block of an open file.
-TZSVC_CMD_CLOSE:        EQU     05H                                      ; Service command to close any open file or directory.
-TZSVC_CMD_LOADFILE:     EQU     06H                                      ; Service command to load a file directly into tranZPUter memory.
-TZSVC_CMD_SAVEFILE:     EQU     07H                                      ; Service command to save a file directly from tranZPUter memory. 
-TZSVC_CMD_ERASEFILE:    EQU     08H                                      ; Service command to erase a file on the SD card.
-TZSVC_CMD_CHANGEDIR:    EQU     09H                                      ; Service command to change the active directory on the SD card.
+TZSVC_CMD_NEXTREADFILE: EQU     04H                                      ; Service command to return the next block of an open file.
+TZSVC_CMD_WRITEFILE:    EQU     05H                                      ; Service command to create a file and save the first block.
+TZSVC_CMD_NEXTWRITEFILE:EQU     06H                                      ; Service command to write the next block to the open file.
+TZSVC_CMD_CLOSE:        EQU     07H                                      ; Service command to close any open file or directory.
+TZSVC_CMD_LOADFILE:     EQU     08H                                      ; Service command to load a file directly into tranZPUter memory.
+TZSVC_CMD_SAVEFILE:     EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
+TZSVC_CMD_ERASEFILE:    EQU     0aH                                      ; Service command to erase a file on the SD card.
+TZSVC_CMD_CHANGEDIR:    EQU     0bH                                      ; Service command to change the active directory on the SD card.
 TZSVC_CMD_LOAD40BIOS:   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
 TZSVC_CMD_LOAD80BIOS:   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
 TZSVC_CMD_LOAD700BIOS40:EQU     22H                                      ; Service command requesting that the MZ700 1Z-013A 40 column BIOS is loaded.
