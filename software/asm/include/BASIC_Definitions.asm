@@ -14,7 +14,7 @@
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
 ;                   Jun 2020 - Copied and strpped from TZFS for BASIC.
-;-
+;
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -47,9 +47,9 @@ SCRLW:                  EQU     COLW / 8                                 ; Numbe
 MODE80C:                EQU     1
 
 ; BIOS equates
-;MAXDISKS                EQU     7                                        ; Max number of Drives supported
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM.
+MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+;MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
 
 ; Tape load/save modes. Used as a flag to enable common code.
 TAPELOAD                EQU     1
@@ -58,7 +58,7 @@ TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
 
 ; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     1                                        ; Build for the standard Sharp MZ80A, no lower memory.
+BUILD_MZ80A             EQU     1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
 BUILD_TZFS              EQU     0                                        ; Build for TZFS where extended memory is available.
 INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
