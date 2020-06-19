@@ -89,6 +89,8 @@ UF                      EQU    22H                                       ; UnDEF
 MO                      EQU    24H                                       ; Missing operand
 HX                      EQU    26H                                       ; HEX error
 BN                      EQU    28H                                       ; BIN error
+BV                      EQU    2AH                                       ; Bad Value error
+IO                      EQU    2CH                                       ; IO error
 
 ;-----------------------------------------------
 ; Memory mapped ports in hardware.
@@ -248,6 +250,8 @@ TZSVCMEM:               EQU     0FD80H                                   ; Start
 TZSVCSIZE:              EQU     00280H                                   ;
 TZSVCDIRSZ:             EQU     20                                       ; Size of the directory/file name.
 TZSVCFILESZ:            EQU     17                                       ; Size of a Sharp filename.
+TZSVCLONGFILESZ:        EQU     31                                       ; Size of a standard filename.
+TZSVCLONGFMTSZ:         EQU     20                                       ; Size of a formatted standard filename for use in directory listings.
 TZSVCWILDSZ:            EQU     20                                       ; Size of the wildcard.
 TZSVCSECSIZE:           EQU     512
 TZSVCDIR_ENTSZ:         EQU     32                                       ; Size of a directory entry.
@@ -256,6 +260,8 @@ TZSVCWAITCOUNT:         EQU     65535                                    ; Wait 
 TZSVC_FTYPE_MZF:        EQU     0                                        ; File type being handled is an MZF
 TZSVC_FTYPE_CAS:        EQU     1                                        ; File type being handled is an CASsette BASIC script.
 TZSVC_FTYPE_BAS:        EQU     2                                        ; File type being handled is an BASic script
+TZSVC_FTYPE_ALL:        EQU     10                                       ; Handle any filetype.
+TZSVC_FTYPE_ALLFMT:     EQU     11                                       ; Special case for directory listings, all files but truncated and formatted.
 TZSVCCMD:               DS      virtual 1                                ; Service command.
 TZSVCRESULT:            DS      virtual 1                                ; Service command result.
 TZSVCDIRSEC:            DS      virtual 1                                ; Storage for the directory sector number.

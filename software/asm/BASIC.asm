@@ -149,6 +149,10 @@ INIT3:      ; Setup keyboard buffer control.
             LD      A,0FFH
             LD      (SWRK),A
 
+INITANSI:   IF INCLUDE_ANSITERM = 1      ; If the ansi terminal emulator is builtin, enable it as default.
+            LD      (ANSIENABLE),A
+            ENDIF
+
             ; Setup timer interrupts
             LD      IX,TIMIN             ; Pass the interrupt service handler vector.
             LD      BC,00000H            ; Time starts at 00:00:00 01/01/1980 on initialisation.
@@ -292,17 +296,29 @@ WORDS:      DB      'E'+80H,"ND"         ; 0x80
             DB      'C'+80H,"ONT"        ; 0x9f
             DB      'L'+80H,"IST"        ; 0xa0
             DB      'C'+80H,"LEAR"       ; 0xa1
-            DB      'C'+80H,"LOAD"       ; 0xa2
-            DB      'C'+80H,"SAVE"       ; 0xa3
-            DB      'L'+80H,"OAD"        ; 0xa4
-            DB      'S'+80H,"AVE"        ; 0xa5 
-            DB      'F'+80H,"REQ"        ; 0xa6
-            DB      'N'+80H,"EW"         ; 0xa7    <- Command list terminator word, move to lowest command. Update the ZNEW variable below as well.
-                                         ;         <- Reserved space for new commands.
-            DB      'R'+80H,"EM"         ; 0xa8
+            DB      'A'+80H,"NSITERM"    ; 0xa2
+
+            ; Optional commands to be builtin when a tranZPUter board is present.
+OPTIONS0:   IF BUILD_TZFS = 1
+            DB      'C'+80H,"LOAD"       ; 0xa3
+            DB      'C'+80H,"SAVE"       ; 0xa4
+            DB      'L'+80H,"OAD"        ; 0xa5
+            DB      'S'+80H,"AVE"        ; 0xa6 
+            DB      'F'+80H,"REQ"        ; 0xa7
+            DB      'D'+80H,"IR"         ; 0xa8  
+            DB      'C'+80H,"D"          ; 0xa9 
+            ELSE
+            DB      'R'+80H,"EM"         ; 0xa3  
+            DB      'R'+80H,"EM"         ; 0xa4  
+            DB      'R'+80H,"EM"         ; 0xa5  
+            DB      'R'+80H,"EM"         ; 0xa6  
+            DB      'R'+80H,"EM"         ; 0xa7  
+            DB      'R'+80H,"EM"         ; 0xa8  
             DB      'R'+80H,"EM"         ; 0xa9  
-            DB      'R'+80H,"EM"         ; 0xaa  
-            DB      'R'+80H,"EM"         ; 0xab 
+            ENDIF
+            DB      'N'+80H,"EW"         ; 0xaa    <- Command list terminator word, move to lowest command. Update the ZNEW variable below as well.
+                                         ;         <- Reserved space for new commands.
+            DB      'R'+80H,"EM"         ; 0xab  
             DB      'R'+80H,"EM"         ; 0xac  
             DB      'R'+80H,"EM"         ; 0xad  
             DB      'R'+80H,"EM"         ; 0xae  
@@ -409,12 +425,26 @@ WORDTB:     DW      PEND
             DW      CONT
             DW      LIST
             DW      CLEAR
+            DW      SETANSITERM         ; Enable/disable the ANSI Terminal Emulator.
+
+            ; Optional commands to be builtin when a tranZPUter board is present.
+OPTIONS1:   IF BUILD_TZFS = 1
             DW      CLOAD               ; Load tokenised BASIC program.
             DW      CSAVE               ; Save tokenised BASIC program.
             DW      LOAD                ; Load ASCII text BASIC program.
             DW      SAVE                ; Save BASIC as ASCII text.
             DW      SETFREQ             ; Set the CPU Frequency.    
+            DW      DIRSDCARD           ; List out the SD directory.
+            DW      SETDIR              ; Change directory for all load and save operations.
+            ELSE
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
             DW      NEW
+            ENDIF
 
             ; RESERVED WORD TOKEN VALUES
 
@@ -425,8 +455,8 @@ ZGOTO       EQU    088H                 ; GOTO
 ZGOSUB      EQU    08CH                 ; GOSUB
 ZREM        EQU    08EH                 ; REM
 ZPRINT      EQU    09EH                 ; PRINT
-ZNEW        EQU    0A7H                 ; NEW    - ZNEW marks the end of the table
-                                        ; A8..BF are reserved for future commands.
+ZNEW        EQU    0AAH                 ; NEW    - ZNEW marks the end of the table
+                                        ; AA..BF are reserved for future commands.
 
             ; Space for expansion, a block of tokens for commands has been created from 0xA5 to 0xBF.
 
@@ -523,6 +553,8 @@ ERRORS:     DB      "NF"                 ; NEXT without FOR
             DB      "MO"                 ; Missing operand
             DB      "HX"                 ; HEX error
             DB      "BN"                 ; BIN error
+            DB      "BV"                 ; Bad Value
+            DB      "IO"                 ; IO error
 
             ; INITIALISATION TABLE -------------------------------------------------------
 
@@ -559,7 +591,7 @@ INITAB:     JP      WARMST               ; Warm start jump
             RET
 
             DB      1                    ; POS (x) number (1)
-            DB      80                   ; Terminal width (47)
+            DB      COLW                 ; Terminal width
             DB      28                   ; Width for commas (3 columns)
             DB      0                    ; No nulls after input bytes
             DB      0                    ; Output enabled (^O off)
@@ -582,7 +614,7 @@ INITAB:     JP      WARMST               ; Warm start jump
             DW      STLOOK               ; Temp string space
             DW      -2                   ; Current line number (cold)
             DW      PROGST+1             ; Start of program text
-INITBE:                              ; END OF INITIALISATION TABLE
+INITBE:                                  ; END OF INITIALISATION TABLE
 
             ; END OF INITIALISATION TABLE ---------------------------------------------------
 
@@ -1090,13 +1122,18 @@ OUTC:       PUSH    AF                   ; Save character
             CALL    Z,PRNTCRLF           ; Yes - output CRLF
 INCLEN:     INC     A                    ; Move on one character
             LD      (CURPOS),A           ; Save new position
-DINPOS:     POP     AF                   ; Restore character
+DINPOS:     IF INCLUDE_ANSITERM = 1
+            LD      A,(ANSIENABLE)
+            OR      A
+            JR      Z,NOANSI
+            POP     AF                   ; Restore character
             POP     BC                   ; Restore buffer length
-ANSIINC:    IF INCLUDE_ANSITERM = 1
             CALL    ANSITERM             ; Send it via the Ansi processor.
-            ELSE
-            CALL    PRNT                 ; Send it .
+            RET
             ENDIF
+NOANSI:     POP     AF                   ; Restore character
+            POP     BC                   ; Restore buffer length
+            CALL    PRNT                 ; Send it .
             RET
 
 CLOTST:     CALL    GETKY                ; Get input character
@@ -4427,6 +4464,17 @@ TSTBIT:     PUSH    AF                   ; Save bit mask
 OUTNCR:     CALL    OUTC                 ; Output character in A
             JP      PRNTCRLF             ; Output CRLF
 
+            ; Command to enable/disable the ANSI Terminal emulator.
+SETANSITERM:CALL    GETINT
+            CP      2                    ; Can only have 0 or 1.
+            JR      NC,SETANSIERR
+            LD      (ANSIENABLE),A       ; Update the flag.
+            RET
+SETANSIERR: LD      E,BV                 ; ?BV Error
+            JP      BERROR               ; Yes - output "?BV Error"
+
+
+OPTIONS2:   IF BUILD_TZFS = 1
 
             ; Method to load BASIC text program.
 LOAD:       LD      A,TAPELOAD           ; Set the type of operation into the flag var.
@@ -4906,6 +4954,235 @@ SETFREQ4:   LD      HL,FREQDEF           ; Set to default.
             ;
 SETFREQERR: LD      HL,FREQERR
             JR      SDERR
+
+
+            ; Method to get a string parameter and copy it into the provided buffer.
+            ;
+            ; Inputs:
+            ;     HL = Pointer to input line from BASIC.
+            ;     DE = Pointer to Destination buffer.
+            ;     B  = Max number of characters to read.
+            ; Outputs:
+            ;     DE and HL point to end of buffer and input line resepectively.
+            ;     B  = Characters copied (ie. B - input B = no characters).
+            ;
+GETSTRING:  LD      A,(HL)                                               ; Skip white space before copy.
+            CP      ' '
+            JR      NC, GETSTR2
+            CP      00DH
+            JR      GETSTR4                                              ; No directory means use the I/O set default.
+            INC     DE
+            JR      GETSTRING
+GETSTR1:    LD      (DE),A                                               ; Copy the name entered by user. Validation is done on the I/O processor, bad directory name will result in error next read/write.
+            INC     HL
+            INC     DE
+            LD      A,(HL)                                               ; Get next char and check it isnt CR, end of input line character.
+GETSTR2:    CP      00DH
+            JR      Z,GETSTR4                                            ; Finished if we encounter CR.
+            CP      ZTIMES
+            JR      NZ,GETSTR3
+            LD      A, '*'                                               ; BASIC has already tokenised the line so revert.
+GETSTR3:    DJNZ    GETSTR1                                              ; Loop until buffer is full, ignore characters beyond buffer limit.
+GETSTR4:    XOR     A                                                    ; Place end of buffer terminator as I/O processor uses C strings.
+            LD      (DE),A
+            RET
+
+            ; Method to set the file search wildcard prior to requesting a directory listing. The I/O processor applies this filter only returning directories
+            ; which match the wildcard, ie. A* returns directories starting A...
+            ;
+            ; Inputs:
+            ;     HL = Pointer to BASIC input line/
+            ;
+            ; HL and B are not preserved.
+
+SETWILDCARD:LD      DE, TZSVCWILDC                                       ; Location of the wildcard filter in the service record.
+            LD      B, TZSVCWILDSZ-1
+            CALL    GETSTRING                                            ; Copy the string into the service record.
+            RET
+
+            ; Command to set the current working directory on the SD card.
+SETDIR:     LD      DE, TZSVC_DIRNAME                                    ; Location of directory name in the service record.
+            LD      B, TZSVCDIRSZ-1
+            CALL    GETSTRING                                            ; Copy the string into the service record.
+            RET
+            
+            ; Method to print out the filename within an SD Card header.
+            ; The name may not be terminated as the full 17 chars are used, so this needs
+            ; to be checked.
+            ;
+            ; Input: DE = Address of filename.
+            ;
+PRTFN:      PUSH    BC
+            LD      B,TZSVCLONGFILESZ                                    ; Maximum size of filename.
+PRTMSG:     LD      A,(DE)
+            INC     DE
+            CP      000H                                                 ; If there is a valid terminator, exit.
+            JR      Z,PRTMSGE
+            CP      00DH
+            JR      Z,PRTMSGE
+            CALL    OUTC
+            DJNZ    PRTMSG                                               ; Else print until 17 chars have been processed.
+            CALL    PRNTCRLF
+PRTMSGE:    POP     BC
+            RET
+
+            ; Method to print out an SDC directory entry name.
+            ;
+            ; Input: HL = Address of filename.
+            ;
+PRTDIR:     PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            ;
+            LD      A,(LWIDTH)                                           ; At the moment only cater for 40/80 columns.
+            CP      COLW
+            LD      H,47
+            JR      NZ,PRTDIR0
+            LD      H,93
+PRTDIR0:    LD      A,(LINECNT)                                          ; Pause if we fill the screen.
+            LD      E,A
+            INC     E
+            CP      H
+            JR      NZ,PRTNOWAIT
+            LD      E, 0
+PRTDIRWAIT: CALL    GETKY
+            CP      ' '
+            JR      Z,PRTNOWAIT
+            CP      'X'                                                  ; Exit from listing.
+            LD      A,001H
+            JR      Z,PRTDIR4
+            JR      PRTDIRWAIT
+PRTNOWAIT:  LD      A,E
+            LD      (LINECNT),A
+            POP     DE
+            PUSH    DE                                                   ; Get pointer to the file name and print.
+            CALL    PRTFN                                                ; Print out the filename.
+            LD      HL, (DSPXY)
+            LD      A,L
+            CP      20
+            LD      A,20
+            JR      C, PRTDIR2
+            LD      A,(LWIDTH)                                           ; 40 Char mode? 2 columns of filenames displayed so NL.
+            CP      0
+            JR      Z,PRTDIR1
+            LD      A,L                                                  ; 80 Char mode we print 4 columns of filenames.
+            CP      40
+            LD      A,40
+            JR      C, PRTDIR2
+            LD      A,L
+            CP      60
+            LD      A,60
+            JR      C, PRTDIR2
+            ;
+PRTDIR1:    CALL    PRNTCRLF
+            JR      PRTDIR3
+PRTDIR2:    LD      L,A
+            LD      (DSPXY),HL
+PRTDIR3:    XOR     A
+PRTDIR4:    OR      A
+            POP     HL
+            POP     DE
+            POP     BC
+            RET
+
+            ; Method to request a sector full of directory entries from the I/O processor.
+            ;
+            ; Inputs:
+            ;      A = Director Sector number to request (set of directory entries in 512byte blocks).
+            ; Outputs:
+            ;      A = 0   - success, directory sector filled.
+            ;      A = 255 - I/O Error.
+            ;      A > 1   - Result from I/O processor, which is normally the error code.
+            ;
+SVC_GETDIR: PUSH    AF
+            LD      A, TZSVC_FTYPE_ALLFMT                                ; Setup the filetype so we retrieve all entries in the current directory.
+            LD      (TZSVC_FILE_TYPE),A
+            POP     AF
+            LD      (TZSVCDIRSEC),A                                      ; Save the sector number into the service structure.
+            OR      A                                                    ; Sector is 0 then setup for initial read.
+            LD      A, TZSVC_CMD_READDIR                                 ; Readdir command opens the directory. The default directory and wildcard have either been placed in the
+            JR      Z,SVC_GETD1                                          ; buffer by earlier commands or will be defaulted by the I/O processor.
+            LD      A, TZSVC_CMD_NEXTDIR                                 ; Request the next directory sector. The I/O processor either gets the next block or uses the TZSVCDIRSEC value.
+SVC_GETD1:  CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
+            OR      A
+            LD      A,255                                                ; Report I/O error as 255.
+            RET     NZ
+            LD      A,(TZSVCRESULT)
+            RET                                                          ; Return status to caller, 0 = success.
+
+            ; Method to get an SD Directory entry.
+            ; The I/O processor communications structure uses a 512 byte sector to pass SD data. A sector is cached and each call evaluates if the required request is in cache, if it is not,
+            ; a new sector is read.
+            ;
+            ; Input:  D  = Directory entry number to retrieve.
+            ; Output: HL = Address of directory entry.
+            ;         A  = 0, no errors, A > 1 error.
+GETSDDIRENT:PUSH    BC
+            PUSH    DE;
+            ;
+            LD      A,D
+            SRL     A
+            SRL     A
+            SRL     A
+            SRL     A                                                    ; Divide by 16 to get sector number.
+            LD      C,A
+            LD      A,(TZSVCDIRSEC)                                      ; Do we have this sector in the buffer? If we do, use it.
+            CP      C
+            JR      Z,GETDIRSD0
+            LD      A,C                                                  ; Retrieve the directory sector we need.
+            CALL    SVC_GETDIR                                           ; Read a sector full of directory entries..
+            OR      A
+            JR      NZ,DIRSDERR
+            ;
+GETDIRSD0:  POP     DE
+            PUSH    DE
+            LD      A,D                                                  ; Retrieve the directory entry number required.
+            AND     00FH
+            LD      HL,TZSVCSECTOR
+            JR      Z,GETDIRSD2
+            LD      B,A
+            LD      DE,TZSVCDIR_ENTSZ                                    ; Directory entry size
+GETDIRSD1:  ADD     HL,DE                                                ; Directory entry address into HL.
+            DJNZ    GETDIRSD1
+GETDIRSD2:  POP     DE
+            POP     BC
+            XOR     A
+            RET
+            ;
+DIRSDERR:   POP     DE                   ; Clean up stack.
+            POP     BC
+            LD      E,IO                 ; ?IO Error
+            JP      BERROR               ; Yes - output "?IO Error"
+
+
+            ; Method to list the directory of the SD Card.
+            ;
+            ; This method obtains a directory listing, either the default or from the search path given and lists it out.
+            ; No inputs or outputs.
+            ;
+DIRSDCARD:  CALL    SETWILDCARD                                          ; Setup any wildcard filter prior to processing.
+            PUSH    HL
+            LD      A,1                                                  ; Setup screen for printing, account for the title line. LINECNT is used for page pause.
+            LD      (LINECNT),A
+            LD      A,0FFH
+            LD      (TZSVCDIRSEC),A                                      ; Reset the sector buffer in memory indicator, using 0xFF will force a reread..
+            ;
+DIRSD0:     LD      D,0                                                  ; Directory entry number
+            LD      B,0
+DIRSD1:     CALL    GETSDDIRENT                                          ; Get SD Directory entry details for directory entry number stored in D.
+            JR      NZ,DIRSD4
+DIRSD2:     LD      A,(HL)
+            INC     HL
+            OR      A
+            JR      Z,DIRSD4
+            CALL    PRTDIR                                               ; Valid entry so print directory number and name pointed to by HL.
+            JR      NZ,DIRSD4
+DIRSD3:     INC     D                                                    ; Onto next directory entry number.
+            DJNZ    DIRSD1
+DIRSD4:     POP     HL
+            RET
+
+            ENDIF                                                        ; End of optional commands for use when a tranZPUter board is present.
 
 
 MONITR:     
@@ -7562,6 +7839,7 @@ READER:     DB      "File read error!",                                        C
 FREQERR:    DB      "Failed to change frequency!",                             CR,     NUL
 FREQSET:    DB      " KHz set.",                                               CR, LF, NUL
 FREQDEF:    DB      "Set to default.",                                         CR, LF, NUL
+ANSIERR:    DB      "Bad valueIlleFailed to change frequency!",                             CR,     NUL
 
             ;-------------------------------------------------------------------------------
             ; END OF STATIC LOOKUP TABLES AND CONSTANTS
@@ -7817,6 +8095,9 @@ DSPXYADDR:  DS      virtual 2                                            ; Addre
 
 FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.
 TIMESEC:    DS      virtual 6                                            ; RTC 48bit TIME IN MILLISECONDS
+LINECNT:    DS      virtual 2                                            ; Counter for displayed lines.
+
+ANSIENABLE: DS      virtual 1                                            ; Ansi Terminal flag.
 ;
 TPFLAG      DS      virtual 1
 SECTPOS     DS      virtual 2

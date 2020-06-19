@@ -1370,7 +1370,7 @@ CDEF:       POP     DE
             LD      (HL),07BH
             INC     HL
 
-L0336H:      PUSH    AF
+L0336H:     PUSH    AF
             PUSH    BC
             PUSH    DE
             PUSH    HL
@@ -1587,7 +1587,7 @@ DIRSDERR:   EX      DE,HL                                                ; Print
             PUSH    HL
             POP     BC                                                   ; HL to BC as the call requires the value to be displayed in BC.
             LD      DE,MSGSDRERR
-            CALL    ?PRINTMSG                                             ; Print out the filename.
+            CALL    ?PRINTMSG                                            ; Print out the filename.
             POP     DE
             POP     BC
             LD      A,1
