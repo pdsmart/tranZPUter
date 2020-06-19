@@ -57,6 +57,7 @@ build/audio_top.v
 build/constraints.sdc
 *.o
 Manuals/
+schematics/previous
 software/asm/CPM22-BIOS.asm
 software/asm/MZ80AFI.asm.bak
 software/asm/cpm22.mzf
