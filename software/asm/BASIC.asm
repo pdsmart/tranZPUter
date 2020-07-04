@@ -7817,7 +7817,7 @@ REBOOT:     DI
 
 BFREE:      DB      " Bytes free",CR,LF,0,0
 
-SIGNON:     DB      "Z80 BASIC Ver 4.7b",CR,LF
+SIGNON:     DB      "MZ-80A BASIC Ver 4.7b",CR,LF
             DB      "Copyright ",40,"C",41
             DB      " 1978 by Microsoft",CR,LF,0,0
 

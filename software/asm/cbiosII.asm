@@ -3384,7 +3384,7 @@ AllOff:     PUSH    AF                                                   ; Save 
             LD      (ITALICMODE),A
             LD      (UNDERSCMODE),A
             LD      (INVMODE),A
-            LD      A,007h                                               ; Black background, white chars.
+            LD      A,017h                                               ; Black background, white chars.
             LD      (FONTSET),A                                          ; Reset the bit map store
             POP     AF                                                   ; Restore register
             RET
