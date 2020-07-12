@@ -48,8 +48,8 @@ MODE80C:                EQU     1
 
 ; BIOS equates
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
-;MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+;MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
 
 ; Tape load/save modes. Used as a flag to enable common code.
 TAPELOAD                EQU     1
@@ -58,39 +58,60 @@ TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
 
 ; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_TZFS              EQU     1                                        ; Build for TZFS where extended memory is available.
+BUILD_MZ80A             EQU     1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_RFS               EQU     0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
+BUILD_TZFS              EQU     0                                        ; Build for TZFS where extended memory is available.
 INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
+; CMT Object types.
+;-----------------------------------------------
+ATR_OBJ                 EQU     1
+ATR_BASIC_PROG          EQU     2
+ATR_BASIC_DATA          EQU     3
+ATR_SRC_FILE            EQU     4
+ATR_RELOC_FILE          EQU     5
+ATR_PASCAL_PROG         EQU     0A0H
+ATR_PASCAL_DATA         EQU     0A1H
+
+;-------------------------------------------------------
+; Function entry points in the standard SA-1510 Monitor.
+;-------------------------------------------------------
+QWRI                    EQU     00021h
+QWRD                    EQU     00024h
+QRDI                    EQU     00027h
+QRDD                    EQU     0002Ah
+QVRFY                   EQU     0002Dh
+
+;-----------------------------------------------
 ; BASIC ERROR CODE VALUES
 ;-----------------------------------------------
-NF                      EQU    00H                                       ; NEXT without FOR
-SN                      EQU    02H                                       ; Syntax error
-RG                      EQU    04H                                       ; RETURN without GOSUB
-OD                      EQU    06H                                       ; Out of DATA
-FC                      EQU    08H                                       ; Function call error
-OV                      EQU    0AH                                       ; Overflow
-OM                      EQU    0CH                                       ; Out of memory
-UL                      EQU    0EH                                       ; Undefined line number
-BS                      EQU    10H                                       ; Bad subscript
-DDA                     EQU    12H                                       ; Re-DIMensioned array
-DZ                      EQU    14H                                       ; Division by zero (/0)
-ID                      EQU    16H                                       ; Illegal direct
-TM                      EQU    18H                                       ; Type miss-match
-OS                      EQU    1AH                                       ; Out of string space
-LS                      EQU    1CH                                       ; String too long
-ST                      EQU    1EH                                       ; String formula too complex
-CN                      EQU    20H                                       ; Can't CONTinue
-UF                      EQU    22H                                       ; UnDEFined FN function
-MO                      EQU    24H                                       ; Missing operand
-HX                      EQU    26H                                       ; HEX error
-BN                      EQU    28H                                       ; BIN error
-BV                      EQU    2AH                                       ; Bad Value error
-IO                      EQU    2CH                                       ; IO error
+NF                      EQU     00H                                      ; NEXT without FOR
+SN                      EQU     02H                                      ; Syntax error
+RG                      EQU     04H                                      ; RETURN without GOSUB
+OD                      EQU     06H                                      ; Out of DATA
+FC                      EQU     08H                                      ; Function call error
+OV                      EQU     0AH                                      ; Overflow
+OM                      EQU     0CH                                      ; Out of memory
+UL                      EQU     0EH                                      ; Undefined line number
+BS                      EQU     10H                                      ; Bad subscript
+DDA                     EQU     12H                                      ; Re-DIMensioned array
+DZ                      EQU     14H                                      ; Division by zero (/0)
+ID                      EQU     16H                                      ; Illegal direct
+TM                      EQU     18H                                      ; Type miss-match
+OS                      EQU     1AH                                      ; Out of string space
+LS                      EQU     1CH                                      ; String too long
+ST                      EQU     1EH                                      ; String formula too complex
+CN                      EQU     20H                                      ; Can't CONTinue
+UF                      EQU     22H                                      ; UnDEFined FN function
+MO                      EQU     24H                                      ; Missing operand
+HX                      EQU     26H                                      ; HEX error
+BN                      EQU     28H                                      ; BIN error
+BV                      EQU     2AH                                      ; Bad Value error
+IO                      EQU     2CH                                      ; IO error
 
 ;-----------------------------------------------
 ; Memory mapped ports in hardware.

@@ -2505,7 +2505,7 @@ SCROL2: RES     3,H
         LD      (HL),A
         INC     HL
         DJNZ    SCROL2                   
-        LD      A,(PBIAS)                ; PBIAS is the offest for hardare scroll.
+        LD      A,(PBIAS)                ; PBIAS is the offest for hardware scroll.
         LD      L,A
         LD      H,SCLBASE                ; Hardware scroll region, E2<xx>
         LD      A,(HL)

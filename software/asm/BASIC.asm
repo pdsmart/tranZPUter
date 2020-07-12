@@ -37,16 +37,24 @@
             ORG     10F0h
 
             DB      01h                                                                                     ; Code Type, 01 = Machine Code.
-            DB      "MZ80A BASIC V1.0", 0Dh                                                                 ; Title/Name (17 bytes).
 HEADER1:    IF BUILD_MZ80A = 1
+            DB      "MZ80A BASIC V1.1", 0DH                                                                 ; Title/Name (17 bytes).
             DW      CODEEND - CODESTART                                                                     ; Size of program.
             DW      CODESTART                                                                               ; Load address of program.
             DW      CODESTART                                                                               ; Exec address of program.
             ENDIF
 HEADER2:    IF BUILD_TZFS = 1
+            IF BUILD_RFS = 1
+            DB      "RFS BASIC V1.1" , 0DH, 0DH, 0DH                                                        ; Title/Name (17 bytes).
+            DW      (CODEEND - CODESTART) + (RELOCEND - RELOC) + (RELOCRFS2END - RELOCRFS2)                 ; Size of program.
+            DW      01200H                                                                                  ; Load address of program.
+            DW      RELOCRFS                                                                                ; Exec address of program.
+            ELSE
+            DB      "TZFS BASIC V1.1", 0DH, 0DH                                                             ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
+            ENDIF
             ENDIF
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h          ; Comment (104 bytes).
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h
@@ -62,7 +70,7 @@ BUILD1:     IF BUILD_MZ80A = 1
             ORG     1200H
             ENDIF
 
-BUILD2:     IF BUILD_TZFS = 1
+BUILD2:     IF BUILD_TZFS+BUILD_RFS > 0
             ORG     0000H
             ENDIF
 
@@ -78,7 +86,7 @@ STARTB:
             DW      ABPASS               ; Return integer in AB
 
 
-VECTORS:    IF BUILD_TZFS = 1
+VECTORS:    IF BUILD_TZFS+BUILD_RFS > 0
             ALIGN   0038H
             ORG     0038H
 INTVEC:     DS      3                    ; Space for the Interrupt vector.
@@ -92,7 +100,7 @@ CSTART:     DI                           ; Disable Interrupts and sat mode. NB. 
             IM      1
             LD      SP,STACK             ; Start of workspace RAM
 
-MEMSW0:     IF BUILD_TZFS = 1
+MEMSW0:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_0       ; Ensure the top part of RAM is set to use the mainboard as we need to configure hardware.
             OUT     (MMCFG),A
             ENDIF
@@ -163,7 +171,7 @@ INITANSI:   IF INCLUDE_ANSITERM = 1      ; If the ansi terminal emulator is buil
             LD      A,05H                ; Enable interrupts at hardware level, this must be done before switching memory mode.
             LD      (KEYPF),A
             ;
-MEMSW1:     IF BUILD_TZFS = 1
+MEMSW1:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_2       ; Enable the full 64K memory range before starting BASIC initialisation.
             OUT     (MMCFG),A
             ENDIF
@@ -173,7 +181,7 @@ MEMSW1:     IF BUILD_TZFS = 1
 MEMSZ1:     IF BUILD_MZ80A = 1
             LD      BC,MAXMEM - WRKSPC   ; Clear to top of physical RAM.
             ENDIF
-MEMSZ2:     IF BUILD_TZFS = 1
+MEMSZ2:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      BC,10000H - WRKSPC   ; Clear to top of physical RAM.
             ENDIF
             LD      E,00H
@@ -218,6 +226,7 @@ COPY:       LD      A,(DE)               ; Get source
             SBC     A,D                  ; Adjust it
             LD      H,A                  ; Re-save
             PUSH    HL                   ; Save bytes free
+            CALL    CLS                  ; Clear screen and initialise the screen variables
             LD      HL,SIGNON            ; Sign-on message
             CALL    PRS                  ; Output string
             POP     HL                   ; Get bytes free back
@@ -300,21 +309,31 @@ WORDS:      DB      'E'+80H,"ND"         ; 0x80
 
             ; Optional commands to be builtin when a tranZPUter board is present.
 OPTIONS0:   IF BUILD_TZFS = 1
-            DB      'C'+80H,"LOAD"       ; 0xa3
-            DB      'C'+80H,"SAVE"       ; 0xa4
-            DB      'L'+80H,"OAD"        ; 0xa5
-            DB      'S'+80H,"AVE"        ; 0xa6 
-            DB      'F'+80H,"REQ"        ; 0xa7
-            DB      'D'+80H,"IR"         ; 0xa8  
-            DB      'C'+80H,"D"          ; 0xa9 
-            ELSE
-            DB      'R'+80H,"EM"         ; 0xa3  
-            DB      'R'+80H,"EM"         ; 0xa4  
-            DB      'R'+80H,"EM"         ; 0xa5  
-            DB      'R'+80H,"EM"         ; 0xa6  
-            DB      'R'+80H,"EM"         ; 0xa7  
-            DB      'R'+80H,"EM"         ; 0xa8  
-            DB      'R'+80H,"EM"         ; 0xa9  
+              DB    'C'+80H,"LOAD"       ; 0xa3
+              DB    'C'+80H,"SAVE"       ; 0xa4
+              DB    'L'+80H,"OAD"        ; 0xa5
+              DB    'S'+80H,"AVE"        ; 0xa6 
+              DB    'F'+80H,"REQ"        ; 0xa7
+              DB    'D'+80H,"IR"         ; 0xa8  
+              DB    'C'+80H,"D"          ; 0xa9 
+            ENDIF
+            IF BUILD_RFS = 1
+              DB    'C'+80H,"LOAD"       ; 0xa3
+              DB    'C'+80H,"SAVE"       ; 0xa4
+              DB    'R'+80H,"EM"         ; 0xa5  
+              DB    'R'+80H,"EM"         ; 0xa6  
+              DB    'R'+80H,"EM"         ; 0xa7  
+              DB    'R'+80H,"EM"         ; 0xa8  
+              DB    'R'+80H,"EM"         ; 0xa9  
+            ENDIF
+            IF BUILD_MZ80A = 1
+              DB    'C'+80H,"LOAD"       ; 0xa3
+              DB    'C'+80H,"SAVE"       ; 0xa4
+              DB    'R'+80H,"EM"         ; 0xa5  
+              DB    'R'+80H,"EM"         ; 0xa6  
+              DB    'R'+80H,"EM"         ; 0xa7  
+              DB    'R'+80H,"EM"         ; 0xa8  
+              DB    'R'+80H,"EM"         ; 0xa9  
             ENDIF
             DB      'N'+80H,"EW"         ; 0xaa    <- Command list terminator word, move to lowest command. Update the ZNEW variable below as well.
                                          ;         <- Reserved space for new commands.
@@ -429,22 +448,33 @@ WORDTB:     DW      PEND
 
             ; Optional commands to be builtin when a tranZPUter board is present.
 OPTIONS1:   IF BUILD_TZFS = 1
-            DW      CLOAD               ; Load tokenised BASIC program.
-            DW      CSAVE               ; Save tokenised BASIC program.
+            DW      CLOADTZ             ; Load tokenised BASIC program.
+            DW      CSAVETZ             ; Save tokenised BASIC program.
             DW      LOAD                ; Load ASCII text BASIC program.
             DW      SAVE                ; Save BASIC as ASCII text.
             DW      SETFREQ             ; Set the CPU Frequency.    
             DW      DIRSDCARD           ; List out the SD directory.
             DW      SETDIR              ; Change directory for all load and save operations.
-            ELSE
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      NEW
             ENDIF
+OPTIONS2:   IF BUILD_RFS = 1
+            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            ENDIF
+OPTIONS3:   IF BUILD_MZ80A = 1
+            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            DW      REM
+            ENDIF
+            DW      NEW
 
             ; RESERVED WORD TOKEN VALUES
 
@@ -4474,7 +4504,10 @@ SETANSIERR: LD      E,BV                 ; ?BV Error
             JP      BERROR               ; Yes - output "?BV Error"
 
 
-OPTIONS2:   IF BUILD_TZFS = 1
+            ;----------------------------------------
+            ; TZFS Commands.
+            ;----------------------------------------
+OPTIONS1C:  IF BUILD_TZFS = 1
 
             ; Method to load BASIC text program.
 LOAD:       LD      A,TAPELOAD           ; Set the type of operation into the flag var.
@@ -4482,16 +4515,16 @@ LOAD:       LD      A,TAPELOAD           ; Set the type of operation into the fl
 
             ; Method to load a cassette image (tokenised basic script).
             ;
-CLOAD:      LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
+CLOADTZ:    LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
 CLOAD0:     LD      (TPFLAG),A
             LD      A,(HL)               ; Get byte after "CLOAD"
        ;    CP      ZTIMES               ; "*" token? ("CLOAD*")
        ;    JP      Z,ARRLD1             ; Yes - Array load
             SUB     ZPRINT               ; "?" ("PRINT" token) Verify?
-            JP      Z,FLGVER             ; Yes - Flag "verify"
+            JP      Z,FLGVERTZ           ; Yes - Flag "verify"
             XOR     A                    ; Flag "load"
             DB      01H                  ; Skip "CPL" and "INC HL"
-FLGVER:     CPL                          ; Flag "verify"
+FLGVERTZ:   CPL                          ; Flag "verify"
             INC     HL                   ; Skip over "?"
             PUSH    AF                   ; Save verify flag
             DEC     HL                   ; DEC 'cos GETCHR INCs
@@ -4504,28 +4537,28 @@ FLGVER:     CPL                          ; Flag "verify"
             OR      A
             JP      NZ,SDVERF
             ;
-            LD      HL,TZSVC_FILENAME    ; Set the filename to be created.
+            LD      HL,TZSVC_FILENAME    ; Set the filename to be loaded.
             LD      A,(TMSTPL)                                   
             CP      TZSVCFILESZ          ; Check size of filename, cant be more than an MZF name of 17 chars.
             JP      NC,SDFNTG
             LD      B,A
-CLOAD1:     LD      A,(DE)               ; Copy filename into service record.
+CLOADTZ1:   LD      A,(DE)               ; Copy filename into service record.
             LD      (HL),A
             INC     DE
             INC     HL
-            DJNZ    CLOAD1
+            DJNZ    CLOADTZ1
             XOR     A
             LD      (HL),A               ; Terminate filename.
             ;
             CALL    CLRPTR               ; Initialise memory to NEW state ready for program load.
             LD      A,(TPFLAG)           ; What are we processing, cassette image or text?
             CP      CTAPELOAD
-            JR      Z,CLOAD2             ; Is this a cassette image load?
+            JR      Z,CLOADTZ2           ; Is this a cassette image load?
             CALL    LDTXT                ; BASIC text load.
             JR      SDLOADE
-CLOAD2:     SCF
+CLOADTZ2:   SCF
             CALL    PRCFIL               ; Process file as a load request.
-CLOAD3:     PUSH    HL
+            PUSH    HL
             LD      HL,(BASTXT)          ; Get start of program memory.
             LD      BC,(TZSVC_LOADSIZE)  ; Get the actual load size.
             ADD     HL,BC                ; Find the end.
@@ -4665,7 +4698,7 @@ SAVE:       LD      A,TAPESAVE           ; Set the type of operation into the fl
 
             ; Method to save a cassette image (tokenised basic script).
             ;
-CSAVE:      LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
+CSAVETZ:    LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
 CSAVE0:     LD      (TPFLAG),A
             ;
             LD      B,1                  ; Flag "CSAVE"
@@ -4883,44 +4916,21 @@ PRCFIL2:    PUSH    AF                   ; Save service command to execute.
             LD      (TZSVC_FILE_NO), A 
             LD      A,(TMSTPL)                                   
             CP      TZSVCFILESZ          ; Check size of filename, cant be more than an MZF name of 17 chars.
-            JR      NC,SDFNTG
+            JP      NC,SDFNTG
             LD      A,TZSVC_FTYPE_CAS    ; Type of file is CASsette, the K64F will know how to handle it.
             LD      (TZSVC_FILE_TYPE),A
             POP     AF
             CALL    SVC_CMD              ; And make communications wit the I/O processor, returning with the required record.
             OR      A                    ; Zero means no physical error occurred.
             JR      Z, PRCFIL3
-            JR      SDPHYER
-PRCFIL3:     LD      A,(TZSVCRESULT)      ; Check the result from the K64F, non zero is an error.
+            JP      SDPHYER
+PRCFIL3:    LD      A,(TZSVCRESULT)      ; Check the result from the K64F, non zero is an error.
             OR      A
             RET     Z
             LD      A,(TZSVCCMD)
             CP      TZSVC_CMD_LOADFILE
-            JR      Z,SDLDER
-            JR      SDSVER
-
-SDNONAM:    LD      HL,BADFN             ; Must give a name for SD card load and save.
-SDERR:      CALL    PRS
-            POP     AF                   ; Waste return address.
-            JP      ERRIN
-SDFNTG:     LD      HL,FNTOOG
-            JR      SDERR
-SDPHYER:    LD      HL,PHYERR
-            JR      SDERR
-SDLDER:     LD      HL,LOADERR
-            JR      SDERR
-SDSVER:     LD      HL,SAVEERR
-            JR      SDERR
-SDCRER:     LD      HL,CREATER
-            JR      SDERR
-SDCLER:     LD      HL,CLOSEER
-            JR      SDERR
-SDWRER:     LD      HL,WRITEER
-            JR      SDERR
-SDOPER:     LD      HL,OPENER
-            JR      SDERR
-SDRDER:     LD      HL,READER
-            JR      SDERR
+            JP      Z,SDLDER
+            JP      SDSVER
 
             ; Command to change the Z80 CPU frequency if running with the tranZPUter upgrade.
 SETFREQ:    CALL    POSINT               ; Get frequency in KHz
@@ -4953,39 +4963,8 @@ SETFREQ4:   LD      HL,FREQDEF           ; Set to default.
             JR      SETFREQ3
             ;
 SETFREQERR: LD      HL,FREQERR
-            JR      SDERR
+            JP      SDERR
 
-
-            ; Method to get a string parameter and copy it into the provided buffer.
-            ;
-            ; Inputs:
-            ;     HL = Pointer to input line from BASIC.
-            ;     DE = Pointer to Destination buffer.
-            ;     B  = Max number of characters to read.
-            ; Outputs:
-            ;     DE and HL point to end of buffer and input line resepectively.
-            ;     B  = Characters copied (ie. B - input B = no characters).
-            ;
-GETSTRING:  LD      A,(HL)                                               ; Skip white space before copy.
-            CP      ' '
-            JR      NC, GETSTR2
-            CP      00DH
-            JR      GETSTR4                                              ; No directory means use the I/O set default.
-            INC     DE
-            JR      GETSTRING
-GETSTR1:    LD      (DE),A                                               ; Copy the name entered by user. Validation is done on the I/O processor, bad directory name will result in error next read/write.
-            INC     HL
-            INC     DE
-            LD      A,(HL)                                               ; Get next char and check it isnt CR, end of input line character.
-GETSTR2:    CP      00DH
-            JR      Z,GETSTR4                                            ; Finished if we encounter CR.
-            CP      ZTIMES
-            JR      NZ,GETSTR3
-            LD      A, '*'                                               ; BASIC has already tokenised the line so revert.
-GETSTR3:    DJNZ    GETSTR1                                              ; Loop until buffer is full, ignore characters beyond buffer limit.
-GETSTR4:    XOR     A                                                    ; Place end of buffer terminator as I/O processor uses C strings.
-            LD      (DE),A
-            RET
 
             ; Method to set the file search wildcard prior to requesting a directory listing. The I/O processor applies this filter only returning directories
             ; which match the wildcard, ie. A* returns directories starting A...
@@ -5182,16 +5161,256 @@ DIRSD3:     INC     D                                                    ; Onto 
 DIRSD4:     POP     HL
             RET
 
+            ;--------------------------------------
+            ; Error jump table for TZFS.
+            ;--------------------------------------
+SDNONAM:    LD      HL,SDBADFN             ; Must give a name for SD card load and save.
+SDERR:      CALL    PRS
+            POP     AF                   ; Waste return address.
+            JP      ERRIN
+SDFNTG:     LD      HL,SDFNTOOG
+            JR      SDERR
+SDPHYER:    LD      HL,SDPHYERR
+            JR      SDERR
+SDLDER:     LD      HL,SDLOADERR
+            JR      SDERR
+SDSVER:     LD      HL,SDSAVEERR
+            JR      SDERR
+SDCRER:     LD      HL,SDCREATER
+            JR      SDERR
+SDCLER:     LD      HL,SDCLOSEER
+            JR      SDERR
+SDWRER:     LD      HL,SDWRITEER
+            JR      SDERR
+SDOPER:     LD      HL,SDOPENER
+            JR      SDERR
+SDRDER:     LD      HL,SDREADER
+            JR      SDERR
+
+            ;--------------------------------------
+            ; Test Message table
+            ;--------------------------------------
+SDBADFN:    DB      "Filename missing!",                                       CR,     NUL
+SDFNTOOG:   DB      "Filename too long!",                                      CR,     NUL
+SDPHYERR:   DB      "SD/K64F IO error!",                                       CR,     NUL
+SDLOADERR:  DB      "File loading error!",                                     CR,     NUL
+SDSAVEERR:  DB      "File save error!",                                        CR,     NUL
+SDCREATER:  DB      "File create error!",                                      CR,     NUL
+SDCLOSEER:  DB      "File close error!",                                       CR,     NUL
+SDWRITEER:  DB      "File write error!",                                       CR,     NUL
+SDOPENER:   DB      "File open error!",                                        CR,     NUL
+SDREADER:   DB      "File read error!",                                        CR,     NUL
+FREQERR:    DB      "Failed to change frequency!",                             CR,     NUL
+FREQSET:    DB      " KHz set.",                                               CR, LF, NUL
+FREQDEF:    DB      "Set to default.",                                         CR, LF, NUL
+
+            ;----------------------------------------
+            ; End of Options1 Code - TZFS Build
+            ;----------------------------------------
             ENDIF                                                        ; End of optional commands for use when a tranZPUter board is present.
+
+            ;----------------------------------------
+            ; RFS Commands.
+            ;----------------------------------------
+OPTIONS2C:  IF BUILD_RFS = 1
+
+
+            ;--------------------------------------
+            ; Error jump table for RFS.
+            ;--------------------------------------
+RFSNONAM:   LD      HL,RFSBADFN          ; Must give a name for SD card load and save.
+RFSERR:     CALL    PRS
+            POP     AF                   ; Waste return address.
+            JP      ERRIN
+RFSFNTG:    LD      HL,RFSFNTOOG
+            JR      RFSERR
+RFSLDER:    LD      HL,RFSLOADERR
+            JR      RFSERR
+RFSSVER:    LD      HL,RFSSAVEERR
+            JR      RFSERR
+
+            ;--------------------------------------
+            ; Test Message table
+            ;--------------------------------------
+RFSBADFN:   DB      "Filename missing!",                                       CR,     NUL
+RFSFNTOOG:  DB      "Filename too long!",                                      CR,     NUL
+RFSLOADERR: DB      "File loading error!",                                     CR,     NUL
+RFSSAVEERR: DB      "File save error!",                                        CR,     NUL
+RFSMSGLOAD: DB      "Loading",                                                 NUL
+RFSMSGOK:   DB      "Saved",                                                   CR,     NUL
+
+            ;----------------------------------------
+            ; End of Options2 Code - RFS Build
+            ;----------------------------------------
+            ENDIF                                                        ; End of optional commands for use when a tranZPUter board is present.
+
+            ;----------------------------------------
+            ; MZ80A Commands.
+            ;----------------------------------------
+OPTIONS3C:  IF BUILD_MZ80A+BUILD_RFS > 0
+
+            ; Method to load a cassette image (tokenised basic script).
+            ;
+CLOAD80A:   LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
+CLOAD0:     LD      (TPFLAG),A
+            LD      A,(HL)               ; Get byte after "CLOAD"
+       ;    CP      ZTIMES               ; "*" token? ("CLOAD*")
+       ;    JP      Z,ARRLD1             ; Yes - Array load
+            SUB     ZPRINT               ; "?" ("PRINT" token) Verify?
+            JP      Z,CMTVERF            ; Yes - Flag "verify"
+
+            PUSH    HL
+            PUSH    DE
+            XOR     A
+            LD      DE,NAME
+            LD      (DE),A
+            CALL    GETSTRING            ; Check for no name, load next file.
+            POP     DE
+            POP     HL
+            LD      A,B
+            OR      A
+            JR      Z,CLOAD80A_2
+
+            CALL    GETCHR               ; Get next character
+            LD      A,0                  ; Any file will do
+            JP      Z,CMTNONAM           ; No name given - error.
+            CALL    EVAL                 ; Evaluate expression
+            CALL    GTFLNM               ; Get file name
+            ;
+CLOAD80A_0: LD      HL,NAME              ; Set the filename to be loaded.
+            LD      A,(TMSTPL)                                   
+            CP      TZSVCFILESZ          ; Check size of filename, cant be more than an MZF name of 17 chars.
+            JP      NC,CMTFNTG
+            LD      B,A
+CLOAD80A_1: LD      A,(DE)               ; Copy filename into service record.
+            LD      (HL),A
+            INC     DE
+            INC     HL
+            DJNZ    CLOAD80A_1
+            XOR     A
+            LD      (HL),A               ; Terminate filename.
+            ;
+CLOAD80A_2: CALL    CLRPTR               ; Initialise memory to NEW state ready for program load.
+            ;
+            CALL    ?RDI
+            JP      C,CMTLDER
+            LD      DE,CMTMSGLOAD        ; Show we are loading a program.
+            CALL    MONPRTSTR
+            LD      DE,NAME
+            CALL    MONPRTSTR
+            LD      DE,CMTMSGLOAD2       ; Show we are loading a program.
+            CALL    MONPRTSTR
+            ;
+            LD      HL,(BASTXT)          ; Get start of program memory.
+            LD      (DTADR),HL           ; Place the load address into the header to take into account different basic versions with different addresses. 
+            ;
+            CALL    ?RDD
+            JP      C,CMTLDER
+            ;
+            LD      HL,(BASTXT)          ; Get start of program memory.
+            LD      BC,(SIZE)            ; Get the actual load size.
+            ADD     HL,BC                ; Find the end.
+            XOR     A
+            LD      (HL),A               ; Last two bytes are xeroed as they are for the next line number.
+            INC     HL
+            LD      (HL),A
+            INC     HL
+            LD      (PROGND),HL          ; Set it as the end of program memory.
+            ;
+CMTVERF:
+CMTLOADE:   LD      HL,OKMSG             ; "Ok" message
+            CALL    PRS                  ; Output string
+            JP      SETPTR               ; Set up line pointers
+
+            ; Method to save a cassette image (tokenised basic script).
+            ;
+CSAVE80A:   LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
+            LD      (TPFLAG),A
+            ;
+            LD      B,1                  ; Flag "CSAVE"
+       ;    CP      ZTIMES               ; "*" token? ("CSAVE*")
+       ;    JP      Z,ARRSV1             ; Yes - Array save
+            CALL    EVAL                 ; Evaluate expression
+            PUSH    HL
+            CALL    GTFLNM               ; Get file name
+            ;
+            LD      HL,NAME              ; Set the filename to be loaded.
+            LD      A,(TMSTPL)                                   
+            CP      TZSVCFILESZ          ; Check size of filename, cant be more than an MZF name of 17 chars.
+            JP      NC,CMTFNTG
+            LD      B,A
+CSAVE80A_1: LD      A,(DE)               ; Copy filename into service record.
+            LD      (HL),A
+            INC     DE
+            INC     HL
+            DJNZ    CSAVE80A_1
+            XOR     A
+            LD      (HL),A               ; Terminate filename.
+            ;
+            LD      A,ATR_BASIC_PROG     ; Set attribute: BASIC
+            LD      (ATRB),A
+            LD      HL,(PROGND)          ; Get the actual program size.
+            LD      BC,(BASTXT)          ; Get start of program memory.
+            XOR     A
+            SBC     HL,BC                ; Find the size.
+            LD      (SIZE),HL            ; Size of basic program.
+            LD      (DTADR),BC           ; Start address of basic program.
+            LD      HL,0 
+            LD      (EXADR),HL           ; Exec address is zero for a basic program.
+
+            PUSH    DE
+            CALL    ?WRI                 ; Commence header write.
+            JP      C,CMTSVER
+            CALL    ?WRD                 ; data
+            JR      C,CMTSVER
+            LD      HL,CMTMSGOK         ; 'OK!'
+            CALL    PRS
+            POP     DE
+            POP     HL
+            RET
+
+            ; MZ80A specific commands.
+OPTIONS3B:  IF BUILD_MZ80A = 1
+            ENDIF
+
+            ;--------------------------------------
+            ; Error jump table for MZ80A.
+            ;--------------------------------------
+CMTNONAM:   LD      HL,CMTBADFN          ; Must give a name for SD card load and save.
+CMTERR:     CALL    PRS
+            POP     AF                   ; Waste return address.
+            JP      ERRIN
+CMTFNTG:    LD      HL,CMTFNTOOG
+            JR      CMTERR
+CMTLDER:    LD      HL,CMTLOADERR
+            JR      CMTERR
+CMTSVER:    LD      HL,CMTSAVEERR
+            JR      CMTERR
+
+            ;--------------------------------------
+            ; Test Message table
+            ;--------------------------------------
+CMTBADFN:   DB      "Filename missing!",                                       CR,     NUL
+CMTFNTOOG:  DB      "Filename too long!",                                      CR,     NUL
+CMTLOADERR: DB      "File loading error!",                                     CR,     NUL
+CMTSAVEERR: DB      "File save error!",                                        CR,     NUL
+CMTMSGLOAD: DB      "Loading \"",                                              NUL
+CMTMSGLOAD2:DB      "\"",                                                      CR,     NUL
+CMTMSGOK:   DB      "Saved",                                                   CR,     NUL
+
+            ;----------------------------------------
+            ; End of Options3 Code - MZ80A Build
+            ;----------------------------------------
+            ENDIF 
 
 
 MONITR:     
-MONITR2     IF BUILD_TZFS = 1
+MONITR2     IF BUILD_TZFS+BUILD_RFS > 0
             ; Switch memory back to TZFS mode.
             LD      A, TZMM_TZFS 
             OUT     (MMCFG),A 
             ENDIF
-            JP      REBOOT               ; Restart (Normally Monitor Start)
+            JP      REBOOT                                               ; Restart (Normally Monitor Start)
 
             ;-------------------------------------------------------------------------------
             ; TIMER INTERRUPT                                                                      
@@ -5207,7 +5426,7 @@ TIMIN:      LD      (SPISRSAVE),SP                                       ; Use a
             PUSH    DE
             PUSH    HL
             ;
-MEMSW2:     IF BUILD_TZFS = 1
+MEMSW2:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_0                                       ; We meed to be in memory mode 10 to process the interrupts as this allows us access to the hardware.
             OUT     (MMCFG),A
             ENDIF
@@ -5436,7 +5655,7 @@ ISRKEYRPT:  LD      A,(KEYCOUNT)                                         ; Get c
             LD      (KEYWRITE),HL                                        ; Store updated pointer.
             ;
 ISREXIT:    
-MEMSW3:     IF BUILD_TZFS = 1
+MEMSW3:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
             OUT     (MMCFG),A
             ENDIF
@@ -6172,7 +6391,14 @@ TIMESET:    LD      (TIMESEC),HL                                         ; Load 
             ;
             LD      A, 0C3H                                              ; Install the interrupt vector for when interrupts are enabled.
             LD      (00038H),A
+
+            ; Interrupt vector stored in RAM for the MZ80A (monitor ROM not writeable!!!).
+TIMESET1:   IF BUILD_MZ80A = 1
+            LD      (01039H),IX
+            ENDIF
+TIMESET2:   IF BUILD_TZFS+BUILD_RFS > 0
             LD      (00039H),IX
+            ENDIF
             RET    
 
             ; Time Read;
@@ -6215,6 +6441,42 @@ L09E8:      LD      (HL),D
             JR      NZ,L09E8                
             POP     DE
             RET    
+
+            ; Method to get a string parameter and copy it into the provided buffer.
+            ;
+            ; Inputs:
+            ;     HL = Pointer to input line from BASIC.
+            ;     DE = Pointer to Destination buffer.
+            ;     B  = Max number of characters to read.
+            ; Outputs:
+            ;     DE and HL point to end of buffer and input line resepectively.
+            ;     B  = Characters copied (ie. B - input B = no characters).
+            ;
+GETSTRING:  LD      C,B                                                  ; Save maximum characters allowed.
+            LD      A,(HL)                                               ; Skip white space before copy.
+            CP      ' '
+            JR      NC, GETSTR2
+            CP      00DH
+            JR      GETSTR4                                              ; No directory means use the I/O set default.
+            INC     DE
+            JR      GETSTRING
+GETSTR1:    LD      (DE),A                                               ; Copy the name entered by user. Validation is done on the I/O processor, bad directory name will result in error next read/write.
+            INC     HL
+            INC     DE
+            LD      A,(HL)                                               ; Get next char and check it isnt CR, end of input line character.
+GETSTR2:    CP      00DH
+            JR      Z,GETSTR4                                            ; Finished if we encounter CR.
+            CP      ZTIMES
+            JR      NZ,GETSTR3
+            LD      A, '*'                                               ; BASIC has already tokenised the line so revert.
+GETSTR3:    DJNZ    GETSTR1                                              ; Loop until buffer is full, ignore characters beyond buffer limit.
+GETSTR4:    LD      A,C                                                  ; Set B = no characters copied.
+            SUB     B
+            LD      B,A
+            XOR     A                                                    ; Place end of buffer terminator as I/O processor uses C strings.
+            LD      (DE),A
+            RET
+
 
             ; A function from the z88dk stdlib, a delay loop with T state accuracy.
             ; 
@@ -6538,7 +6800,7 @@ PRNT:       DI
             LD      (SPISRSAVE),SP                                       ; Share the interrupt stack for banked access as the BASIC stack goes out of scope.
             LD      SP,ISRSTACK                                          ; Interrupts are disabled so we can safely use this stack.
             ;
-MEMSW4:     IF BUILD_TZFS = 1
+MEMSW4:     IF BUILD_TZFS+BUILD_RFS > 0
             PUSH    AF
             LD      A,TZMM_MZ700_0                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
@@ -6562,7 +6824,7 @@ MEMSW4:     IF BUILD_TZFS = 1
             POP     BC
 PRNT1:      CALL    DSPXYTOADDR
             ;
-MEMSW5:     IF BUILD_TZFS = 1
+MEMSW5:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_2                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -7142,6 +7404,523 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ;-------------------------------------------------------------------------------
 
             ;-------------------------------------------------------------------------------
+            ; CMT UTILITIES
+            ;-------------------------------------------------------------------------------
+?WRI:       PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,0D7H
+            LD      E,0CCH
+            LD      HL,IBUFE
+            LD      BC,00080H
+WRI1:       CALL    CKSUM
+            CALL    MOTOR
+            JR      C,CMIWRI2                 
+            LD      A,E
+            CP      0CCH
+            JR      NZ,CMIWRI1
+            CALL    NL
+            PUSH    DE
+            LD      DE,MSGWRITING                       ; Writing Message
+            CALL    MONPRTSTR
+            LD      DE,NAME
+            CALL    MONPRTSTR
+            LD      DE,MSGWRITING2
+            CALL    MONPRTSTR
+            POP     DE
+CMIWRI1:    DI
+            CALL    GAP
+            CALL    WTAPE
+CMIWRI2:    JP      L0552
+
+
+?WRD:       DI      
+            PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,0D7H
+            LD      E,053H
+            LD      BC,(SIZE)
+            LD      HL,(DTADR)
+            LD      A,B
+            OR      C
+            JR      Z,L04CB                 
+            JR      WRI1                   
+
+WTAPE:      PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,002H
+            LD      A,0F0H
+            LD      (KEYPA),A
+L048F:      LD      A,(HL)
+            CALL    L0767
+            LD      A,(KEYPB)
+            AND     081H
+            JP      NZ,L049E
+            SCF     
+            JR      L04CB                   
+L049E:      INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JP      NZ,L048F
+            LD      HL,(SUMDT)
+            LD      A,H
+            CALL    L0767
+            LD      A,L
+            CALL    L0767
+            CALL    L0D57
+            DEC     D
+            JP      NZ,L04BB
+            OR      A
+            JP      L04CB
+L04BB:      LD      B,000H
+L04BD:      CALL    L0D3E
+            DEC     B
+            JP      NZ,L04BD
+            POP     HL
+            POP     BC
+            PUSH    BC
+            PUSH    HL
+            JP      L048F
+L04CB:      POP     HL
+            POP     BC
+            POP     DE
+            RET     
+
+?RDI:       PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,0D2H
+            LD      E,0CCH
+            LD      BC,00080H
+            LD      HL,IBUFE
+L04DD:      CALL    MOTOR
+            JP      C,L0570
+            DI
+            CALL    TMARK
+            JP      C,L0570
+            CALL    L0505
+            JP      L0552
+
+?RDD:       DI      
+            PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,0D2H
+            LD      E,053H
+            LD      BC,(SIZE)
+            LD      HL,(DTADR)
+            LD      A,B
+            OR      C
+            JP      Z,L0552
+            JR      L04DD                   
+L0505:      PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      H,002H
+L050A:      LD      BC,KEYPB
+            LD      DE,KEYPC
+L0510:      CALL    EDGE
+            JP      C,L0570
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JP      Z,L0510
+            LD      D,H
+            LD      HL,00000H
+            LD      (SUMDT),HL
+            POP     HL
+            POP     BC
+            PUSH    BC
+            PUSH    HL
+L052A:      CALL    RBYTE
+            JP      C,L0570
+            LD      (HL),A
+            INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JP      NZ,L052A
+            LD      HL,(SUMDT)
+            CALL    RBYTE
+            JP      C,L0570
+            LD      E,A
+            CALL    RBYTE
+            JP      C,L0570
+            CP      L
+            JP      NZ,L0563
+            LD      A,E
+            CP      H
+            JP      NZ,L0563
+L0551:      XOR     A
+L0552:      POP     HL
+            POP     BC
+            POP     DE
+            CALL    MSTOP
+            PUSH    AF
+            EI      
+            POP     AF
+            RET     
+
+L0563:      DEC     D
+            JR      Z,L056C                 
+            LD      H,D
+            CALL    GAPCK
+            JR      L050A                   
+L056C:      LD      A,001H
+            JR      L0572                   
+L0570:      LD      A,002H
+L0572:      SCF     
+            JR      L0552                   
+
+
+?VRFY:      DI      
+            PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      BC,(SIZE)
+            LD      HL,(DTADR)
+            LD      D,0D2H
+            LD      E,053H
+            LD      A,B
+            OR      C
+            JR      Z,L0552                 
+            CALL    CKSUM
+            CALL    MOTOR
+            JR      C,L0570                 
+            CALL    TMARK
+            JP      C,L0570
+            CALL    TVRFY
+            JR      L0552                   
+
+TVRFY:      PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      H,002H
+TVF1:       LD      BC,KEYPB
+            LD      DE,KEYPC
+TVF2:       CALL    EDGE
+            JP      C,L0570
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JP      Z,TVF2
+            LD      D,H
+            POP     HL
+            POP     BC
+            PUSH    BC
+            PUSH    HL
+TVF3:       CALL    RBYTE
+            JP      C,L0570
+            CP      (HL)
+            JP      NZ,L056C
+            INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JP      NZ,TVF3
+            LD      HL,(CSMDT)
+            CALL    RBYTE
+            CP      H
+            JR      NZ,L056C                
+            CALL    RBYTE
+            CP      L
+            JR      NZ,L056C                
+            DEC     D
+            JP      Z,L0551
+            LD      H,D
+            JR      TVF1                   
+
+EDGE:       LD      A,0F0H
+            LD      (KEYPA),A
+            NOP     
+EDG1:       LD      A,(BC)
+            AND     081H
+            JP      NZ,EDG1A
+            SCF     
+            RET     
+EDG1A:      LD      A,(DE)
+            AND     020H
+            JP      NZ,EDG1
+EDG2:       LD      A,(BC)
+            AND     081H
+            JP      NZ,EDG3
+            SCF     
+            RET     
+EDG3:       LD      A,(DE)
+            AND     020H
+            JP      Z,EDG2
+            RET     
+
+RBYTE:      PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      HL,00800H
+            LD      BC,KEYPB
+            LD      DE,KEYPC
+RBY1:       CALL    EDGE
+            JP      C,RBY3
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JP      Z,RBY2
+            PUSH    HL
+            LD      HL,(SUMDT)
+            INC     HL
+            LD      (SUMDT),HL
+            POP     HL
+            SCF     
+RBY2:       LD      A,L
+            RLA     
+            LD      L,A
+            DEC     H
+            JP      NZ,RBY1
+            CALL    EDGE
+            LD      A,L
+RBY3:       POP     HL
+            POP     DE
+            POP     BC
+            RET     
+
+TMARK:      CALL    GAPCK
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      HL,02828H              ; 40 short and 40 long gap pulses
+            LD      A,E
+            CP      0CCH
+            JP      Z,TM0
+            LD      HL,01414H              ; 20 short and 20 long tape mark pulses
+TM0:        LD      (TMCNT),HL
+            LD      BC,KEYPB
+            LD      DE,KEYPC
+TM1:        LD      HL,(TMCNT)
+TM2:        CALL    EDGE
+            JP      C,RET3
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JP      Z,TM1
+            DEC     H
+            JP      NZ,TM2
+TM3:        CALL    EDGE
+            JP      C,RET3
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JP      NZ,TM1
+            DEC     L
+            JP      NZ,TM3
+            CALL    EDGE
+RET3:
+TM4:        POP     HL
+            POP     DE
+            POP     BC
+            RET     
+
+MOTOR:      PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      B,00AH
+MOT1:       LD      A,(KEYPC)
+            AND     010H
+            JR      Z,MOT4                 
+MOT2:       LD      B,0A6H
+L06B1:      CALL    DLY12
+            DJNZ    L06B1                   
+            XOR     A
+MOT7:       JR      RET3                   
+MOT4:       LD      A,006H
+            LD      HL,KEYPF
+            LD      (HL),A
+            INC     A
+            LD      (HL),A
+            DJNZ    MOT1                   
+            CALL    NL
+            LD      A,D
+            CP      0D7H
+            JR      Z,MOT8                 
+            LD      DE,MSGPLAY
+            JR      MOT9                   
+MOT8:       LD      DE,MSGRECORD                ; RECORD message.
+MOT9:       CALL    MONPRTSTR
+MOT5:       LD      A,(KEYPC)
+            AND     010H
+            JR      NZ,MOT2                
+       ;    CALL    ?BRK
+       ;    JR      NZ,MOT5                
+       ; BREAK KEY CHECK HERE
+            JR      MOT5
+
+MSTOP:      PUSH    AF
+            PUSH    BC
+            PUSH    DE
+            LD      B,00AH
+L0705:      LD      A,(KEYPC)
+            AND     010H
+            JR      Z,L0717                 
+            LD      A,006H
+            LD      (KEYPF),A
+            INC     A
+            LD      (KEYPF),A
+            DJNZ    L0705                   
+L0717:      JP      RSTR1
+
+CKSUM:      PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      DE,00000H
+L0720:      LD      A,B
+            OR      C
+            JR      NZ,L072F                
+            EX      DE,HL
+            LD      (SUMDT),HL
+            LD      (CSMDT),HL
+            POP     HL
+            POP     DE
+            POP     BC
+            RET     
+
+L072F:      LD      A,(HL)
+            PUSH    BC
+            LD      B,008H
+L0733:      RLCA    
+            JR      NC,L0737                
+            INC     DE
+L0737:      DJNZ    L0733                   
+            POP     BC
+            INC     HL
+            DEC     BC
+            JR      L0720                   
+L073E:      RLCA    
+            RLCA    
+            RLCA    
+            LD      C,A
+            LD      A,E
+L0743:      DEC     H
+            RRCA    
+            JR      NC,L0743                
+            LD      A,H
+            ADD     A,C
+            LD      C,A
+            JP      SWEP01
+
+L0759:      LD      A,00EH
+L075B:      DEC     A
+            JP      NZ,L075B
+            RET     
+
+L0760:      LD      A,00DH
+L0762:      DEC     A
+            JP      NZ,L0762
+            RET     
+
+L0767:      PUSH    BC
+            LD      B,008H
+            CALL    L0D57
+L076D:      RLCA    
+            CALL    C,L0D57
+            CALL    NC,L0D3E
+            DEC     B
+            JP      NZ,L076D
+            POP     BC
+            RET     
+
+GAP:        PUSH    BC
+            PUSH    DE
+            LD      A,E
+            LD      BC,055F0H
+            LD      DE,02828H
+            CP      0CCH
+            JP      Z,L078E
+            LD      BC,02AF8H
+            LD      DE,01414H
+L078E:      CALL    L0D3E
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ,L078E                
+L0796:      CALL    L0D57
+            DEC     D
+            JR      NZ,L0796                
+L079C:      CALL    L0D3E
+            DEC     E
+            JR      NZ,L079C                
+            CALL    L0D57
+            POP     DE
+            POP     BC
+            RET     
+
+
+L0D3E:      PUSH    AF
+            LD      A,003H
+            LD      (KEYPF),A
+            CALL    L0759
+            CALL    L0759
+            LD      A,002H
+            LD      (KEYPF),A
+            CALL    L0759
+            CALL    L0759
+            POP     AF
+            RET    
+
+L0D57:      PUSH    AF
+            LD      A,003H
+            LD      (KEYPF),A
+            CALL    L0759
+            CALL    L0759
+            CALL    L0759
+            CALL    L0759
+            LD      A,002H
+            LD      (KEYPF),A
+            CALL    L0759
+            CALL    L0759
+            CALL    L0759
+            CALL    L0760
+            POP     AF
+            RET     
+
+DLY3:       NEG     
+            NEG     
+            LD      A,02AH
+            JP      L0762
+L09AB:      ADD     A,C
+            DJNZ    L09AB                   
+            POP     BC
+            LD      C,A
+            XOR     A
+            RET   
+
+DLY12:      PUSH    BC
+            LD      B,023H
+DLY12A:     CALL    DLY3
+            DJNZ    DLY12A                   
+            POP     BC
+            RET 
+
+GAPCK:      PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      BC,KEYPB
+            LD      DE,KEYPC
+GAPCK1:     LD      H,064H
+GAPCK2:     CALL    EDGE
+            JR      C,GAPCK3                 
+            CALL    DLY3
+            LD      A,(DE)
+            AND     020H
+            JR      NZ,GAPCK1                
+            DEC     H
+            JR      NZ,GAPCK2                
+GAPCK3:     JP      RET3
+            ;-------------------------------------------------------------------------------
+            ; END OF CMT UTILITIES
+            ;-------------------------------------------------------------------------------
+
+
+            ;-------------------------------------------------------------------------------
             ; ANSI TERMINAL FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
@@ -7594,7 +8373,7 @@ CALC3:      POP     DE
             ;    BC = length
 CLRSCRN:    DI
             ;
-MEMSW6:     IF BUILD_TZFS = 1
+MEMSW6:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_0                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -7619,7 +8398,7 @@ MEMSW6:     IF BUILD_TZFS = 1
             LD      (HL),A
             LDIR
 
-MEMSW7:     IF BUILD_TZFS = 1
+MEMSW7:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      A,TZMM_MZ700_2                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -7803,8 +8582,13 @@ COLOUR      EQU     0
 
 
 REBOOT:     DI
+REBOOTTZ:   IF BUILD_TZFS +BUILD_RFS > 0
             LD      A,TZMM_TZFS
             OUT     (MMCFG),A
+            ENDIF
+
+REBOOT80A:  IF BUILD_MZ80A = 1
+            ENDIF
             JP      0000H                                                ; Now restart in the SA1510 monitor.
 
             ;-------------------------------------------------------------------------------
@@ -7816,30 +8600,16 @@ REBOOT:     DI
             ;--------------------------------------
 
 BFREE:      DB      " Bytes free",CR,LF,0,0
-
 SIGNON:     DB      "MZ-80A BASIC Ver 4.7b",CR,LF
             DB      "Copyright ",40,"C",41
             DB      " 1978 by Microsoft",CR,LF,0,0
-
-SDAVAIL:    DB      "SD",                                                              NUL
-FDCAVAIL:   DB      "FDC",                                                             NUL
-NOBDOS:     DB      "I/O Processor failed to load BDOS, aborting!",            CR, LF, NUL
 SVCRESPERR: DB      "I/O Response Error, time out!",                           CR,     NUL
 SVCIOERR:   DB      "I/O Error, time out!",                                    CR,     NUL
-BADFN:      DB      "Filename missing!",                                       CR,     NUL
-FNTOOG:     DB      "Filename too long!",                                      CR,     NUL
-PHYERR:     DB      "SD/K64F IO error!",                                       CR,     NUL
-LOADERR:    DB      "File loading error!",                                     CR,     NUL
-SAVEERR:    DB      "File save error!",                                        CR,     NUL
-CREATER:    DB      "File create error!",                                      CR,     NUL
-CLOSEER:    DB      "File close error!",                                       CR,     NUL
-WRITEER:    DB      "File write error!",                                       CR,     NUL
-OPENER:     DB      "File open error!",                                        CR,     NUL
-READER:     DB      "File read error!",                                        CR,     NUL
-FREQERR:    DB      "Failed to change frequency!",                             CR,     NUL
-FREQSET:    DB      " KHz set.",                                               CR, LF, NUL
-FREQDEF:    DB      "Set to default.",                                         CR, LF, NUL
-ANSIERR:    DB      "Bad valueIlleFailed to change frequency!",                             CR,     NUL
+MSGRECORD:  DB      "Press RECORD+PLAY",                                       CR,     NUL
+MSGPLAY:    DB      "Press PLAY",                                              CR,     NUL
+MSGWRITING: DB      "Writing \"",                                                      NUL
+MSGWRITING2:DB      "\"",                                                      CR,     NUL
+ANSIERR:    DB      "Bad value!",                                              CR,     NUL
 
             ;-------------------------------------------------------------------------------
             ; END OF STATIC LOOKUP TABLES AND CONSTANTS
@@ -8028,11 +8798,12 @@ CODEEND:
             ; BASIC RELOCATION
             ;-------------------------------------------------------------------------------
 
+
             ; For TZFS builds the image needs to be relocated from 0x1200 to 0x0000 on startup after switching the memory mode.
-RELOCSTART: IF BUILD_TZFS = 1
+RELOCSTART: IF BUILD_TZFS+BUILD_RFS > 0
             ORG     $ + 1200H
 
-            ; Swtch memory.
+            ; Switch memory.
 RELOC:      LD      A, TZMM_MZ700_0                                      ; Switch to the MZ700 memory map where the lower 4K 0000:0FFF is in block 6, we therefore preserve the Monitor for exit.
             OUT     (MMCFG),A 
 
@@ -8042,7 +8813,59 @@ RELOC:      LD      A, TZMM_MZ700_0                                      ; Switc
             LD      BC, CODEEND - CODESTART
             LDIR
             JP      0000H
-RELOCEND:   ENDIF
+
+              ; For RFS builds a two stage relocation is needed, a) relocate to tranzputer RAM, b) run the TZFS relocation code.
+RELOC_RFS:    IF BUILD_RFS = 1
+
+              ; Switch memory.
+RELOCRFS:     LD    A, TZMM_BOOT                                         ; Go to boot mode, copy the relocation code to EC80H and execute.
+              OUT   (MMCFG),A 
+
+              ; Move the relocation code to EC80H.
+              LD    DE, 0EC80H
+              LD    HL, RELOCRFS2
+              LD    BC, RELOCRFS2END - RELOCRFS2
+              LDIR
+              JP    0EC80H                                               ; Run the relocation code.
+
+              ENDIF
+RELOCEND:   
+
+RELOCRFS2:  ; Move the image down into tranZPUter memory and then start the real relocation.
+            LD      HL, 01200H
+            LD      BC, (CODEEND - CODESTART) + (RELOCEND - RELOC)       ; Size of program.
+
+            ; Fetch a byte from main DRAM and write it into Bank 0 same location.
+RELOCRFS2_1:LD      A,TZMM_BOOT
+            OUT     (MMCFG),A 
+            LD      A,(HL)
+            ;
+            EX      AF,AF'
+            LD      A,TZMM_TZFS
+            OUT     (MMCFG),A 
+            EX      AF,AF'
+            ;
+            LD      (HL),A
+            INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ, RELOCRFS2_1
+            ;
+            LD      DE, 00000H                                            ; Copy the reboot handler into Bank 0 at 00000H.
+            LD      HL, 0EC80H + (REBOOTRFS - RELOCRFS2)
+            LD      BC, RELOCRFS2END - REBOOTRFS
+            LDIR
+            ;
+            JP      RELOC                                                 ; Jump into the original TZFS relocation code.
+
+            ; Reboot handler for RFS mode. This code is transferred into RAM bank 0 at 0000H as this is not used for BASIC
+            ; and executed when a return to the Monitor ROM is needed. Location 004AH in the Monitor ROM is the startup vector.
+REBOOTRFS:  ALIGN_NOPS $ + 04AH - 4
+REBOOTRFS1: LD      A,TZMM_ORIG
+            OUT     (MMCFG),A
+            JP      00000H
+RELOCRFS2END:ENDIF
 
 
             ; Variables start at the end of the code in the running image (not relocatable image).
@@ -8086,6 +8909,9 @@ REVFLG:     DS      virtual 1                                            ; REVER
 FLSDT:      DS      virtual 1                                            ; CURSOR DATA
 STRGF:      DS      virtual 1                                            ; STRING FLAG
 DPRNT:      DS      virtual 1                                            ; TAB COUNTER
+TMCNT:      DS      virtual 2                                            ; TAPE MARK COUNTER
+SUMDT:      DS      virtual 2                                            ; CHECK SUM DATA
+CSMDT:      DS      virtual 2                                            ; FOR COMPARE SUM DATA
 SWRK:       DS      virtual 1                                            ; KEY SOUND FLAG
 TEMPW:      DS      virtual 1                                            ; TEMPO WORK
 ONTYO:      DS      virtual 1                                            ; ONTYO WORK
