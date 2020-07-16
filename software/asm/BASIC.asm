@@ -43,19 +43,21 @@ HEADER1:    IF BUILD_MZ80A = 1
             DW      CODESTART                                                                               ; Load address of program.
             DW      CODESTART                                                                               ; Exec address of program.
             ENDIF
-HEADER2:    IF BUILD_TZFS = 1
-            IF BUILD_RFS = 1
+
+HEADER2:    IF BUILD_RFS = 1
             DB      "RFS BASIC V1.1" , 0DH, 0DH, 0DH                                                        ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC) + (RELOCRFS2END - RELOCRFS2)                 ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOCRFS                                                                                ; Exec address of program.
-            ELSE
+            ENDIF
+
+HEADER3:    IF BUILD_TZFS = 1
             DB      "TZFS BASIC V1.1", 0DH, 0DH                                                             ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
             ENDIF
-            ENDIF
+
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h          ; Comment (104 bytes).
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h
@@ -6833,6 +6835,38 @@ MEMSW5:     IF BUILD_TZFS+BUILD_RFS > 0
             EI
             RET     
 
+            ; A print string method but without memory mode change, for use when the hardware is already switched in and doesnt want to be changed.
+            ;
+PRNTSTR:    LD      A,(DE)
+            OR      A
+            JR      Z,PRNTSTR6
+            INC     DE
+            ;
+            CALL    CURSRSTR                                             ; Restore char under cursor.
+            CP      00DH
+            JR      NZ,PRNTSTR2
+PRNTSTR1:   LD      A,0CDH
+            CALL    DPCT
+            JR      PRNTSTR5
+PRNTSTR2:   CP      00AH
+            JR      Z,PRNTSTR1                 
+            CP      07FH
+            JR      NZ,PRNTSTR4
+PRNTSTR3:   LD      A,0C7H
+            CALL    DPCT
+            JR      PRNTSTR5
+PRNTSTR4:   CP      BACKS
+            JR      Z,PRNTSTR3
+            PUSH    BC
+            LD      C,A
+            LD      B,A
+            CALL    PRT
+            LD      A,B
+            POP     BC
+PRNTSTR5:   CALL    DSPXYTOADDR
+            JR      PRNTSTR
+PRNTSTR6:   RET     
+
             ;
             ; Function to print out the contents of HL as 4 digit Hexadecimal.
             ;
@@ -7431,7 +7465,7 @@ WRI1:       CALL    CKSUM
 CMIWRI1:    DI
             CALL    GAP
             CALL    WTAPE
-CMIWRI2:    JP      L0552
+CMIWRI2:    JP      RET2
 
 
 ?WRD:       DI      
@@ -7444,7 +7478,7 @@ CMIWRI2:    JP      L0552
             LD      HL,(DTADR)
             LD      A,B
             OR      C
-            JR      Z,L04CB                 
+            JR      Z,WTAP3                 
             JR      WRI1                   
 
 WTAPE:      PUSH    DE
@@ -7453,38 +7487,39 @@ WTAPE:      PUSH    DE
             LD      D,002H
             LD      A,0F0H
             LD      (KEYPA),A
-L048F:      LD      A,(HL)
-            CALL    L0767
+WTAP1:      LD      A,(HL)
+            CALL    WBYTE
             LD      A,(KEYPB)
             AND     081H
-            JP      NZ,L049E
+            JP      NZ,WTAP2
             SCF     
-            JR      L04CB                   
-L049E:      INC     HL
+            JR      WTAP3                   
+WTAP2:      INC     HL
             DEC     BC
             LD      A,B
             OR      C
-            JP      NZ,L048F
+            JP      NZ,WTAP1
             LD      HL,(SUMDT)
             LD      A,H
-            CALL    L0767
+            CALL    WBYTE
             LD      A,L
-            CALL    L0767
-            CALL    L0D57
+            CALL    WBYTE
+            CALL    LONG
             DEC     D
-            JP      NZ,L04BB
+            JP      NZ,WTAP4
             OR      A
-            JP      L04CB
-L04BB:      LD      B,000H
-L04BD:      CALL    L0D3E
+            JP      WTAP3
+
+WTAP4:      LD      B,000H
+WTAP5:      CALL    SHORT
             DEC     B
-            JP      NZ,L04BD
+            JP      NZ,WTAP5
             POP     HL
             POP     BC
             PUSH    BC
             PUSH    HL
-            JP      L048F
-L04CB:      POP     HL
+            JP      WTAP1
+WTAP3:      POP     HL
             POP     BC
             POP     DE
             RET     
@@ -7496,16 +7531,23 @@ L04CB:      POP     HL
             LD      E,0CCH
             LD      BC,00080H
             LD      HL,IBUFE
-L04DD:      CALL    MOTOR
-            JP      C,L0570
+RD1:        DI
+MEMSWRT0:   IF BUILD_TZFS+BUILD_RFS > 0
+            LD      (SPISRSAVE),SP                                       ; Share the interrupt stack whilst accessing hardware as the BASIC stack goes out of scope.
+            LD      SP,ISRSTACK                                          ; Interrupts are disabled so we can safely use this stack.
+            LD      A,TZMM_MZ700_0                                       ; We meed to be in memory mode 10 to access the tape hardware.
+            OUT     (MMCFG),A
+            ENDIF
+            ;
+            CALL    MOTOR
+            JP      C,RTP6
             DI
             CALL    TMARK
-            JP      C,L0570
-            CALL    L0505
-            JP      L0552
+            JP      C,RTP6
+            CALL    RTAPE
+            JP      RET2
 
-?RDD:       DI      
-            PUSH    DE
+?RDD:       PUSH    DE
             PUSH    BC
             PUSH    HL
             LD      D,0D2H
@@ -7514,20 +7556,21 @@ L04DD:      CALL    MOTOR
             LD      HL,(DTADR)
             LD      A,B
             OR      C
-            JP      Z,L0552
-            JR      L04DD                   
-L0505:      PUSH    DE
+            JP      Z,RET2
+            JR      RD1                   
+
+RTAPE:      PUSH    DE
             PUSH    BC
             PUSH    HL
             LD      H,002H
-L050A:      LD      BC,KEYPB
+RTP1:       LD      BC,KEYPB
             LD      DE,KEYPC
-L0510:      CALL    EDGE
-            JP      C,L0570
+RTP2:       CALL    EDGE
+            JP      C,RTP6
             CALL    DLY3
             LD      A,(DE)
             AND     020H
-            JP      Z,L0510
+            JP      Z,RTP2
             LD      D,H
             LD      HL,00000H
             LD      (SUMDT),HL
@@ -7535,45 +7578,65 @@ L0510:      CALL    EDGE
             POP     BC
             PUSH    BC
             PUSH    HL
-L052A:      CALL    RBYTE
-            JP      C,L0570
-            LD      (HL),A
+RTP3:       CALL    RBYTE
+            JP      C,RTP6
+            ; For TZFS/RFS page in top bank of memory for potential data store.
+MEMSWRT1:   IF BUILD_TZFS+BUILD_RFS > 0
+            EX      AF,AF'
+            LD      A,TZMM_MZ700_2
+            OUT     (MMCFG),A
+            EX      AF,AF'
+            LD      (HL),A                                         ; Save the byte just read once memory has been paged in.
+            LD      A,TZMM_MZ700_0 
+            OUT     (MMCFG),A
+            ELSE
+            LD      (HL),A                                         ; Save the byte just read.
+            ENDIF
+
             INC     HL
             DEC     BC
             LD      A,B
             OR      C
-            JP      NZ,L052A
+            JP      NZ,RTP3
             LD      HL,(SUMDT)
             CALL    RBYTE
-            JP      C,L0570
+            JP      C,RTP6
             LD      E,A
             CALL    RBYTE
-            JP      C,L0570
+            JP      C,RTP6
             CP      L
-            JP      NZ,L0563
+            JP      NZ,RTP5
             LD      A,E
             CP      H
-            JP      NZ,L0563
-L0551:      XOR     A
-L0552:      POP     HL
+            JP      NZ,RTP5
+RTP8:       XOR     A
+RET2:       CALL    MSTOP
+MEMSWRT4:   IF BUILD_TZFS+BUILD_RFS > 0
+            EX      AF,AF'
+            LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
+            OUT     (MMCFG),A
+            EX      AF,AF'
+            LD      SP,(SPISRSAVE)                                       ; Restore the BASIC stack to exit.
+            ENDIF
+            ;
+            POP     HL
             POP     BC
             POP     DE
-            CALL    MSTOP
             PUSH    AF
             EI      
             POP     AF
             RET     
 
-L0563:      DEC     D
-            JR      Z,L056C                 
+RTP5:       DEC     D
+            JR      Z,RTP7                 
             LD      H,D
             CALL    GAPCK
-            JR      L050A                   
-L056C:      LD      A,001H
-            JR      L0572                   
-L0570:      LD      A,002H
-L0572:      SCF     
-            JR      L0552                   
+            JR      RTP1                   
+RTP7:       LD      A,001H
+            JR      RTP9                   
+RTP6:       LD      A,002H
+RTP9:       SCF     
+            JR      RET2                   
 
 
 ?VRFY:      DI      
@@ -7586,14 +7649,14 @@ L0572:      SCF
             LD      E,053H
             LD      A,B
             OR      C
-            JR      Z,L0552                 
+            JR      Z,RET2                 
             CALL    CKSUM
             CALL    MOTOR
-            JR      C,L0570                 
+            JR      C,RTP6                 
             CALL    TMARK
-            JP      C,L0570
+            JP      C,RTP6
             CALL    TVRFY
-            JR      L0552                   
+            JR      RET2                   
 
 TVRFY:      PUSH    DE
             PUSH    BC
@@ -7602,7 +7665,7 @@ TVRFY:      PUSH    DE
 TVF1:       LD      BC,KEYPB
             LD      DE,KEYPC
 TVF2:       CALL    EDGE
-            JP      C,L0570
+            JP      C,RTP6
             CALL    DLY3
             LD      A,(DE)
             AND     020H
@@ -7613,9 +7676,9 @@ TVF2:       CALL    EDGE
             PUSH    BC
             PUSH    HL
 TVF3:       CALL    RBYTE
-            JP      C,L0570
+            JP      C,RTP6
             CP      (HL)
-            JP      NZ,L056C
+            JP      NZ,RTP7
             INC     HL
             DEC     BC
             LD      A,B
@@ -7624,12 +7687,12 @@ TVF3:       CALL    RBYTE
             LD      HL,(CSMDT)
             CALL    RBYTE
             CP      H
-            JR      NZ,L056C                
+            JR      NZ,RTP7                
             CALL    RBYTE
             CP      L
-            JR      NZ,L056C                
+            JR      NZ,RTP7                
             DEC     D
-            JP      Z,L0551
+            JP      Z,RTP8
             LD      H,D
             JR      TVF1                   
 
@@ -7728,8 +7791,8 @@ MOT1:       LD      A,(KEYPC)
             AND     010H
             JR      Z,MOT4                 
 MOT2:       LD      B,0A6H
-L06B1:      CALL    DLY12
-            DJNZ    L06B1                   
+MOT3:       CALL    DLY12
+            DJNZ    MOT3                   
             XOR     A
 MOT7:       JR      RET3                   
 MOT4:       LD      A,006H
@@ -7738,14 +7801,13 @@ MOT4:       LD      A,006H
             INC     A
             LD      (HL),A
             DJNZ    MOT1                   
-            CALL    NL
             LD      A,D
             CP      0D7H
             JR      Z,MOT8                 
             LD      DE,MSGPLAY
             JR      MOT9                   
 MOT8:       LD      DE,MSGRECORD                ; RECORD message.
-MOT9:       CALL    MONPRTSTR
+MOT9:       CALL    PRNTSTR
 MOT5:       LD      A,(KEYPC)
             AND     010H
             JR      NZ,MOT2                
@@ -7758,23 +7820,23 @@ MSTOP:      PUSH    AF
             PUSH    BC
             PUSH    DE
             LD      B,00AH
-L0705:      LD      A,(KEYPC)
+MST1:       LD      A,(KEYPC)
             AND     010H
-            JR      Z,L0717                 
-            LD      A,006H
+            JR      Z,MST3
+MST2:       LD      A,006H
             LD      (KEYPF),A
             INC     A
             LD      (KEYPF),A
-            DJNZ    L0705                   
-L0717:      JP      RSTR1
+            DJNZ    MST1                   
+MST3:       JP      RSTR1
 
 CKSUM:      PUSH    BC
             PUSH    DE
             PUSH    HL
             LD      DE,00000H
-L0720:      LD      A,B
+CKS1:       LD      A,B
             OR      C
-            JR      NZ,L072F                
+            JR      NZ,CKS2                
             EX      DE,HL
             LD      (SUMDT),HL
             LD      (CSMDT),HL
@@ -7783,48 +7845,41 @@ L0720:      LD      A,B
             POP     BC
             RET     
 
-L072F:      LD      A,(HL)
+CKS2:       LD      A,(HL)
             PUSH    BC
             LD      B,008H
-L0733:      RLCA    
-            JR      NC,L0737                
+CKS3:       RLCA    
+            JR      NC,CKS4                
             INC     DE
-L0737:      DJNZ    L0733                   
+CKS4:       DJNZ    CKS3                   
             POP     BC
             INC     HL
             DEC     BC
-            JR      L0720                   
-L073E:      RLCA    
-            RLCA    
-            RLCA    
-            LD      C,A
-            LD      A,E
-L0743:      DEC     H
-            RRCA    
-            JR      NC,L0743                
-            LD      A,H
-            ADD     A,C
-            LD      C,A
-            JP      SWEP01
+            JR      CKS1                   
 
-L0759:      LD      A,00EH
-L075B:      DEC     A
-            JP      NZ,L075B
+DLY1:       LD      A,00EH
+DLY1A:      DEC     A
+            JP      NZ,DLY1A
             RET     
 
-L0760:      LD      A,00DH
-L0762:      DEC     A
-            JP      NZ,L0762
+DLY2:       LD      A,00DH
+DLY2A:      DEC     A
+            JP      NZ,DLY2A
             RET     
 
-L0767:      PUSH    BC
+DLY3:       NEG     
+            NEG     
+            LD      A,02AH
+            JP      DLY2A
+
+WBYTE:      PUSH    BC
             LD      B,008H
-            CALL    L0D57
-L076D:      RLCA    
-            CALL    C,L0D57
-            CALL    NC,L0D3E
+            CALL    LONG
+WBY1:       RLCA    
+            CALL    C,LONG
+            CALL    NC,SHORT
             DEC     B
-            JP      NZ,L076D
+            JP      NZ,WBY1
             POP     BC
             RET     
 
@@ -7834,58 +7889,53 @@ GAP:        PUSH    BC
             LD      BC,055F0H
             LD      DE,02828H
             CP      0CCH
-            JP      Z,L078E
+            JP      Z,GAP1
             LD      BC,02AF8H
             LD      DE,01414H
-L078E:      CALL    L0D3E
+GAP1:       CALL    SHORT
             DEC     BC
             LD      A,B
             OR      C
-            JR      NZ,L078E                
-L0796:      CALL    L0D57
+            JR      NZ,GAP1                
+GAP2:       CALL    LONG
             DEC     D
-            JR      NZ,L0796                
-L079C:      CALL    L0D3E
+            JR      NZ,GAP2                
+GAP3:       CALL    SHORT
             DEC     E
-            JR      NZ,L079C                
-            CALL    L0D57
+            JR      NZ,GAP3                
+            CALL    LONG
             POP     DE
             POP     BC
             RET     
 
-
-L0D3E:      PUSH    AF
+SHORT:      PUSH    AF
             LD      A,003H
             LD      (KEYPF),A
-            CALL    L0759
-            CALL    L0759
+            CALL    DLY1
+            CALL    DLY1
             LD      A,002H
             LD      (KEYPF),A
-            CALL    L0759
-            CALL    L0759
+            CALL    DLY1
+            CALL    DLY1
             POP     AF
             RET    
 
-L0D57:      PUSH    AF
+LONG:       PUSH    AF
             LD      A,003H
             LD      (KEYPF),A
-            CALL    L0759
-            CALL    L0759
-            CALL    L0759
-            CALL    L0759
+            CALL    DLY1
+            CALL    DLY1
+            CALL    DLY1
+            CALL    DLY1
             LD      A,002H
             LD      (KEYPF),A
-            CALL    L0759
-            CALL    L0759
-            CALL    L0759
-            CALL    L0760
+            CALL    DLY1
+            CALL    DLY1
+            CALL    DLY1
+            CALL    DLY2
             POP     AF
             RET     
 
-DLY3:       NEG     
-            NEG     
-            LD      A,02AH
-            JP      L0762
 L09AB:      ADD     A,C
             DJNZ    L09AB                   
             POP     BC
@@ -8605,8 +8655,8 @@ SIGNON:     DB      "MZ-80A BASIC Ver 4.7b",CR,LF
             DB      " 1978 by Microsoft",CR,LF,0,0
 SVCRESPERR: DB      "I/O Response Error, time out!",                           CR,     NUL
 SVCIOERR:   DB      "I/O Error, time out!",                                    CR,     NUL
-MSGRECORD:  DB      "Press RECORD+PLAY",                                       CR,     NUL
-MSGPLAY:    DB      "Press PLAY",                                              CR,     NUL
+MSGRECORD:  DB      CR, "Press RECORD+PLAY",                                   CR,     NUL
+MSGPLAY:    DB      CR, "Press PLAY",                                          CR,     NUL
 MSGWRITING: DB      "Writing \"",                                                      NUL
 MSGWRITING2:DB      "\"",                                                      CR,     NUL
 ANSIERR:    DB      "Bad value!",                                              CR,     NUL
