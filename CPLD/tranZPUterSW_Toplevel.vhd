@@ -36,21 +36,21 @@ use altera.altera_syn_attributes.all;
 entity tranZPUterSW is
     port (
         -- Z80 Address and Data.
-		Z80_HI_ADDR     : out   std_logic_vector(18 downto 16);
-		Z80_ADDR        : in    std_logic_vector(15 downto 0);
+		Z80_HI_ADDR     : out   std_logic_vector(18 downto 15);
+		Z80_ADDR        : inout std_logic_vector(15 downto 0);
 		Z80_DATA        : inout std_logic_vector(7 downto 0);
         VADDR           : out   std_logic_vector(13 downto 11);
 
         -- Z80 Control signals.
 		Z80_BUSRQn      : out   std_logic;
 		Z80_BUSACKn     : in    std_logic;
-		Z80_INTn        : in    std_logic;
+		Z80_INTn        : inout std_logic;
 		Z80_IORQn       : in    std_logic;
-		Z80_MREQn       : in    std_logic;
-		Z80_NMIn        : in    std_logic;
-		Z80_RDn         : in    std_logic;
-		Z80_WRn         : in    std_logic;
-		Z80_RESETn      : in    std_logic;
+		Z80_MREQn       : inout std_logic;
+		Z80_NMIn        : inout std_logic;
+		Z80_RDn         : inout std_logic;
+		Z80_WRn         : inout std_logic;
+		Z80_RESETn      : in    std_logic;                       -- NB. The CPLD inverts the GCLRn pin, so active negative on the mainboard, active positive inside the CPLD.
 		Z80_HALTn       : in    std_logic;
 		Z80_WAITn       : out   std_logic;
 		Z80_M1n         : in    std_logic;
@@ -88,8 +88,12 @@ entity tranZPUterSW is
 		CTLCLK          : in    std_logic;
 		CTL_CLKSLCT     : out   std_logic;
 
+        -- Mode signals.
+        CFG_MZ80A       : in    std_logic;
+        CFG_MZ700       : in    std_logic;
+
         -- Reserved.
-		TBA             : in    std_logic_vector(10 downto 0)
+		TBA             : in    std_logic_vector(8 downto 0)
 
         -- JTAG / ISP
 		--TCK             : in    std_logic;
@@ -100,24 +104,6 @@ entity tranZPUterSW is
 END entity;
 
 architecture rtl of tranZPUterSW is
-
-    --signal reset        : std_logic;
-    --signal sysclk       : std_logic;
-    --signal memclk       : std_logic;
-    --signal pll_locked   : std_logic;
-    
-    --signal ps2m_clk_in : std_logic;
-    --signal ps2m_clk_out : std_logic;
-    --signal ps2m_dat_in : std_logic;
-    --signal ps2m_dat_out : std_logic;
-    
-    --signal ps2k_clk_in : std_logic;
-    --signal ps2k_clk_out : std_logic;
-    --signal ps2k_dat_in : std_logic;
-    --signal ps2k_dat_out : std_logic;
-    
-    --alias PS2_MDAT : std_logic is GPIO_1(19);
-    --alias PS2_MCLK : std_logic is GPIO_1(18);
 
 begin
 
@@ -178,6 +164,10 @@ begin
 		SYSCLK          => SYSCLK,
 		CTLCLK          => CTLCLK,
 		CTL_CLKSLCT     => CTL_CLKSLCT,
+
+        -- Mode signals.
+        CFG_MZ80A       => CFG_MZ80A,
+        CFG_MZ700       => CFG_MZ700,
 
         -- Reserved.
 		TBA             => TBA

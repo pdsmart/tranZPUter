@@ -114,3 +114,14 @@ software/CPM/1M44/RAW/CPM_1M44_RFS_1.RAW
 software/CPM/1M44/RAW/CPM_1M44_RFS_2.RAW
 software/CPM/SDC16M/
 software/CPM/cpm3/on2
+CPLD/build/db/
+CPLD/build/incremental_db/
+CPLD/build/output_files/
+CPLD/build/simulation/
+CPLD/mz80b/
+CPLD/tranZPUterSW.sav2
+schematics/tranZPUter-SW/
+schematics/tranZPUter/
+software/asm/.cbiosII.asm.swo
+software/roms/SA1510.orig
+

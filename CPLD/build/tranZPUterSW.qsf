@@ -45,7 +45,7 @@ set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR "-1"
 set_global_assignment -name EDA_DESIGN_ENTRY_SYNTHESIS_TOOL "<None>"
-set_global_assignment -name EDA_INPUT_VCC_NAME VDD -section_id eda_design_synthesis
+set_global_assignment -name EDA_INPUT_VCC_NAME VCC -section_id eda_design_synthesis
 set_global_assignment -name EDA_INPUT_DATA_FORMAT EDIF -section_id eda_design_synthesis
 set_global_assignment -name EDA_SIMULATION_TOOL "ModelSim-Altera (VHDL)"
 set_global_assignment -name EDA_OUTPUT_DATA_FORMAT VHDL -section_id eda_simulation
@@ -59,6 +59,7 @@ set_global_assignment -name MAX7000_DEVICE_IO_STANDARD LVTTL
 set_location_assignment PIN_108 -to Z80_HI_ADDR[18]
 set_location_assignment PIN_102 -to Z80_HI_ADDR[17]
 set_location_assignment PIN_107 -to Z80_HI_ADDR[16]
+set_location_assignment PIN_110 -to Z80_HI_ADDR[15]
 set_location_assignment PIN_106 -to Z80_ADDR[15]
 set_location_assignment PIN_103 -to Z80_ADDR[14]
 set_location_assignment PIN_98 -to Z80_ADDR[13]
@@ -122,17 +123,17 @@ set_location_assignment PIN_42 -to Z80_MEM[3]
 set_location_assignment PIN_44 -to Z80_MEM[2]
 set_location_assignment PIN_40 -to Z80_MEM[1]
 set_location_assignment PIN_39 -to Z80_MEM[0]
-set_location_assignment PIN_36 -to TBA[0]
-set_location_assignment PIN_35 -to TBA[1]
-set_location_assignment PIN_30 -to TBA[2]
-set_location_assignment PIN_29 -to TBA[3]
-set_location_assignment PIN_28 -to TBA[4]
-set_location_assignment PIN_27 -to TBA[5]
-set_location_assignment PIN_26 -to TBA[6]
-set_location_assignment PIN_25 -to TBA[7]
-set_location_assignment PIN_23 -to TBA[8]
-set_location_assignment PIN_22 -to TBA[9]
-set_location_assignment PIN_21 -to TBA[10]
+set_location_assignment PIN_36 -to CFG_MZ80A
+set_location_assignment PIN_35 -to CFG_MZ700
+set_location_assignment PIN_30 -to TBA[0]
+set_location_assignment PIN_29 -to TBA[1]
+set_location_assignment PIN_28 -to TBA[2]
+set_location_assignment PIN_27 -to TBA[3]
+set_location_assignment PIN_26 -to TBA[4]
+set_location_assignment PIN_25 -to TBA[5]
+set_location_assignment PIN_23 -to TBA[6]
+set_location_assignment PIN_22 -to TBA[7]
+set_location_assignment PIN_21 -to TBA[8]
 
 # Z80 Control signals.
 # ====================
@@ -163,3 +164,6 @@ set_global_assignment -name VHDL_FILE ../tranZPUterSW_pkg.vhd
 set_global_assignment -name VHDL_FILE ../tranZPUterSW.vhd
 set_global_assignment -name SDC_FILE tranZPUterSW_constraints.sdc
 
+
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF

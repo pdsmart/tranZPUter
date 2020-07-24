@@ -59,6 +59,8 @@ package tranZPUterSW_pkg is
     constant ZERO                     : std_logic := '0';
     constant HIZ                      : std_logic := 'Z';
 
+    -- Version of hdl.
+    constant CPLD_VERSION             : integer   := 1;
 
     ------------------------------------------------------------ 
     -- Records
