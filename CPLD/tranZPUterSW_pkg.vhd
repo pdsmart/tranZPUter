@@ -5,7 +5,7 @@
 -- Author(s):       Philip Smart
 -- Description:     tranZPUter SW CPLD configuration file.
 --                                                     
---                  This module contains parameters for the CPLD in v2.0 of the tranZPUterSW project.
+--                  This module contains parameters for the CPLD in v2.1 of the tranZPUterSW project.
 --
 -- Credits:         
 -- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
