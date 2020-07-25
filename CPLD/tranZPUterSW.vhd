@@ -3,7 +3,7 @@
 -- Name:            tranZPUterSW.vhd
 -- Created:         June 2020
 -- Author(s):       Philip Smart
--- Description:     tranZPUter SW v2.0 CPLD logic definition file.
+-- Description:     tranZPUter SW v2.1 CPLD logic definition file.
 --                  This module contains the definition of the logic used in v1.0-v1.1 of the tranZPUterSW
 --                  project plus enhancements.
 --
@@ -13,6 +13,16 @@
 -- History:         June 2020 - Initial creation.
 --                  July 2020 - Updated and fixed logic, removed the MZ80B compatibility logic as there
 --                              are not enough resources in the CPLD to fully implement.
+--                  July 2020 - Changed the keyboard mapping logic to be more compatible. A scan is made
+--                              periodically of the underlying keyboard and the key data is stored in 
+--                              the key matrix. When the running software accesses the keyboard it reads
+--                              from the key matrix and not the PPI. This allows for better compatibility
+--                              and a functioning SHIFT+BREAK key. The MZ80A keyboard layout is mapped
+--                              as though the keyboard was a real MZ700 keyboard, ie. BREAK key is CLR/HOME
+--                              and INST/DEL is CTRL etc. The numeric keypad on the MZ80A is mapped to the
+--                              cursor key layout with 7 and 9 acting as INST/DEL. The function keys are
+--                              mapped to 1, 0, 00, . and 3 on the numeric keypad.
+--                              
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -112,8 +122,10 @@ architecture rtl of cpld512 is
     signal KEY_MATRIX             :       KeyMatrixType;
     signal KEYMAP_DATA            :       std_logic_vector(7 downto 0);
     signal KEY_STROBE             :       std_logic_vector(3 downto 0);
-    signal KEY_STROBED            :       std_logic;
     signal KEY_SUBSTITUTE         :       std_logic;
+    signal MB_KEY_STROBE          :       std_logic_vector(3 downto 0);
+    signal MB_WRITE_STROBE        :       std_logic;
+    signal MB_READ_KEYS           :       std_logic;
 
     -- CPLD configuration signals.
     signal MODE_MZ80A             :       std_logic;
@@ -159,7 +171,8 @@ architecture rtl of cpld512 is
     signal MB_BUSRQn              :       std_logic;
     signal MB_ADDR                :       std_logic_vector(15 downto 0);
     signal MB_DATA                :       std_logic_vector(7 downto 0);
-    signal MB_DELAY               :       unsigned(1 downto 0);
+    signal MB_DELAY               :       unsigned(15 downto 0);
+    signal MB_STATE               :       integer range 0 to 7;
 
     function to_std_logic(L: boolean) return std_logic is
     begin
@@ -233,10 +246,10 @@ begin
 
         if(Z80_RESETn = '0') then
             --MEM_MODE_LATCH    <= "00001000";
-            MEM_MODE_LATCH    <= "00000000";
-            mz700_LOWER_RAM   := '0';
-            mz700_UPPER_RAM   := '0';
-            mz700_INHIBIT     := '0';
+            MEM_MODE_LATCH     <= "00000000";
+            mz700_LOWER_RAM    := '0';
+            mz700_UPPER_RAM    := '0';
+            mz700_INHIBIT      := '0';
 
         elsif(SYSCLK'event and SYSCLK = '1') then
 
@@ -317,81 +330,161 @@ begin
         end if;
     end process;
 
-    -- Process to map keyboards according to realise compatibility with other Sharp machines.
-    -- Currently the host is the Sharp MZ-80A and a mapping exists to the MZ-700.
+    -- Process to map host keyboard to realise compatibility with other Sharp machines.
+    -- Currently the host is the Sharp MZ-80A and a mapping exists for the MZ-700.
     process( SYSCLK, Z80_RESETn, MEM_CFGn, Z80_IORQn, Z80_ADDR, Z80_DATA )
     begin
 
-        if(Z80_RESETn = '0') then
-            KEY_MATRIX        <= (others => (others => '1'));
-            KEY_STROBE         <= (others => '0');
-            KEY_STROBED        <= '0';
-            KEY_SUBSTITUTE     <= '0';
+        if Z80_RESETn = '0' then
+            MB_BUSRQn               <= '1';
+            MB_MREQn                <= '1';
+            MB_ADDR                 <= (others => '0');
+            MB_DELAY                <= (others => '1');
+            MB_KEY_STROBE           <= (others => '0');
+            MB_WRITE_STROBE         <= '0';
+            MB_READ_KEYS            <= '0';
+            MB_STATE                <= 0;
+            KEY_STROBE              <= (others => '0');
+            KEY_SUBSTITUTE          <= '0';
 
-        elsif(SYSCLK'event and SYSCLK = '1') then
+        elsif SYSCLK'event and SYSCLK = '1' then
 
-            -- Detect a strobe output write and store it.
-            if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E000") then
-                KEY_STROBE     <= Z80_DATA(3 downto 0);
-                KEY_STROBED    <= '1';
-            end if;
-
-            -- On a keyscan read data into the matrix and raise the substitue flag. This flag will disable the mainboard (tri-state it) so that the data lines are not driven. The mapped
-            -- data is the output on the data bus by the CPLD which the Z80 reads.
-            if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E001" and KEY_STROBED = '1') then
-                KEY_STROBED    <= '0';
-                KEY_MATRIX(to_integer(unsigned(KEY_STROBE))) <= Z80_DATA;
-
-                -- Only perform key substitution if we are running in a compatible mode for another Sharp machine.
-                --
-                if(MODE_MZ700 = '1' and (unsigned(MEM_MODE_LATCH(4 downto 0)) = 2 or unsigned(MEM_MODE_LATCH(4 downto 0)) = 8 or (unsigned(MEM_MODE_LATCH(4 downto 0)) >= 10 and unsigned(MEM_MODE_LATCH(4 downto 0)) < 15))) then
-                    KEY_SUBSTITUTE <= '1';
-                end if;
-            end if;
-
-            -- Actual keyboard mapping. The Sharp MZ-80A key codes are scanned into a 10x8 matrix and then this matrix is indexed to extract the keycodes for the machine we
-            -- are being compatible with.
+            -- When inactive, wait for a Z80 I/O transaction that needs writeback.
             --
-            if(KEY_SUBSTITUTE = '1') then
+            if MODE_MZ700 = '1' then
 
-                -- MZ-700 mapping if in MZ700 mode.
-                if(MODE_MZ700 = '1') then
-                    case KEY_STROBE is
-                        --                 D7                D6                D5                D4                D3                D2                D1                D0
-                        when "0000" =>
-                            KEYMAP_DATA <= '1'              & KEY_MATRIX(0)(7) & KEY_MATRIX(7)(4) & KEY_MATRIX(0)(1) & '1'              & KEY_MATRIX(6)(2) & KEY_MATRIX(6)(3) & KEY_MATRIX(7)(3);  -- 1
-                        when "0001" =>
-                            KEYMAP_DATA <= KEY_MATRIX(3)(5) & KEY_MATRIX(1)(0) & KEY_MATRIX(6)(4) & KEY_MATRIX(6)(5) & KEY_MATRIX(7)(2) & '1'              & '1'              & '1'             ;  -- 2
-                        when "0010" =>
-                            KEYMAP_DATA <= KEY_MATRIX(1)(4) & KEY_MATRIX(2)(5) & KEY_MATRIX(2)(2) & KEY_MATRIX(3)(4) & KEY_MATRIX(4)(4) & KEY_MATRIX(3)(1) & KEY_MATRIX(1)(5) & KEY_MATRIX(2)(1);  -- 3
-                        when "0011" =>
-                            KEYMAP_DATA <= KEY_MATRIX(4)(5) & KEY_MATRIX(4)(3) & KEY_MATRIX(5)(2) & KEY_MATRIX(5)(3) & KEY_MATRIX(5)(0) & KEY_MATRIX(4)(1) & KEY_MATRIX(5)(4) & KEY_MATRIX(5)(5);  -- 4
-                        when "0100" =>
-                            KEYMAP_DATA <= KEY_MATRIX(1)(3) & KEY_MATRIX(3)(0) & KEY_MATRIX(2)(0) & KEY_MATRIX(2)(3) & KEY_MATRIX(2)(4) & KEY_MATRIX(3)(2) & KEY_MATRIX(3)(3) & KEY_MATRIX(4)(2);  -- 5
-                        when "0101" =>
-                            KEYMAP_DATA <= KEY_MATRIX(1)(6) & KEY_MATRIX(1)(7) & KEY_MATRIX(2)(6) & KEY_MATRIX(2)(7) & KEY_MATRIX(3)(6) & KEY_MATRIX(3)(7) & KEY_MATRIX(4)(6) & KEY_MATRIX(4)(7);  -- 6
-                        when "0110" =>
-                            KEYMAP_DATA <= KEY_MATRIX(7)(6) & KEY_MATRIX(6)(7) & KEY_MATRIX(6)(6) & KEY_MATRIX(4)(0) & KEY_MATRIX(5)(7) & KEY_MATRIX(5)(6) & KEY_MATRIX(5)(1) & KEY_MATRIX(6)(0);  -- 7
-                        when "0111" =>
-                            KEYMAP_DATA <= KEY_MATRIX(8)(6) & KEY_MATRIX(9)(6) & KEY_MATRIX(8)(7) & KEY_MATRIX(8)(3) & KEY_MATRIX(9)(4) & KEY_MATRIX(8)(4) & KEY_MATRIX(7)(0) & KEY_MATRIX(6)(1);  -- 8
-                        when "1000" =>
-                            KEYMAP_DATA <= KEY_MATRIX(7)(7) & KEY_MATRIX(1)(2) & '1'              & '1'              & '1'              & '1'             & '1'             & KEY_MATRIX(0)(0)  ;  -- 9
-                        when "1001" =>
-                            KEYMAP_DATA <= KEY_MATRIX(8)(2) & KEY_MATRIX(8)(0) & KEY_MATRIX(8)(1) & KEY_MATRIX(9)(0) & KEY_MATRIX(9)(2) & '1'             & '1'             & '1'               ;  -- 10
+                -- Configurable delay, halts all actions whilst the timer > 0.
+                if MB_DELAY /= 0 then
+                    MB_DELAY        <= MB_DELAY - 1;
+
+                -- If the Z80 Bus has not been requested, request it for the next transaction.
+                elsif MB_BUSRQn = '1' and KEY_SUBSTITUTE = '0' then
+                    MB_BUSRQn       <= '0';
+
+                -- When the Z80 bus is available, run the FSM.
+                elsif MB_BUSRQn = '0' and Z80_BUSACKn = '0' then
+
+                    -- Move along the state machine, next state can be overriden if required.
+                    --
+                    if MB_STATE = 5 then
+                        MB_STATE                <= 0;
+                    else
+                        MB_STATE                <= MB_STATE+1;
+                    end if;
+
+                    -- FSM.
+                    case MB_STATE is
+                        -- Setup to write the strobe value to PPI A.
+                        when 0 =>
+                            MB_ADDR             <= X"E000";
+                            MB_DATA             <= "1111" & MB_KEY_STROBE;
+    
+                        -- Allow at least 2 cycles for the write pulse.
+                        when 1 =>
+                            MB_MREQn            <= '0';
+                            MB_WRITE_STROBE     <= '1';
+                            MB_DELAY            <= X"0001";
+    
+                        -- Terminate write pulse.
+                        when 2 =>
+                            MB_MREQn            <= '1';
+                            MB_WRITE_STROBE     <= '0';
+    
+                        -- Setup for a read of the key data from PPI B.
+                        when 3 =>
+                            MB_ADDR             <= X"E001";
+    
+                        -- Allow at least 2 cycles for the data to become available.
+                        when 4 =>
+                            MB_MREQn            <= '0';
+                            MB_READ_KEYS        <= '1';
+                            MB_DELAY            <= X"0001";
+    
+                        -- Read the key data into the matrix for later mapping.
+                        when 5 =>
+                            KEY_MATRIX(to_integer(unsigned(MB_KEY_STROBE))) <= Z80_DATA;
+                            MB_MREQn            <= '1';
+                            MB_READ_KEYS        <= '0';
+                            MB_DELAY            <= X"0DFC";                    -- 1ms delay between key sweeps with a 3.58MHz clock.
+                            MB_BUSRQn           <= '1';
+    
+                            if unsigned(MB_KEY_STROBE) = 9 then
+                                MB_KEY_STROBE   <= (others => '0');
+                            else
+                                MB_KEY_STROBE   <= MB_KEY_STROBE + 1;
+                            end if;
+    
                         when others =>
-                            KEYMAP_DATA <= "11111111";
+                            MB_STATE            <= 0;
                     end case;
+
                 end if;
 
+                -- When the Z80 isnt tri-stated process normally.
+                --
+                if MB_BUSRQn = '1' and Z80_BUSACKn = '1' then
+                    -- Detect a strobe output write and store it - this is used as the index into the key matrix for each read operation on the .
+                    if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E000") then
+                        KEY_STROBE     <= Z80_DATA(3 downto 0);
+                    end if;
+
+                    -- On a keyscan read data into the matrix and raise the substitue flag. This flag will disable the mainboard (tri-state it) so that the data lines are not driven. The mapped
+                    -- data is the output on the data bus by the CPLD which the Z80 reads.
+                    if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E001") then
+                        if((unsigned(MEM_MODE_LATCH(4 downto 0)) = 2 or unsigned(MEM_MODE_LATCH(4 downto 0)) = 8 or (unsigned(MEM_MODE_LATCH(4 downto 0)) >= 10 and unsigned(MEM_MODE_LATCH(4 downto 0)) < 15))) then
+                            KEY_SUBSTITUTE <= '1';
+                            MB_BUSRQn      <= '1'; 
+                        end if;
+                    end if;
+
+                    -- Actual keyboard mapping. The Sharp MZ-80A key codes are scanned into a 10x8 matrix and then this matrix is indexed to extract the keycodes for the machine we
+                    -- are being compatible with.
+                    --
+                    if(KEY_SUBSTITUTE = '1') then
+
+                        -- MZ-80A Keyboard -> MZ-700 mapping.
+                        case KEY_STROBE is
+                            --                 D7                D6                D5                D4                D3                D2                D1                D0
+                            when "0000" =>
+                                KEYMAP_DATA <= '1'              & KEY_MATRIX(0)(7) & KEY_MATRIX(7)(4) & KEY_MATRIX(0)(1) & '1'              & KEY_MATRIX(6)(2) & KEY_MATRIX(6)(3) & KEY_MATRIX(7)(3);  -- 1
+                            when "0001" =>
+                                KEYMAP_DATA <= KEY_MATRIX(3)(5) & KEY_MATRIX(1)(0) & KEY_MATRIX(6)(4) & KEY_MATRIX(6)(5) & KEY_MATRIX(7)(2) & '1'              & '1'              & '1'             ;  -- 2
+                            when "0010" =>
+                                KEYMAP_DATA <= KEY_MATRIX(1)(4) & KEY_MATRIX(2)(5) & KEY_MATRIX(2)(2) & KEY_MATRIX(3)(4) & KEY_MATRIX(4)(4) & KEY_MATRIX(3)(1) & KEY_MATRIX(1)(5) & KEY_MATRIX(2)(1);  -- 3
+                            when "0011" =>
+                                KEYMAP_DATA <= KEY_MATRIX(4)(5) & KEY_MATRIX(4)(3) & KEY_MATRIX(5)(2) & KEY_MATRIX(5)(3) & KEY_MATRIX(5)(0) & KEY_MATRIX(4)(1) & KEY_MATRIX(5)(4) & KEY_MATRIX(5)(5);  -- 4
+                            when "0100" =>
+                                KEYMAP_DATA <= KEY_MATRIX(1)(3) & KEY_MATRIX(3)(0) & KEY_MATRIX(2)(0) & KEY_MATRIX(2)(3) & KEY_MATRIX(2)(4) & KEY_MATRIX(3)(2) & KEY_MATRIX(3)(3) & KEY_MATRIX(4)(2);  -- 5
+                            when "0101" =>
+                                KEYMAP_DATA <= KEY_MATRIX(1)(6) & KEY_MATRIX(1)(7) & KEY_MATRIX(2)(6) & KEY_MATRIX(2)(7) & KEY_MATRIX(3)(6) & KEY_MATRIX(3)(7) & KEY_MATRIX(4)(6) & KEY_MATRIX(4)(7);  -- 6
+                            when "0110" =>
+                                KEYMAP_DATA <= KEY_MATRIX(7)(6) & KEY_MATRIX(6)(7) & KEY_MATRIX(6)(6) & KEY_MATRIX(4)(0) & KEY_MATRIX(5)(7) & KEY_MATRIX(5)(6) & KEY_MATRIX(5)(1) & KEY_MATRIX(6)(0);  -- 7
+                            when "0111" =>
+                                KEYMAP_DATA <= KEY_MATRIX(8)(6) & KEY_MATRIX(9)(6) & KEY_MATRIX(8)(7) & KEY_MATRIX(8)(3) & KEY_MATRIX(9)(4) & KEY_MATRIX(8)(4) & KEY_MATRIX(7)(0) & KEY_MATRIX(6)(1);  -- 8
+                            when "1000" =>
+                                KEYMAP_DATA <= KEY_MATRIX(7)(7) & KEY_MATRIX(1)(2) & '1'              & '1'              & '1'              & '1'             & '1'               & KEY_MATRIX(0)(0);  -- 9
+                            when "1001" =>
+                                KEYMAP_DATA <= KEY_MATRIX(8)(2) & KEY_MATRIX(8)(0) & KEY_MATRIX(8)(1) & KEY_MATRIX(9)(0) & KEY_MATRIX(9)(2) & '1'             & '1'               & '1'             ;  -- 10
+                            when others =>
+                                KEYMAP_DATA <= "11111111";
+                        end case;
+                    end if;
+
+                    -- When the Z80_MREQn goes inactive, the keyboard read has completed so clear the substitute flag which in turn allows normal bus operations.
+                    --
+                    if(KEY_SUBSTITUTE = '1' and Z80_MREQn = '1') then
+                        KEY_SUBSTITUTE <= '0';
+                    end if;
+                end if;
+
+            else
+                MB_BUSRQn           <= '1';
+                MB_STATE            <= 0;
             end if;
 
-            -- When the Z80_MREQn goes inactive, the keyboard read has completed so clear the substitute flag which in turn allows normal bus operations.
-            --
-            if(KEY_SUBSTITUTE = '1' and Z80_MREQn = '1') then
-                KEY_SUBSTITUTE <= '0';
-            end if;
         end if;
     end process;
+
 
     -- D type Flip Flops used for the CPU frequency switching circuit. The changeover of frequencies occurs on the high level, the output clock remaining
     -- high until the falling edge of the clock being switched into.
@@ -533,11 +626,11 @@ begin
                    else 
                    MEM_MODE_LATCH(7 downto 0) when MEM_CFGn = '0' and Z80_RDn = '0'
                    else
-                   KEYMAP_DATA                when KEY_SUBSTITUTE = '1'
+                   KEYMAP_DATA                when MB_BUSRQn = '1' and Z80_BUSACKn = '1' and KEY_SUBSTITUTE = '1'
                    else
                    CPLD_CFG_DATA              when (CPLD_CFGn = '0' or CPLD_INFOn = '0') and Z80_RDn = '0'
                    else
-                   MB_DATA                    when MB_BUSRQn = '0' and Z80_BUSACKn = '0' -- add read signals inactive state here.
+                   MB_DATA                    when MB_BUSRQn = '0' and Z80_BUSACKn = '0' and MB_READ_KEYS = '0' -- add read signals inactive state here.
                    else
                    (others => 'Z');
     
@@ -547,12 +640,12 @@ begin
     Z80_ADDR    <= MB_ADDR when MB_BUSRQn = '0' and Z80_BUSACKn = '0'
                    else (others => 'Z');
 
-    Z80_WRn     <= '0' when MB_MREQn = '0' and Z80_BUSACKn = '0' -- and (write1 or write2...) signals active here
+    Z80_WRn     <= '0' when MB_MREQn = '0' and Z80_BUSACKn = '0' and (MB_WRITE_STROBE = '1') -- and (write1 or write2...) signals active here
                    else
                    '1' when Z80_BUSACKn = '0'
                    else 'Z';
 
-    Z80_RDn     <= '0' when MB_MREQn = '0' and Z80_BUSACKn = '0' -- and (read1 or read2...) signals active here
+    Z80_RDn     <= '0' when MB_MREQn = '0' and Z80_BUSACKn = '0' and (MB_READ_KEYS = '1') -- and (read1 or read2...) signals active here
                    else
                    '1' when Z80_BUSACKn = '0'
                    else 'Z';
@@ -1114,56 +1207,5 @@ begin
     VMEM_CSn  <= '0' when unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and Z80_MREQn = '0' and Z80_RFSHn = '1'
                  else '1';
 
-
-    -- Compatibility control logic. Process to detect an I/O operation which requires change of hardware different to the transaction. Once detected a write back to the
-    -- real hardware is made during a Z80 BUS Tri-state operation.
-    -- NB. This is just a shell, the MZ80B logic has been removed, shell left in place in case writeback is needed for some unforeseen hardware incompatibility.
-    --
-    process( Z80_RESETn, SYSCLK )
-    begin
-
-        if Z80_RESETn = '0' then
-            MB_BUSRQn               <= '1';
-            MB_MREQn                <= '1';
-            MB_ADDR                 <= (others => '0');
-            MB_DELAY                <= (others => '0');
-
-        elsif SYSCLK'event and SYSCLK = '1' then
-
-            -- When inactive, wait for a Z80 I/O transaction that needs writeback.
-            --
-            if MB_BUSRQn = '1' then
-
-            else
-
-                -- If wait asserted (usually the video circuitry) then do nothing till deasserted.
-                if SYS_WAITn = '0' then
-
-                -- If a delay set, loop till it expires.
-                elsif Z80_BUSACKn = '0' and MB_DELAY /= 0 then
-                    MB_DELAY            <= MB_DELAY - 1;
-
-                -- End of this transaction.
-                elsif Z80_BUSACKn = '0' and MB_MREQn = '0' then
-                    MB_MREQn            <= '1';
-    
-                end if;
-    
-                -- If we are at the end of a cycle, see if there are any additional transactions to perform else update the signals to inactive.
-                if Z80_BUSACKn = '0' and MB_MREQn = '1' and MB_DELAY = 0 then
-    
-                    -- If a screen flag requires setting, set in motion an additional transaction.
-                  --if (CMD)  then
-
-                  --else
-                        -- Release BUS control back to the Z80 to complete transaction.
-                        MB_BUSRQn       <= '1';
-                  --end if;
-    
-                end if;
-    
-            end if;
-        end if;
-    end process;
 
 end architecture;
