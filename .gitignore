@@ -27,6 +27,7 @@
 *.pof
 *.qdf
 *.srf
+*.swo
 c5_pin_model_dump.txt
 build/db/
 build/incremental_db/
@@ -124,4 +125,7 @@ schematics/tranZPUter-SW/
 schematics/tranZPUter/
 software/asm/.cbiosII.asm.swo
 software/roms/SA1510.orig
-
+CPLD/build/tranZPUterSW_constraints.sdc.clk
+CPLD/tranZPUterSW.vhd.clk
+CPLD/tranZPUterSW.vhd.presweep
+software/asm/include/Definitions.asm.swo

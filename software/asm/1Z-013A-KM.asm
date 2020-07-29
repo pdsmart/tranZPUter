@@ -146,11 +146,11 @@ QER:    CP      02H                                                      ; A=02H
         JR      Z,ST1
         LD      DE,MSGE1                                                 ; CHECK SUM ERROR
         RST     18H                                                      ; CALL MSGX
-L010F:  JR      ST1
+L010F:    JR      ST1
 
         ;    LOAD COMMAND
 
-LOAD:   CALL    QRDI
+LOAD:      CALL    QRDI
         JR      C,QER
 LOA0:   CALL    NL
         LD      DE,MSGQ2                                                 ; LOADING
@@ -2374,386 +2374,382 @@ DACN1:  OR      A
         ;
         ;   KEY MATRIX TO DISPLAY CODE TABL
         ;
-KTBL:
-        ;S0   00 - 07
-    DB    0BFH                                                           ; SPARE
-    DB    0CAH                                                           ; GRAPH
-    DB    58H                                                            ; 
-    DB    0C9H                                                           ; ALPHA
-    DB    0F0H                                                           ; NO
-    DB    2CH                                                            ;         ;
-    DB    4FH                                                            ; :
-    DB    0CDH                                                           ; CR
-        ;S1   08 - 0F
-    DB    19H                                                            ; Y
-    DB    1AH                                                            ; Z
-    DB    55H                                                            ; @
-    DB    52H                                                            ; [
-    DB    54H                                                            ; ]
-    DB    0F0H                                                           ; NULL
-    DB    0F0H                                                           ; NULL
-    DB    0F0H                                                           ; NULL
-        ;S2   10 - 17
-    DB    11H                                                            ; Q
-    DB    12H                                                            ; R
-    DB    13H                                                            ; S
-    DB    14H                                                            ; T
-    DB    15H                                                            ; U
-    DB    16H                                                            ; V
-    DB    17H                                                            ; W
-    DB    18H                                                            ; X
-        ;S3   18 - 1F
-    DB    09H                                                            ; I
-    DB    0AH                                                            ; J
-    DB    0BH                                                            ; K
-    DB    0CH                                                            ; L
-    DB    0DH                                                            ; M
-    DB    0EH                                                            ; N
-    DB    0FH                                                            ; O
-    DB    10H                                                            ; P
-        ;S4   20 - 27
-    DB    01H                                                            ; A
-    DB    02H                                                            ; B
-    DB    03H                                                            ; C
-    DB    04H                                                            ; D
-    DB    05H                                                            ; E
-    DB    06H                                                            ; F
-    DB    07H                                                            ; G
-    DB    08H                                                            ; H
-        ;S5   28 - 2F
-    DB    21H                                                            ; 1
-    DB    22H                                                            ; 2
-    DB    23H                                                            ; 3
-    DB    24H                                                            ; 4
-    DB    25H                                                            ; 5
-    DB    26H                                                            ; 6
-    DB    27H                                                            ; 7
-    DB    28H                                                            ; 8
-        ;S6   30 - 37
-    DB    59H                                                            ; \
-    DB    50H                                                            ; 
-    DB    2AH                                                            ; -
-    DB    00H                                                            ; SPACE
-    DB    20H                                                            ; 0
-    DB    29H                                                            ; 9
-    DB    2FH                                                            ; ,
-    DB    2EH                                                            ; .
-        ;S7   38 - 3F
-    DB    0C8H                                                           ; INST.
-    DB    0C7H                                                           ; DEL.
-    DB    0C2H                                                           ; CURSOR UP
-    DB    0C1H                                                           ; CURSOR DOWN
-    DB    0C3H                                                           ; CURSOR RIGHT
-    DB    0C4H                                                           ; CURSOR LEFT
-    DB    49H                                                            ; ?
-    DB    2DH                                                            ; /
+
+KTBL:   ;S0   00 - 07                                                ;                 
+        DB      0F0H                                                 ; NULL             
+        DB      0F0H                                                 ; NULL             
+        DB      040H                                                 ; CURSOR DOWN      
+        DB      0F0H                                                 ; NULL             
+        DB      0F0H                                                 ; NULL             
+        DB      04FH                                                 ; :                
+        DB      02CH                                                 ; ;                
+        DB      0CDH                                                 ; CR               
+        ;S1   08 - 0F                                                ;                  
+        DB      022H                                                 ; 2
+        DB      021H                                                 ; 1
+        DB      017H                                                 ; W
+        DB      011H                                                 ; Q
+        DB      001H                                                 ; A
+        DB      0C7H                                                 ; DEL
+        DB      000H                                                 ; NULL
+        DB      01AH                                                 ; Z
+        ;S2   10 - 17                                                ;                  
+        DB      024H                                                 ; 4
+        DB      023H                                                 ; 3
+        DB      012H                                                 ; R
+        DB      005H                                                 ; E
+        DB      004H                                                 ; D
+        DB      013H                                                 ; S
+        DB      018H                                                 ; X
+        DB      003H                                                 ; C
+        ;S3   18 - 1F                                                ;                  
+        DB      026H                                                 ; 6
+        DB      025H                                                 ; 5
+        DB      019H                                                 ; Y
+        DB      014H                                                 ; T
+        DB      007H                                                 ; G
+        DB      006H                                                 ; F
+        DB      016H                                                 ; V
+        DB      002H                                                 ; B
+        ;S4   20 - 27                                                ;                  
+        DB      028H                                                 ; 8
+        DB      027H                                                 ; 7
+        DB      009H                                                 ; I
+        DB      015H                                                 ; U
+        DB      00AH                                                 ; J
+        DB      008H                                                 ; H
+        DB      00EH                                                 ; N
+        DB      000H                                                 ; SPACE
+        ;S5   28 - 2F                                                ;                  
+        DB      020H                                                 ; 0
+        DB      029H                                                 ; 9
+        DB      010H                                                 ; P
+        DB      00FH                                                 ; O
+        DB      00CH                                                 ; L
+        DB      00BH                                                 ; K
+        DB      02FH                                                 ; ,
+        DB      00DH                                                 ; M
+        ;S6   30 - 37                                                ;                  
+        DB      0BEH                                                 ; ^
+        DB      02AH                                                 ; -
+        DB      052H                                                 ; [
+        DB      055H                                                 ; @
+        DB      04FH                                                 ; :
+        DB      02CH                                                 ; ;
+        DB      02DH                                                 ; /
+        DB      02EH                                                 ; .
+        ;S7   38 - 3F                                                ;                  
+        DB      0C5H                                                 ; HOME
+        DB      059H                                                 ; \
+        DB      0C3H                                                 ; CURSOR RIGHT
+        DB      0C2H                                                 ; CURSOR UP
+        DB      0CDH                                                 ; CR
+        DB      054H                                                 ; ]
+        DB      000H                                                 ; NULL
+        DB      049H                                                 ; ?
+
         ;
         ;
         ;   KTBL SHIFT ON
         ;
-KTBLS:
-        ;S0   00 - 07
-    DB    0BFH                                                           ; SPARE
-    DB    0CAH                                                           ; GRAPH
-    DB    1BH                                                            ; POND
-    DB    0C9H                                                           ; ALPHA
-    DB    0F0H                                                           ; NO
-    DB    6AH                                                            ; +
-    DB    6BH                                                            ; *
-    DB    0CDH                                                           ; CR
-        ;S1   08 - 0F
-    DB    99H                                                            ; y
-    DB    9AH                                                            ; z
-    DB    0A4H                                                           ; `
-    DB    0BCH                                                           ; {
-    DB    40H                                                            ; }
-    DB    0F0H                                                           ; NULL
-    DB    0F0H                                                           ; NULL
-    DB    0F0H                                                           ; NULL
-        ;S2   10 - 17
-    DB    91H                                                            ; q
-    DB    92H                                                            ; r
-    DB    93H                                                            ; s
-    DB    94H                                                            ; t
-    DB    95H                                                            ; u
-    DB    96H                                                            ; v
-    DB    97H                                                            ; w
-    DB    98H                                                            ; x
-        ;S3   18 - 1F
-    DB    89H                                                            ; i
-    DB    8AH                                                            ; j
-    DB    8BH                                                            ; k
-    DB    8CH                                                            ; l
-    DB    8DH                                                            ; m
-    DB    8EH                                                            ; n
-    DB    8FH                                                            ; o
-    DB    90H                                                            ; p
-        ;S4   20 - 27
-    DB    81H                                                            ; a
-    DB    82H                                                            ; b
-    DB    83H                                                            ; c
-    DB    84H                                                            ; d
-    DB    85H                                                            ; e
-    DB    86H                                                            ; f
-    DB    87H                                                            ; g
-    DB    88H                                                            ; h
-        ;S5   28 - 2F
-    DB    61H                                                            ; !
-    DB    62H                                                            ; "
-    DB    63H                                                            ; #
-    DB    64H                                                            ; $
-    DB    65H                                                            ; %
-    DB    66H                                                            ; &
-    DB    67H                                                            ; '
-    DB    68H                                                            ; (
-        ;S6   30 - 37
-    DB    80H                                                            ; \
-    DB    0A5H                                                           ; POND MARK
-    DB    2BH                                                            ; YEN
-    DB    00H                                                            ; SPACE
-    DB    60H                                                            ; ¶
-    DB    69H                                                            ; )
-    DB    51H                                                            ; <
-    DB    57H                                                            ; >
-        ;S7   38 - 3F
-    DB    0C6H                                                           ; CLR
-    DB    0C5H                                                           ; HOME
-    DB    0C2H                                                           ; CURSOR UP
-    DB    0C1H                                                           ; CURSOR DOWN
-    DB    0C3H                                                           ; CURSOR RIGHT
-    DB    0C4H                                                           ; CURSOR LEFT
-    DB    5AH                                                            ;
-    DB    45H                                                            ;
+KTBLS:  ;S0   00 - 07                                                
+        DB      0F0H                                                 ; NULL             
+        DB      0F0H                                                 ; NULL             
+        DB      040H                                                 ; CURSOR DOWN      
+        DB      0F0H                                                 ; NULL             
+        DB      0F0H                                                 ; NULL             
+        DB      04FH                                                 ; :                
+        DB      02CH                                                 ; ;                
+        DB      0CDH                                                 ; CR               
+        ;S1   08 - 0F                                               
+        DB      062H                                                 ; "
+        DB      061H                                                 ; !
+        DB      097H                                                 ; w
+        DB      091H                                                 ; q
+        DB      081H                                                 ; a
+        DB      0C8H                                                 ; INSERT
+        DB      000H                                                 ; NULL
+        DB      09AH                                                 ; z
+        ;S2   10 - 17                                               
+        DB      064H                                                 ; $
+        DB      063H                                                 ; #
+        DB      092H                                                 ; r
+        DB      085H                                                 ; e
+        DB      084H                                                 ; d
+        DB      093H                                                 ; s
+        DB      098H                                                 ; x
+        DB      083H                                                 ; c
+        ;S3   18 - 1F                                                ; 
+        DB      066H                                                 ; &
+        DB      065H                                                 ; %
+        DB      099H                                                 ; y
+        DB      094H                                                 ; t
+        DB      087H                                                 ; g
+        DB      086H                                                 ; f
+        DB      096H                                                 ; v
+        DB      082H                                                 ; b
+        ;S4   20 - 27    
+        DB      068H                                                 ; (
+        DB      067H                                                 ; '
+        DB      089H                                                 ; i
+        DB      095H                                                 ; u
+        DB      08AH                                                 ; j
+        DB      088H                                                 ; h
+        DB      08EH                                                 ; n
+        DB      000H                                                 ; SPACE
+        ;S5   28 - 2F                                          
+        DB      0BFH                                                 ; _
+        DB      069H                                                 ; )
+        DB      090H                                                 ; p
+        DB      08FH                                                 ; o
+        DB      08CH                                                 ; l
+        DB      08BH                                                 ; k
+        DB      051H                                                 ; <
+        DB      08DH                                                 ; m
+        ;S6   30 - 37      
+        DB      0A5H                                                 ; ~
+        DB      02BH                                                 ; =
+        DB      0BCH                                                 ; (
+        DB      0A4H                                                 ; '
+        DB      06BH                                                 ; #
+        DB      06AH                                                 ; +
+        DB      045H                                                 ; <-
+        DB      057H                                                 ; >
+        ;S7   38 - 3F     
+        DB      0C6H                                                 ; CLR
+        DB      080H                                                 ; |
+        DB      0C4H                                                 ; CURSOR LEFT
+        DB      0C1H                                                 ; CURSOR DOWN
+        DB      0CDH                                                 ; CR
+        DB      040H                                                 ; )
+        DB      000H                                                 ; NULL
+        DB      050H                                                 ; UP^ 
         ;
         ;
         ;   GRAPHIC
         ;
-KTBLGS:
-        ;S0   00 - 07
-    DB    0BFH                                                           ; SPARE
-    DB    0F0H                                                           ; GRAPH BUT NULL
-    DB    0E5H                                                           ; #
-    DB    0C9H                                                           ; ALPHA
-    DB    0F0H                                                           ; NO
-    DB    42H                                                            ; #        ;
-    DB    0B6H                                                           ; #:
-    DB    0CDH                                                           ; CR
-        ;S1   08 - 0F
-    DB    75H                                                            ; #Y
-    DB    76H                                                            ; #Z
-    DB    0B2H                                                           ; #@
-    DB    0D8H                                                           ; #[
-    DB    4EH                                                            ; #]
-    DB    0F0H                                                           ; #NULL
-    DB    0F0H                                                           ; #NULL
-    DB    0F0H                                                           ; #NULL
-        ;S2   10 - 17
-    DB    3CH                                                            ; #Q
-    DB    30H                                                            ; #R
-    DB    44H                                                            ; #S
-    DB    71H                                                            ; #T
-    DB    79H                                                            ; #U
-    DB    0DAH                                                           ; #V
-    DB    38H                                                            ; #W
-    DB    6DH                                                            ; #X
-        ;S3   18 - 1F
-    DB    7DH                                                            ; #I
-    DB    5CH                                                            ; #J
-    DB    5BH                                                            ; #K
-    DB    0B4H                                                           ; #L
-    DB    1CH                                                            ; #M
-    DB    32H                                                            ; #N
-    DB    0B0H                                                           ; #O
-    DB    0D6H                                                           ; #P
-        ;S4   20 - 27
-    DB    53H                                                            ; #A
-    DB    6FH                                                            ; #B
-    DB    0DEH                                                           ; #C
-    DB    47H                                                            ; #D
-    DB    34H                                                            ; #E
-    DB    4AH                                                            ; #F
-    DB    4BH                                                            ; #G
-    DB    72H                                                            ; #H
-        ;S5   28 - 2F
-    DB    37H                                                            ; #1
-    DB    3EH                                                            ; #2
-    DB    7FH                                                            ; #3
-    DB    7BH                                                            ; #4
-    DB    3AH                                                            ; #5
-    DB    5EH                                                            ; #6
-    DB    1FH                                                            ; #7
-    DB    0BDH                                                           ; #8
-        ;S6   30 - 37
-    DB    0D4H                                                           ; #YEN
-    DB    9EH                                                            ; #+
-    DB    0D2H                                                           ; #-
-    DB    00H                                                            ; SPACE
-    DB    9CH                                                            ; #0
-    DB    0A1H                                                           ; #9
-    DB    0CAH                                                           ; #,
-    DB    0B8H                                                           ; #.
-        ;S7   38 - 3F
-    DB    0C8H                                                           ; INST
-    DB    0C7H                                                           ; DEL.
-    DB    0C2H                                                           ; CURSOR UP
-    DB    0C1H                                                           ; CURSOR DOWN
-    DB    0C3H                                                           ; CURSOR RIGHT
-    DB    0C4H                                                           ; CURSOR LEFT
-    DB    0BAH                                                           ; #?
-    DB    0DBH                                                           ; #/
+KTBLG:  ;S0   00 - 07                                                                        ;      ;S0   00 - 07
+        DB      03EH                                                                         ;  DB    0BFH                                                           ; SPARE
+        DB      037H                                                                         ;  DB    0F0H                                                           ; GRAPH BUT NULL
+        DB      038H                                                                         ;  DB    0E5H                                                           ; #
+        DB      03CH                                                                         ;  DB    0C9H                                                           ; ALPHA
+        DB      053H                                                                         ;  DB    0F0H                                                           ; NO
+        DB      0C7H                                                                         ;  DB    42H                                                            ; #        ;
+        DB      000H                                                                         ;  DB    0B6H                                                           ; #:
+        DB      076H                                                                         ;  DB    0CDH                                                           ; CR
+        ;S1   08 - 0F                                                                        ;      ;S1   08 - 0F
+        DB      03EH                                                 ; #2
+        DB      037H                                                 ; #1
+        DB      038H                                                 ; #W
+        DB      03CH                                                 ; #Q
+        DB      053H                                                 ; #A
+        DB      0C7H                                                 ; #DEL
+        DB      000H                                                 ; #NULL
+        DB      076H                                                 ; #Z
+        ;S2   10 - 17                                                                     
+        DB      07BH                                                 ; #4
+        DB      07FH                                                 ; #3
+        DB      030H                                                 ; #R
+        DB      034H                                                 ; #E
+        DB      047H                                                 ; #D
+        DB      044H                                                 ; #S
+        DB      06DH                                                 ; #X
+        DB      0DEH                                                 ; #C
+        ;S3   18 - 1F                                                                   
+        DB      05EH                                                 ; #6
+        DB      03AH                                                 ; #5
+        DB      075H                                                 ; #Y
+        DB      071H                                                 ; #T
+        DB      04BH                                                 ; #G
+        DB      04AH                                                 ; #F
+        DB      0DAH                                                 ; #V
+        DB      06FH                                                 ; #B
+        ;S4   20 - 27                                                                    
+        DB      0BDH                                                 ; #8
+        DB      01FH                                                 ; #7
+        DB      07DH                                                 ; #I
+        DB      079H                                                 ; #U
+        DB      05CH                                                 ; #J
+        DB      072H                                                 ; #H
+        DB      032H                                                 ; #N
+        DB      000H                                                 ; SPACE
+        ;S5   28 - 2F                                                                    
+        DB      09CH                                                 ; #0
+        DB      0A1H                                                 ; #9
+        DB      0D6H                                                 ; #P
+        DB      0B0H                                                 ; #O
+        DB      0B4H                                                 ; #L
+        DB      05BH                                                 ; #K
+        DB      060H                                                 ; #,
+        DB      01CH                                                 ; #M
+        ;S6   30 - 37                                                                     
+        DB      09EH                                                 ; #^
+        DB      0D2H                                                 ; #-
+        DB      0D8H                                                 ; #[
+        DB      0B2H                                                 ; #@
+        DB      0B6H                                                 ; ##:
+        DB      042H                                                 ; #;
+        DB      0DBH                                                 ; #/
+        DB      0B8H                                                 ; #.
+        ;S7   38 - 3F                                                                   
+        DB      0C5H                                                 ; HOME
+        DB      0D4H                                                 ; #\
+        DB      0C3H                                                 ; CURSOR RIGHT
+        DB      0C2H                                                 ; CURSOR UP
+        DB      0CDH                                                 ; CR
+        DB      04EH                                                 ; #J
+        DB      000H                                                 ; NULL
+        DB      0BAH                                                 ; #?
         ;
         ;
         ;   CONTROL CODE
         ;
-KTBLC:
-        ;S0   00 - 07
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H                                                           ; ^
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-        ;S1   08 - 0F
-    DB    0F0H                                                           ; ^Y E3
-    DB    5AH                                                            ; ^Z E4 (CHECKER)
-    DB    0F0H                                                           ; ^@
-    DB    0F0H                                                           ; ^[ EB/E5
-    DB    0F0H                                                           ; ^] EA/E7 
-    DB    0F0H                                                           ; #NULL
-    DB    0F0H                                                           ; #NULL
-    DB    0F0H                                                           ; #NULL
-        ;S2   10 - 17
-    DB    0C1H                                                           ; ^Q
-    DB    0C2H                                                           ; ^R
-    DB    0C3H                                                           ; ^S
-    DB    0C4H                                                           ; ^T
-    DB    0C5H                                                           ; ^U
-    DB    0C6H                                                           ; ^V
-    DB    0F0H                                                           ; ^W E1
-    DB    0F0H                                                           ; ^X E2
-        ;S3   18 - 1F
-    DB    0F0H                                                           ; ^I F9
-    DB    0F0H                                                           ; ^J FA
-    DB    0F0H                                                           ; ^K FB
-    DB    0F0H                                                           ; ^L FC
-    DB    0F0H                                                           ; ^M CD
-    DB    0F0H                                                           ; ^N FE
-    DB    0F0H                                                           ; ^O FF
-    DB    0F0H                                                           ; ^P E0
-        ;S4   20 - 27
-    DB    0F0H                                                           ; ^A F1
-    DB    0F0H                                                           ; ^B F2
-    DB    0F0H                                                           ; ^C F3
-    DB    0F0H                                                           ; ^D F4
-    DB    0F0H                                                           ; ^E F5
-    DB    0F0H                                                           ; ^F F6
-    DB    0F0H                                                           ; ^G F7
-    DB    0F0H                                                           ; ^H F8
-        ;S5   28 - 2F
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-        ;S6   30 - 37 (ERROR? 7 VALUES ONLY!!)
-    DB    0F0H                                                           ; ^YEN E6
-    DB    0F0H                                                           ; ^    EF
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H                                                           ; ^,
-    DB    0F0H
+KTBLGS: ;S0   00 - 07                                                                        ;      ;S0   00 - 07
+        DB      036H                                                                         ;  DB    0F0H
+        DB      03FH                                                                         ;  DB    0F0H
+        DB      078H                                                                         ;  DB    0F0H                                                           ; ^
+        DB      07CH                                                                         ;  DB    0F0H
+        DB      046H                                                                         ;  DB    0F0H
+        DB      0C8H                                                                         ;  DB    0F0H
+        DB      000H                                                                         ;  DB    0F0H
+        DB      077H                                                                         ;  DB    0F0H
+        ;S1   08 - 0F                                                                        ;      ;S1   08 - 0F
+        DB      036H                                                 ; ?2
+        DB      03FH                                                 ; ?1
+        DB      078H                                                 ; ?W
+        DB      07CH                                                 ; ?Q
+        DB      046H                                                 ; ?A
+        DB      0C8H                                                 ; INST
+        DB      000H                                                 ; NULL
+        DB      077H                                                 ; ?Z
+        ;S2   10 - 17                                                                    
+        DB      03BH                                                 ; ?4
+        DB      07EH                                                 ; ?3
+        DB      070H                                                 ; ?R
+        DB      074H                                                 ; ?E
+        DB      048H                                                 ; ?D
+        DB      041H                                                 ; ?S
+        DB      0DDH                                                 ; ?X                          
+        DB      0D9H                                                 ; C
+        ;S3   18 - 1F                                                                 
+        DB      01EH                                                 ; ?6
+        DB      07AH                                                 ; ?5
+        DB      035H                                                 ; ?Y
+        DB      031H                                                 ; ?T
+        DB      04CH                                                 ; ?G
+        DB      043H                                                 ; ?F
+        DB      0A6H                                                 ; ?V
+        DB      06EH                                                 ; ?B
+        ;S4   20 - 27                                                                    
+        DB      0A2H                                                 ; ?8
+        DB      05FH                                                 ; ?7
+        DB      03DH                                                 ; ?I
+        DB      039H                                                 ; ?U
+        DB      05DH                                                 ; ?J
+        DB      073H                                                 ; ?H
+        DB      033H                                                 ; ?N
+        DB      000H                                                 ; SPACE
+        ;S5   28 - 2F                                                                   
+        DB      09DH                                                 ; ?0
+        DB      0A3H                                                 ; ?9
+        DB      0B1H                                                 ; ?P
+        DB      0D5H                                                 ; ?O
+        DB      056H                                                 ; ?L
+        DB      06CH                                                 ; ?K
+        DB      0D0H                                                 ; ?,
+        DB      01DH                                                 ; ?M
+        ;S6   30 - 37                                                                    
+        DB      09FH                                                 ; ?^
+        DB      0D1H                                                 ; ?-
+        DB      0B3H                                                 ; ?[
+        DB      0D7H                                                 ; ?@
+        DB      04DH                                                 ; ?:
+        DB      0B5H                                                 ; ?;
+        DB      01BH                                                 ; ?/
+        DB      0B9H                                                 ; ?.
         ;S7   38 - 3F
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H                                                           ; ^/ EE
-        ;
+        DB      0C6H                                                 ; CLR
+        DB      0D3H                                                 ; ?\
+        DB      0C4H                                                 ; CURSOR RIGHT
+        DB      0C1H                                                 ; CURSOR UP
+        DB      0CDH                                                 ; CR
+        DB      0B7H                                                 ; ?J
+        DB      000H                                                 ; NULL
+        DB      0BBH                                                 ; ??
         ;
         ;   KANA
         ;
-KTBLG:
-        ;S0   00 - 07
-    DB    0BFH                                                           ; SPARE
-    DB    0F0H                                                           ; GRAPH BUT NULL
-    DB    0CFH                                                           ; NIKO WH.
-    DB    0C9H                                                           ; ALPHA
-    DB    0F0H                                                           ; NO
-    DB    0B5H                                                           ; MO
-    DB    4DH                                                            ; DAKU TEN
-    DB    0CDH                                                           ; CR
-        ;S1   08 - 0F
-    DB    35H                                                            ; HA
-    DB    77H                                                            ; TA
-    DB    0D7H                                                           ; WA
-    DB    0B3H                                                           ; YO
-    DB    0B7H                                                           ; HANDAKU
-    DB    0F0H
-    DB    0F0H
-    DB    0F0H
-        ;S2   10 - 17
-    DB    7CH                                                            ; KA
-    DB    70H                                                            ; KE
-    DB    41H                                                            ; SHI
-    DB    31H                                                            ; KO
-    DB    39H                                                            ; HI
-    DB    0A6H                                                           ; TE
-    DB    78H                                                            ; KI
-    DB    0DDH                                                           ; CHI
-        ;S3   18 - 1F
-    DB    3DH                                                            ; FU
-    DB    5DH                                                            ; MI
-    DB    6CH                                                            ; MU
-    DB    56H                                                            ; ME
-    DB    1DH                                                            ; RHI
-    DB    33H                                                            ; RA
-    DB    0D5H                                                           ; HE
-    DB    0B1H                                                           ; HO
-        ;S4   20 - 27
-    DB    46H                                                            ; SA
-    DB    6EH                                                            ; TO
-    DB    0D9H                                                           ; THU
-    DB    48H                                                            ; SU
-    DB    74H                                                            ; KU
-    DB    43H                                                            ; SE
-    DB    4CH                                                            ; SO
-    DB    73H                                                            ; MA
-        ;S5   28 - 2F
-    DB    3FH                                                            ; A
-    DB    36H                                                            ; I
-    DB    7EH                                                            ; U
-    DB    3BH                                                            ; E
-    DB    7AH                                                            ; O
-    DB    1EH                                                            ; NA
-    DB    5FH                                                            ; NI
-    DB    0A2H                                                           ; NU
-        ;S6   30 - 37
-    DB    0D3H                                                           ; YO
-    DB    9FH                                                            ; YU
-    DB    0D1H                                                           ; YA
-    DB    00H                                                            ; SPACE
-    DB    9DH                                                            ; NO
-    DB    0A3H                                                           ; NE
-    DB    0D0H                                                           ; RU
-    DB    0B9H                                                           ; RE
-        ;S7   38 - 3F
-    DB    0C6H                                                           ; ?CLR
-    DB    0C5H                                                           ; ?HOME
-    DB    0C2H                                                           ; ?CURSOR UP
-    DB    0C1H                                                           ; ?CURSOR DOWN
-    DB    0C3H                                                           ; ?CURSOR RIGHT
-    DB    0C4H                                                           ; ?CURSOR LEFT 
-    DB    0BBH                                                           ; DASH
-    DB    0BEH                                                           ; RO
+KTBLC:  ;S0   00 - 07                                                                        ;      ;S0   00 - 07
+        DB      0F0H                                                                         ;  DB    0BFH                                                           ; SPARE
+        DB      0F0H                                                                         ;  DB    0F0H                                                           ; GRAPH BUT NULL
+        DB      0E2H                                                                         ;  DB    0CFH                                                           ; NIKO WH.
+        DB      0C1H                                                                         ;  DB    0C9H                                                           ; ALPHA
+        DB      0E0H                                                                         ;  DB    0F0H                                                           ; NO
+        DB      0F0H                                                                         ;  DB    0B5H                                                           ; MO
+        DB      000H                                                                         ;  DB    4DH                                                            ; DAKU TEN
+        DB      0E5H                                                                         ;  DB    0CDH                                                           ; CR
+        ;S1   08 - 0F                                                                        ;      ;S1   08 - 0F
+        DB      0F0H                                                 ; CODE 80H=NOT KEY
+        DB      0F0H                                                 ; 
+        DB      0E2H                                                 ; CTRL + W
+        DB      0C1H                                                 ; CTRL + Q
+        DB      0E0H                                                 ; CTRL + A SHIFT LOCK
+        DB      0F0H                                                 ; 
+        DB      000H                                                 ; 
+        DB      0E5H                                                 ; CTRL + Z
+        ;S2   10 - 17                                                                        ;      ;S2   10 - 17
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0C2H                                                 ; CTRL + R
+        DB      0CFH                                                 ; CTRL + E ROLL DOWN
+        DB      0CEH                                                 ; CTRL + D ROLL UP
+        DB      0C3H                                                 ; CTRL + S
+        DB      0E3H                                                 ; CTRL + X   
+        DB      0F3H                                                 ; CTRL + C
+        ;S3   18 - 1F                                                                        ;      ;S3   18 - 1F
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0E4H                                                 ; CTRL + Y
+        DB      0C4H                                                 ; CTRL + T
+        DB      0F7H                                                 ; CTRL + G
+        DB      0F6H                                                 ; CTRL + F
+        DB      0C6H                                                 ; CTRL + V CLR
+        DB      0F2H                                                 ; CTRL + B
+        ;S4   20 - 27                                                                        ;      ;S4   20 - 27
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0F9H                                                 ; CTRL + I
+        DB      0C5H                                                 ; CTRL + U HOME
+        DB      0FAH                                                 ; CTRL + J
+        DB      0F8H                                                 ; CTRL + H
+        DB      0FEH                                                 ; CTRL + N
+        DB      0F0H                                                 ; 
+        ;S5   28 - 2F                                                                        ;      ;S5   28 - 2F
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0E1H                                                 ; CTRL + P
+        DB      0FFH                                                 ; CTRL + O
+        DB      0FCH                                                 ; CTRL + L
+        DB      0FBH                                                 ; CTRL + K
+        DB      0F0H                                                 ; 
+        DB      0FDH                                                 ; CTRL + M
+        ;S6   30 - 37                                                                        ;      ;S6   30 - 37
+        DB      0EFH                                                 ; CTRL + ^
+        DB      0F4H                                                 ; CTRL + -
+        DB      0E6H                                                 ; CTRL + [
+        DB      0CCH                                                 ; CTRL + @ REVERSE
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ; 
+        DB      0F0H                                                 ;
+        ;S7   38 - 3F                                                                        ;      ;S7   38 - 3F
+        DB      0F0H                                                 ;
+        DB      0EBH                                                 ; CTRL + \
+        DB      0F0H                                                 ;
+        DB      0F0H                                                 ;
+        DB      0F0H                                                 ;
+        DB      0EEH                                                 ; CTRL + ]
+        DB      0F0H                                                 ;
 
         ;    MEMORY DUMP COMMAND "D"
 

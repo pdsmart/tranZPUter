@@ -350,7 +350,9 @@ HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "700   - Select MZ-700 Mode.",                          00DH
             DB      "7008  - Select MZ-700 80 col Mode.",                   00DH
             DB      "B     - toggle keyboard bell.",                        00DH
+            DB      "BASIC - Load BASIC SA-5510.",                          00DH
             DB      "C[b]  - clear memory $1200-$D000.",                    00DH
+            DB      "CPM   - Load CPM.",                                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[fn]- erase file, fn=No or Filename",                00DH
             DB      "F[x]  - boot fd drive x.",                             00DH

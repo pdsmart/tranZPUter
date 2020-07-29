@@ -195,6 +195,12 @@ CPLDSTATUS              EQU     06EH                                     ; Versi
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
 
 ;-----------------------------------------------
+; CPLD Configuration constants.
+;-----------------------------------------------
+SET_MODE_MZ80A          EQU     1                                        ; Set to original unmodified hardware.
+SET_MODE_MZ700          EQU     2                                        ; Map keyboard and memory mode settings to MZ700 mode.
+
+;-----------------------------------------------
 ; tranZPUter SW Memory Management modes
 ;-----------------------------------------------
 TZMM_ENIOWAIT           EQU     020H                                     ; Memory management IO Wait State enable - insert a wait state when an IO operation to E0-FF is executed.

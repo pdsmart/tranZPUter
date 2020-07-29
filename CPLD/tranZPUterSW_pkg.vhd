@@ -35,6 +35,17 @@ use ieee.math_real.all;
 
 package tranZPUterSW_pkg is
     ------------------------------------------------------------ 
+    -- Configurable parameters.
+    ------------------------------------------------------------ 
+
+    -- Version of hdl.
+    constant CPLD_VERSION             : integer   := 1;
+
+    -- Clock source for the secondary clock. If a K64F is installed the enable it otherwise use the onboard oscillator.
+    --
+    constant USE_K64F_CTL_CLOCK       : integer   := 1;
+
+    ------------------------------------------------------------ 
     -- Function prototypes
     ------------------------------------------------------------ 
     -- Find the maximum of two integers.
@@ -58,9 +69,6 @@ package tranZPUterSW_pkg is
     constant ONE                      : std_logic := '1';
     constant ZERO                     : std_logic := '0';
     constant HIZ                      : std_logic := 'Z';
-
-    -- Version of hdl.
-    constant CPLD_VERSION             : integer   := 1;
 
     ------------------------------------------------------------ 
     -- Records

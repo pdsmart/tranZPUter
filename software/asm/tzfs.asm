@@ -533,20 +533,26 @@ SETMODE80:  LD      A, 128
             LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
 
-            ; Commands to switch into MZ-700 compatible mode. This involves loading the original (but patched for keyboard use) 1Z-013A BIOS
-            ; and changing the frequency, also enabling of additional traps to detect and change memory mode.
+            ; Commands to switch into MZ-700 compatible mode. This involves loading the original (but patched for keyboard use for v1.1) 1Z-013A BIOS
+            ; and changing the frequency, and on the v1.1 board also enabling of additional traps to detect and change memory mode which are catered for in 
+            ; hardware on v2+ boards..
 SETMODE700: LD      A, 0
             LD      (DSPCTL), A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
-            ;
+            LD      A,SET_MODE_MZ700
+            OUT     (CPLDCFG),A                                          ; Set the CPLD compatibility mode.
             LD      A,TZSVC_CMD_LOAD700BIOS40                            ; Request the I/O processor loads the MZ700 1Z-013A 40column BIOS into memory.
             JR      SETBIOS
+
 SETMODE7008:LD      A, 128
             LD      (DSPCTL), A
             LD      A,1
             LD      (SCRNMODE),A
+            LD      A,SET_MODE_MZ700
+            OUT     (CPLDCFG),A                                          ; Set the CPLD compatibility mode.
             LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
+
 
             ; Command to switch into the Sharp MZ-80B compatible mode. This involves loading the IPL, switching
             ; the frequency to 4MHz and enabling of additional traps to detect and change memory mode.

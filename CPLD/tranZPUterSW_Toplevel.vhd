@@ -66,8 +66,6 @@ entity tranZPUterSW is
         CTL_WAITn       : in    std_logic;
         SVCREQn         : out   std_logic;
         SYSREQn         : out   std_logic;
-        TZ_BUSACKn      : out   std_logic;
-        ENIOWAIT        : out   std_logic;
         Z80_MEM         : out   std_logic_vector(4 downto 0);
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
@@ -90,10 +88,10 @@ entity tranZPUterSW is
 
         -- Mode signals.
         CFG_MZ80A       : in    std_logic;
-        CFG_MZ700       : in    std_logic;
+        CFG_MZ700       : in    std_logic 
 
         -- Reserved.
-        TBA             : in    std_logic_vector(8 downto 0)
+      --TBA             : in    std_logic_vector(10 downto 0)
 
         -- JTAG / ISP
         --TCK             : in    std_logic;
@@ -143,8 +141,6 @@ begin
         CTL_WAITn       => CTL_WAITn,
         SVCREQn         => SVCREQn,
         SYSREQn         => SYSREQn,
-        TZ_BUSACKn      => TZ_BUSACKn,
-        ENIOWAIT        => ENIOWAIT,
         Z80_MEM         => Z80_MEM,
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
@@ -167,10 +163,10 @@ begin
 
         -- Mode signals.
         CFG_MZ80A       => CFG_MZ80A,
-        CFG_MZ700       => CFG_MZ700,
+        CFG_MZ700       => CFG_MZ700 
 
         -- Reserved.
-        TBA             => TBA
+      --TBA             => TBA
     );
 
 end architecture;
