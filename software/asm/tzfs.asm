@@ -15,6 +15,8 @@
 ;- History:         May 2020  - Branch taken from RFS v2.0 and adapted for the tranZPUter SW.
 ;-                  July 2020 - Not many changes but updated version to v1.1 to coincide with the
 ;-                              hardware v1.1 version, thus differentiating between v1.0 board and v1.1.
+;-                  July 2020 - Updates to accomodate the v2.1 hardware. Additional commands and fixed a 
+;-                              few bugs like the load from card by name!
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify

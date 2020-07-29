@@ -13,6 +13,7 @@
 ;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         May 2020  - Branch taken from RFS v2.0 and adapted for the tranZPUter SW.
+;-                  July 2020 - Updates to accommodate v2.1 of the tranZPUter board.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
