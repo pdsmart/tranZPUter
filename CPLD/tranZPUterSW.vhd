@@ -384,7 +384,7 @@ begin
                     end if;
 
                 -- If the Z80 Bus has not been requested and we need to make a key sweep, request the bus and start the sweep.
-                elsif Z80_MREQn = '1' and MB_BUSRQn = '1' and KEY_SWEEP = '1' and KEY_SUBSTITUTE = '0' then
+                elsif Z80_MREQn = '1' and MB_BUSRQn = '1' and MB_WAITn = '1' and KEY_SWEEP = '1' and KEY_SUBSTITUTE = '0' then
                     MB_BUSRQn       <= '0';
 
                 -- When the Z80 bus is available, run the FSM.
@@ -408,12 +408,10 @@ begin
                         -- Allow at least 1 cycles for the MREQ signal to settle.
                         when 1 =>
                             MB_MREQn            <= '0';
-                            MB_DELAY_TICKS      <= X"001";
 
                         -- Allow at least 1 cycle for the write pulse.
                         when 2 =>
                             MB_WRITE_STROBE     <= '1';
-                            MB_DELAY_TICKS      <= X"001";
     
                         -- Terminate write pulse.
                         when 3 =>
@@ -428,7 +426,6 @@ begin
                         when 5 =>
                             MB_MREQn            <= '0';
                             MB_READ_KEYS        <= '1';
-                            MB_DELAY_TICKS      <= X"002";
     
                         -- Read the key data into the matrix for later mapping.
                         when 6 =>
@@ -438,24 +435,24 @@ begin
     
                             if unsigned(MB_KEY_STROBE) = 9 then
                                 MB_KEY_STROBE   <= (others => '0');
-                                MB_DELAY_MS     <= X"32";                     -- 50ms delay between key sweeps with a 3.58MHz clock to prevent excessive scanning.
+                                MB_DELAY_MS     <= X"FA";                     -- 250ms delay between key sweeps with a 3.58MHz clock to prevent excessive scanning.
                                 KEY_SWEEP       <= '0';
                                 MB_BUSRQn       <= '1';
                             else
                                 MB_KEY_STROBE   <= MB_KEY_STROBE + 1;
+                                MB_BUSRQn       <= '1';
                             end if;
     
                         when others =>
                             MB_STATE            <= 0;
                     end case;
-
                 end if;
 
                 -- When the Z80 isnt tri-stated process the memory operations and act on required triggers.
                 --
                 if MB_BUSRQn = '1' and Z80_BUSACKn = '1' then
                     -- Detect a strobe output write and store it - this is used as the index into the key matrix for each read operation.
-                    if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E000") then
+                    if(Z80_MREQn = '0' and Z80_ADDR(15 downto 0) = X"E000" and Z80_DATA(7) = '1') then
                         KEY_STROBE              <= Z80_DATA(3 downto 0);
                     end if;
 
@@ -482,7 +479,7 @@ begin
                             -- In these cases we make an automated sweep of the entire keyboard as keys on the host are spread out on different strobe lines whereas the machine we are mapping to
                             -- has them on one strobe line.
                             KEY_STROBE_LAST <= KEY_STROBE;
-                            if KEY_STROBE_LAST = KEY_STROBE then
+                            if KEY_STROBE_LAST = KEY_STROBE and KEY_SWEEP = '0' then
                                 KEY_SWEEP       <= '1';
                             end if;
                         end if;
@@ -609,8 +606,8 @@ begin
     --
     -- Memory Modes:     0 - Default, normal Sharp MZ80A operating mode, all memory and IO (except tranZPUter control IO block) are on the mainboard
     --                   1 - As 0 except User ROM is mapped to tranZPUter RAM.
-    --                   2 - TZFS, Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes at F3FE and F7FE exist for the Floppy disk controller (which have to be 64
-    --                       bytes from F3C0 and F7C0 due to the granularity of the address lines into the Flash RAM), these locations  need to be on the mainboard.
+    --                   2 - TZFS, Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes of 2 bytes at F3FE and F7FE exist
+    --                       for the Floppy disk controller, the fdc uses the rom as a wait detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
     --                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
     --                   3 - TZFS, Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
     --                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
@@ -619,9 +616,10 @@ begin
     --                   5 - TZFS, Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
     --                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
     --                   6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
-    --                       Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+    --                       Special case for F3FE:F3FF & F7FE:F7FF (floppy disk paging vectors) which resides on the mainboard.
     --                   7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-    --                       Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+    --                       Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors and two small holes of 2 bytes at F3FE and F7FE exist for the Floppy disk controller, the fdc
+    --                       uses the rom as a wait detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
     --                   8 - Monitor ROM (0000:0FFF) on mainboard, Main RAM (1000:CFFF) in tranZPUter bank 0 and video, memory mapped I/O, User/Floppy ROM on mainboard.
     --                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
     --                  10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
@@ -648,7 +646,7 @@ begin
             -- mainboard resources, especially for Refresh of DRAM.
             when "00000" => 
                 DISABLE_BUSn        <= '1';
-                Z80_HI_ADDR(18 downto 16) <= "000";
+                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
                 RAM_OEni            <= '1';
@@ -671,13 +669,13 @@ begin
                     RAM_OEni        <= '1';
                 end if;
 
-            -- Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes at F3FE and F7FE exist for the Floppy disk controller (which have to be 64
-            -- bytes from F3C0 and F7C0 due to the granularity of the address lines into the Flash RAM), these locations  need to be on the mainboard.
+            -- Set 2 - Monitor ROM 0000-0FFF, Main DRAM 0x1000-0xD000, User/Floppy ROM E800-FFFF are in tranZPUter memory. Two small holes of 2 bytes at F3FE and F7FE exist for the Floppy disk controller, the fdc uses the rom as a wait
+            -- detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when "00010" => 
                 RAM_CSni            <= '0';
                 Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
-                if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F3FF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F7FF")) then 
+                if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
                     DISABLE_BUSn    <= '0';
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
@@ -704,7 +702,7 @@ begin
                     else
                         RAM_WEni    <= Z80_WRn;
                     end if;
-                elsif (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F3FF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F7FF") then
+                elsif (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then
                     DISABLE_BUSn    <= '0';
                     Z80_HI_ADDR(18 downto 15) <= "001" & Z80_ADDR(15);
                     RAM_OEni        <= Z80_RDn;
@@ -771,10 +769,10 @@ begin
                 end if;
 
             -- Set 6 - CPM, all memory on the tranZPUter board, 64K block 4 selected.
-            -- Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            -- Two small holes of 2 bytes at F3FE and F7FE exist for the Floppy disk controller, the fdc uses the rom as a wait detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
             when "00110" => 
                 RAM_CSni            <= '0';
-                if ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F3FF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F7FF")) then
+                if (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then 
                     DISABLE_BUSn    <= '0';
                     Z80_HI_ADDR(18 downto 15) <= "100" & Z80_ADDR(15);
                     RAM_OEni        <= Z80_RDn;
@@ -788,10 +786,11 @@ begin
                 end if;
 
             -- Set 7 - CPM, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5 selected, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-            -- Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+            -- Special case for 0000:00FF (interrupt vectors) which resides in block 4 and CPM vectors and two small holes of 2 bytes at F3FE and F7FE exist for the Floppy disk controller, the fdc
+            -- uses the rom as a wait detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
             when "00111" => 
                 RAM_CSni            <= '0';
-                if ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"0100") or (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F3FF" and unsigned(Z80_ADDR(15 downto 0)) /= X"F7FF")) then
+                if ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"0100") or (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111"))) then
                     DISABLE_BUSn    <= '0';
                     Z80_HI_ADDR(18 downto 15) <= "100" & Z80_ADDR(15);
                     RAM_OEni        <= Z80_RDn;
