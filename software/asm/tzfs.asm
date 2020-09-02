@@ -227,6 +227,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 002H
             DB      "EC"                                                 ; Erase file.
             DW      ERASESD
+            DB      000H | 000H | 000H | 002H
+            DB      "EX"                                                 ; Exit out of TZFS to original Monitor.
+            DW      EXITTZFS 
             DB      000H | 000H | 000H | 004H
             DB      "FREQ"                                               ; Set or change the CPU frequency.
             DW      SETFREQ
@@ -593,6 +596,17 @@ SETFREQERR: LD      DE,MSGFREQERR
 BADNUMERR:  LD      DE,MSGBADNUM
 BADNUM2:    CALL    ?PRINTMSG
             RET
+
+            ; Exit out of TZFS - This entails clearing the DRAM as it wont have been refreshed, switching memory mode and then branching to the monitor start entry point.
+            ; This is all done by the I/O processor as we need to be in memory mode 0 where all tranZPUter memory is paged out.
+            ;
+EXITTZFS:   LD      A,TZSVC_CMD_EXIT                                     ; Request the I/O processor restarts the host in original mode.
+            CALL    SVC_CMD                                              
+            OR      A
+            JP      Z,MONIT
+            LD      DE,MSGFAILEXIT                                       ; Print message if the I/O processor cant process the command.
+            CALL    ?PRINTMSG
+            RET                                                          ; Return status to caller, 0 = success.
 
             ;
             ;       Memory correction

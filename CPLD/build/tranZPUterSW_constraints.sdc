@@ -44,6 +44,9 @@ create_clock -name {SYSCLK} -period 500.000 -waveform { 0.000 250.000 } [get_por
 # For K64F
 create_clock -name {CTLCLK} -period 50.000 -waveform { 0.000 25.000 }   [ get_ports { CTLCLK }]
 
+# For the video module interconnect clock.
+create_clock -name {INCLK}  -period 62.500 -waveform { 0.000 31.250 }   [ get_ports { INCLK }]
+
 # For basic board with oscillator.
 #create_clock -name {CTLCLK} -period 20.000 -waveform { 0.000 10.000 }   [ get_ports { CTLCLK }]
 #create_clock -name {cpld512:cpldl512Toplevel|CTLCLKi} -period 280.000 -waveform { 0.000 140.000 } [ get_keepers {cpld512:cpldl512Toplevel|CTLCLKi} ]
@@ -127,10 +130,14 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {RAM
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SVCREQn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SYSREQn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SYS_BUSACKn}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[11]}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[12]}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[13]}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VMEM_CSn}]
+#set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[11]}]
+#set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[12]}]
+#set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[13]}]
+#set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VMEM_CSn}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {OUTDATA[0]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {OUTDATA[1]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {OUTDATA[2]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {OUTDATA[3]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_BUSRQn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_DATA[0]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_DATA[1]}]
@@ -207,6 +214,10 @@ set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[3]} -to {cpld512:c
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[2]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[1]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[0]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
+
+# For the video module interconnect clock.
+set_false_path -from [get_clocks {CTLCLK}] -to [get_clocks {INCLK}]
+set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {INCLK}]
 
 
 #**************************************************************

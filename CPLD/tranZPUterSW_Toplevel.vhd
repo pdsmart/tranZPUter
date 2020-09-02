@@ -39,7 +39,6 @@ entity tranZPUterSW is
         Z80_HI_ADDR     : out   std_logic_vector(18 downto 15);
         Z80_ADDR        : inout std_logic_vector(15 downto 0);
         Z80_DATA        : inout std_logic_vector(7 downto 0);
-        VADDR           : out   std_logic_vector(13 downto 11);
 
         -- Z80 Control signals.
         Z80_BUSRQn      : out   std_logic;
@@ -79,7 +78,11 @@ entity tranZPUterSW is
         RAM_WEn         : out   std_logic;
     
         -- Graphics Board I/O and Memory Select.
-        VMEM_CSn        : out   std_logic;
+    --    VMEM_CSn        : out   std_logic;
+    --    VADDR           : out   std_logic_vector(13 downto 11);
+    --    VIORQn          : out   std_logic;
+        INCLK           : in    std_logic;
+        OUTDATA         : out   std_logic_vector(3 downto 0);
 
         -- Clocks, system and K64F generated.
         SYSCLK          : in    std_logic;
@@ -114,7 +117,6 @@ begin
         Z80_HI_ADDR     => Z80_HI_ADDR,
         Z80_ADDR        => Z80_ADDR,
         Z80_DATA        => Z80_DATA,
-        VADDR           => VADDR,
 
         -- Z80 Control signals.
         Z80_BUSRQn      => Z80_BUSRQn,
@@ -154,7 +156,11 @@ begin
         RAM_WEn         => RAM_WEn,
 
         -- Graphics Board I/O and Memory Select.
-        VMEM_CSn        => VMEM_CSn,
+     -- VMEM_CSn        => VMEM_CSn,
+     -- VADDR           => VADDR,
+     -- VIORQn          => VIORQn,
+        INCLK           => INCLK,
+        OUTDATA         => OUTDATA,
 
         -- Clocks, system and K64F generated.
         SYSCLK          => SYSCLK,

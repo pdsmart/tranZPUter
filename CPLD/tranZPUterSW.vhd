@@ -61,7 +61,6 @@ entity cpld512 is
         Z80_HI_ADDR     : out   std_logic_vector(18 downto 15);
         Z80_ADDR        : inout std_logic_vector(15 downto 0);
         Z80_DATA        : inout std_logic_vector( 7 downto 0);
-        VADDR           : out   std_logic_vector(13 downto 11);
 
         -- Z80 Control signals.
         Z80_BUSRQn      : out   std_logic;
@@ -101,7 +100,11 @@ entity cpld512 is
         RAM_WEn         : out   std_logic;
 
         -- Graphics Board I/O and Memory Select.
-        VMEM_CSn        : out   std_logic;
+     --   VMEM_CSn        : out   std_logic;
+     --   VADDR           : out   std_logic_vector(13 downto 11);
+     --   VIORQn          : out   std_logic;
+        INCLK           : in    std_logic;
+        OUTDATA         : out   std_logic_vector(3 downto 0);
 
         -- Clocks, system and K64F generated.
         SYSCLK          : in    std_logic;
@@ -156,11 +159,18 @@ architecture rtl of cpld512 is
     signal CTLCLK_Q               :       std_logic;
     --
     signal DISABLE_BUSn           :       std_logic;
+    signal SYS_BUSACKni           :       std_logic := '0';
 
     -- CPU Frequency select logic based on Flip Flops and gates.
     signal SCK_CTLSELn            :       std_logic;
     signal Z80_CLKi               :       std_logic;
     signal CTLCLKi                :       std_logic;
+
+    -- Video module signals.
+    --
+    signal VM_MEM_CSn             :       std_logic;
+    signal VM_IORQn               :       std_logic;
+    signal OUTBUF                 :       std_logic_vector(11 downto 0);
 
     -- Z80 Wait Insert generator when I/O ports in region > 0XE0 are accessed to give the K64F time to proces them.
     --
@@ -601,6 +611,53 @@ begin
         end if;
     end process;
 
+    -- A Video Module signal serializer. Signals required by the Video Module but not accessible physically (without hardware hacks) are captured and serialised as a set of 4 x 4 blocks, clocked by the video module,
+    -- Reset synchronises the Video Module CPLD with the tranZPUter CPLD and the signals are sent during valid mainboard accesses.
+    --
+    SIGNALSERIALIZER: process(INCLK, Z80_RESETn)
+        variable XMIT_CYCLE             : integer range 0 to 3;
+    begin
+        if Z80_RESETn = '0' then
+            XMIT_CYCLE                  := 0;
+
+        elsif (INCLK='1' and INCLK'event) then
+
+            -- Tight loop, sending current signal status on each clock. There are 16 signals to send and 4 data lines, so we need 4 cycles per data set.
+            case XMIT_CYCLE is
+                when 0 =>
+                    -- If we are accessing the mainboard then send across a valid signal set else mark it as invalid.
+                    --
+                    if SYSCLK_Q = '0' then
+                        OUTDATA(3 downto 0) <= Z80_ADDR(3 downto 0);
+                        OUTBUF              <= VM_IORQn & VM_MEM_CSn & Z80_ADDR(13 downto 4);
+                    else
+                        OUTDATA(3 downto 0) <= (others => '0');
+                        OUTBUF              <= (others => '0');
+                    end if;
+                    XMIT_CYCLE          := 1;
+
+                when 1 =>
+                    OUTDATA(3 downto 0) <= OUTBUF(3 downto 0);
+                    XMIT_CYCLE          := 2;
+
+                when 2 =>
+                    OUTDATA(3 downto 0) <= OUTBUF(7 downto 4);
+                    XMIT_CYCLE          := 3;
+
+                when 3 =>
+                    -- Double check, if we started with a valid mainboard cycle but the clock switched, or we started with an invalid mainboard
+                    -- cycle and the clock switched to mainboard, then invalidate this cycle, otherwise send the final signals as captured at the 
+                    -- start of the cycle.
+                    if SYSCLK_Q = '0' and OUTBUF(11 downto 10) /= "00" then
+                        OUTDATA(3 downto 0) <= OUTBUF(11 downto 8);
+                    else
+                        OUTDATA(3 downto 0) <= (others => '0');
+                    end if;
+                    XMIT_CYCLE          := 0;
+            end case;
+        end if;
+    end process;
+
 
     -- Memory decoding, taken directly from the definitions coded into the flashcfg tool in v1.1. The CPLD adds greater flexibility and mapping down to the byte level where needed.
     --
@@ -635,8 +692,24 @@ begin
     --                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
-    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH)
+    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni)
     begin
+        -- Video module, the address range C000:FFFF can be made available via the VMEM_CSn signal, memory mode dependent.
+        -- Basic open window is the VRAM, D000:D7FF, ARAM D800:DFFF and memory mapped registers E000:E7FF
+        if (Z80_ADDR(15 downto 12) = "1101" or Z80_ADDR(15 downto 11) = "11100") and Z80_MREQn = '0' and (Z80_RDn = '0' or Z80_WRn = '0') and SYS_BUSACKni = '1' then
+            VM_MEM_CSn              <= '0';
+        else
+            VM_MEM_CSn              <= '1';
+        end if;
+
+        -- For the video card, additional address lines are needed to address the banked video memory. The CPLD is acting as a buffer for these lines.
+        --   VADDR     <= Z80_ADDR(13 downto 11) when SYS_BUSACKni = '1'
+        --                else (others => 'Z');
+        if Z80_IORQn = '0' and (Z80_RDn = '0' or Z80_WRn = '0') then
+            VM_IORQn                <= '0';
+        else
+            VM_IORQn                <= '1';
+        end if;
 
         -- Memory action according to the set memory mode. Not synchronous as we need to detect and act on address or signals long before a rising edge.
         --
@@ -650,6 +723,7 @@ begin
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
                 RAM_OEni            <= '1';
+
 
             -- Whenever running in RAM ensure the mainboard is disabled to prevent decoder propagation delay glitches.
             when "00001" => 
@@ -1062,10 +1136,11 @@ begin
                    else 'Z';
 
     -- Bus control logic.
-    SYS_BUSACKn <= '1'                                                     when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    SYS_BUSACKni<= '1'                                                     when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
                    else
                    '0'                                                     when DISABLE_BUSn = '0' or (KEY_SUBSTITUTE = '1' and Z80_MREQn = '0') or (Z80_BUSACKn = '0' and CTL_BUSACKn = '0') 
                    else '1';
+    SYS_BUSACKn <= SYS_BUSACKni;
     Z80_BUSRQn  <= '0'                                                     when SYS_BUSRQn = '0' or CTL_BUSRQn = '0' or MB_BUSRQn = '0'
                    else '1';
         
@@ -1142,12 +1217,6 @@ begin
     RAM_OEn   <= RAM_OEni                                                  when Z80_MREQn = '0'
                  else '1';
     RAM_WEn   <= RAM_WEni                                                  when Z80_MREQn = '0'
-                 else '1';
-
-    -- For the video card, additional address lines are needed to address the banked video memory. The CPLD is acting as a buffer for these lines.
-    VADDR     <= Z80_ADDR(13 downto 11)                                    when Z80_BUSACKn = '1'
-                 else (others => 'Z');
-    VMEM_CSn  <= '0'                                                       when unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and Z80_MREQn = '0' and Z80_RFSHn = '1'
                  else '1';
 
     -- Mainboard WAIT State Generator S-R latch 4.

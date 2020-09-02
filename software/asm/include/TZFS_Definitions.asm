@@ -394,32 +394,33 @@ TZSVC_FILENAME:         DS      virtual TZSVCFILESZ                      ; Filen
 TZSVCWILDC:             DS      virtual TZSVCWILDSZ                      ; Directory wildcard for file pattern matching.
 TZSVCSECTOR:            DS      virtual TZSVCSECSIZE                     ; Service command sector - to store directory entries, file sector read or writes.
 
-TZSVC_CMD_READDIR:      EQU     01H                                      ; Service command to open a directory and return the first block of entries.
-TZSVC_CMD_NEXTDIR:      EQU     02H                                      ; Service command to return the next block of an open directory.
-TZSVC_CMD_READFILE:     EQU     03H                                      ; Service command to open a file and return the first block.
-TZSVC_CMD_NEXTREADFILE: EQU     04H                                      ; Service command to return the next block of an open file.
-TZSVC_CMD_WRITEFILE:    EQU     05H                                      ; Service command to create a file and save the first block.
-TZSVC_CMD_NEXTWRITEFILE:EQU     06H                                      ; Service command to write the next block to the open file.
-TZSVC_CMD_CLOSE:        EQU     07H                                      ; Service command to close any open file or directory.
-TZSVC_CMD_LOADFILE:     EQU     08H                                      ; Service command to load a file directly into tranZPUter memory.
-TZSVC_CMD_SAVEFILE:     EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
-TZSVC_CMD_ERASEFILE:    EQU     0aH                                      ; Service command to erase a file on the SD card.
-TZSVC_CMD_CHANGEDIR:    EQU     0bH                                      ; Service command to change the active directory on the SD card.
-TZSVC_CMD_LOAD40BIOS:   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
-TZSVC_CMD_LOAD80BIOS:   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
-TZSVC_CMD_LOAD700BIOS40:EQU     22H                                      ; Service command requesting that the MZ700 1Z-013A 40 column BIOS is loaded.
-TZSVC_CMD_LOAD700BIOS80:EQU     23H                                      ; Service command requesting that the MZ700 1Z-013A 80 column patched BIOS is loaded.
-TZSVC_CMD_LOAD80BIPL:   EQU     24H                                      ; Service command requesting the MZ-80B IPL is loaded.
-TZSVC_CMD_LOADBDOS:     EQU     30H                                      ; Service command to reload CPM BDOS+CCP.
-TZSVC_CMD_ADDSDDRIVE:   EQU     31H                                      ; Service command to attach a CPM disk to a drive number.
-TZSVC_CMD_READSDDRIVE:  EQU     32H                                      ; Service command to read an attached SD file as a CPM disk drive.
-TZSVC_CMD_WRITESDDRIVE: EQU     33H                                      ; Service command to write to a CPM disk drive which is an attached SD file.
+TZSVC_CMD_READDIR       EQU     01H                                      ; Service command to open a directory and return the first block of entries.
+TZSVC_CMD_NEXTDIR       EQU     02H                                      ; Service command to return the next block of an open directory.
+TZSVC_CMD_READFILE      EQU     03H                                      ; Service command to open a file and return the first block.
+TZSVC_CMD_NEXTREADFILE  EQU     04H                                      ; Service command to return the next block of an open file.
+TZSVC_CMD_WRITEFILE     EQU     05H                                      ; Service command to create a file and save the first block.
+TZSVC_CMD_NEXTWRITEFILE EQU     06H                                      ; Service command to write the next block to the open file.
+TZSVC_CMD_CLOSE         EQU     07H                                      ; Service command to close any open file or directory.
+TZSVC_CMD_LOADFILE      EQU     08H                                      ; Service command to load a file directly into tranZPUter memory.
+TZSVC_CMD_SAVEFILE      EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
+TZSVC_CMD_ERASEFILE     EQU     0aH                                      ; Service command to erase a file on the SD card.
+TZSVC_CMD_CHANGEDIR     EQU     0bH                                      ; Service command to change the active directory on the SD card.
+TZSVC_CMD_LOAD40BIOS    EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD80BIOS    EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD700BIOS40 EQU     22H                                      ; Service command requesting that the MZ700 1Z-013A 40 column BIOS is loaded.
+TZSVC_CMD_LOAD700BIOS80 EQU     23H                                      ; Service command requesting that the MZ700 1Z-013A 80 column patched BIOS is loaded.
+TZSVC_CMD_LOAD80BIPL    EQU     24H                                      ; Service command requesting the MZ-80B IPL is loaded.
+TZSVC_CMD_LOADBDOS      EQU     30H                                      ; Service command to reload CPM BDOS+CCP.
+TZSVC_CMD_ADDSDDRIVE    EQU     31H                                      ; Service command to attach a CPM disk to a drive number.
+TZSVC_CMD_READSDDRIVE   EQU     32H                                      ; Service command to read an attached SD file as a CPM disk drive.
+TZSVC_CMD_WRITESDDRIVE  EQU     33H                                      ; Service command to write to a CPM disk drive which is an attached SD file.
 TZSVC_CMD_CPU_BASEFREQ  EQU     40H                                      ; Service command to switch to the mainboard frequency.
 TZSVC_CMD_CPU_ALTFREQ   EQU     41H                                      ; Service command to switch to the alternate frequency provided by the K64F.
 TZSVC_CMD_CPU_CHGFREQ   EQU     42H                                      ; Service command to set the alternate frequency in hertz.
-TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
-TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
-TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.
+TZSVC_CMD_EXIT          EQU     07FH                                     ; Service command to terminate TZFS and restart the machine in original mode.
+TZSVC_STATUS_OK         EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
+TZSVC_STATUS_REQUEST    EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
+TZSVC_STATUS_PROCESSING EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.
 
 
 ; Quickdisk work area

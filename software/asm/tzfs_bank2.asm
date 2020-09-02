@@ -355,6 +355,7 @@ HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "CPM   - Load CPM.",                                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[fn]- erase file, fn=No or Filename",                00DH
+            DB      "EX    - Exit TZFS, reset as original.",                00DH
             DB      "F[x]  - boot fd drive x.",                             00DH
             DB      "FREQ[n]-set CPU to nKHz, 0 for default.",              00DH
             DB      "H     - this help screen.",                            00DH
@@ -413,6 +414,7 @@ MSGSD2TERR: DB      "Copy from SD to Tape Failed",                              
 MSGT2SDOK:  DB      "Success, Tape to SD done.",                                    00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",                                    00DH, 000H
 MSGFAILBIOS:DB      "Failed to load alternate BIOS!",                               00DH, 000H
+MSGFAILEXIT:DB      "TZFS exit failed, I/O proc error!",                            00DH, 000H
 MSGFREQERR: DB      "Error, failed to change frequency!",                           00DH, 000H
 MSGBADNUM:  DB      "Error, bad number supplied!",                                  00DH, 000H
 ;

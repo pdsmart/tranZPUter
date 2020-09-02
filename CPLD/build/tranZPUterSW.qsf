@@ -90,10 +90,16 @@ set_location_assignment PIN_81 -to Z80_DATA[7]
 
 # Graphics extension address and control.
 # =======================================
-set_location_assignment PIN_5 -to VADDR[13]
-set_location_assignment PIN_2 -to VADDR[12]
-set_location_assignment PIN_1 -to VADDR[11]
-set_location_assignment PIN_143 -to VMEM_CSn
+#set_location_assignment PIN_5 -to VADDR[13]
+#set_location_assignment PIN_2 -to VADDR[12]
+#set_location_assignment PIN_1 -to VADDR[11]
+#set_location_assignment PIN_143 -to VMEM_CSn
+#set_location_assignment PIN_142 -to VIORQn
+set_location_assignment PIN_5 -to OUTDATA[3]
+set_location_assignment PIN_2 -to OUTDATA[2]
+set_location_assignment PIN_1 -to OUTDATA[1]
+set_location_assignment PIN_143 -to OUTDATA[0]
+set_location_assignment PIN_142 -to INCLK
 
 # RAM control
 # ===========
@@ -124,17 +130,19 @@ set_location_assignment PIN_39 -to Z80_MEM[0]
 set_location_assignment PIN_36 -to CFG_MZ80A
 set_location_assignment PIN_35 -to CFG_MZ700
 # Spare connected pins to be assigned if needed.
-#set_location_assignment PIN_30 -to TBA[0]
-#set_location_assignment PIN_29 -to TBA[1]
-#set_location_assignment PIN_28 -to TBA[2]
-#set_location_assignment PIN_27 -to TBA[3]
-#set_location_assignment PIN_26 -to TBA[4]
-#set_location_assignment PIN_25 -to TBA[5]
-#set_location_assignment PIN_23 -to TBA[6]
-#set_location_assignment PIN_22 -to TBA[7]
-#set_location_assignment PIN_21 -to TBA[8]
-#set_location_assignment PIN_37 -to TBA[9]
-#set_location_assignment PIN_34 -to TBA[10]
+#set_location_assignment PIN_36 -to TBA[0]
+#set_location_assignment PIN_25 -to TBA[1]
+#set_location_assignment PIN_30 -to TBA[2]
+#set_location_assignment PIN_29 -to TBA[3]
+#set_location_assignment PIN_28 -to TBA[4]
+#set_location_assignment PIN_27 -to TBA[5]
+#set_location_assignment PIN_26 -to TBA[6]
+#set_location_assignment PIN_25 -to TBA[7]
+#set_location_assignment PIN_23 -to TBA[8]
+#set_location_assignment PIN_22 -to TBA[9]
+#set_location_assignment PIN_21 -to TBA[10]
+#set_location_assignment PIN_34 -to TBA[11]
+#set_location_assignment PIN_37 -to TBA[12]
 
 # Z80 Control signals.
 # ====================
