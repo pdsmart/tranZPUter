@@ -75,8 +75,6 @@ create_clock -name {INCLK}  -period 62.500 -waveform { 0.000 31.250 }   [ get_po
 # Set Input Delay
 #**************************************************************
 
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CFG_MZ80A}]
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CFG_MZ700}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_BUSACKn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_BUSRQn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_WAITn}]
@@ -128,7 +126,6 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {RAM
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {RAM_OEn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {RAM_WEn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SVCREQn}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SYSREQn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {SYS_BUSACKn}]
 #set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[11]}]
 #set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VADDR[12]}]
@@ -163,6 +160,9 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_ADDR[13]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_ADDR[14]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_ADDR[15]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[12]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[13]}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[14]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[15]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[16]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[17]}]

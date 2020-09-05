@@ -1,4 +1,4 @@
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
 --
 -- Name:            tranZPUterSW.vhd
 -- Created:         June 2020
@@ -58,7 +58,7 @@ entity cpld512 is
     --);
     port (    
         -- Z80 Address and Data.
-        Z80_HI_ADDR     : out   std_logic_vector(18 downto 15);
+        Z80_HI_ADDR     : out   std_logic_vector(18 downto 12);
         Z80_ADDR        : inout std_logic_vector(15 downto 0);
         Z80_DATA        : inout std_logic_vector( 7 downto 0);
 
@@ -86,7 +86,6 @@ entity cpld512 is
         CTL_RFSHn       : out   std_logic;
         CTL_WAITn       : in    std_logic;
         SVCREQn         : out   std_logic;
-        SYSREQn         : out   std_logic;
         Z80_MEM         : out   std_logic_vector(4 downto 0);
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
@@ -100,23 +99,13 @@ entity cpld512 is
         RAM_WEn         : out   std_logic;
 
         -- Graphics Board I/O and Memory Select.
-     --   VMEM_CSn        : out   std_logic;
-     --   VADDR           : out   std_logic_vector(13 downto 11);
-     --   VIORQn          : out   std_logic;
         INCLK           : in    std_logic;
         OUTDATA         : out   std_logic_vector(3 downto 0);
 
         -- Clocks, system and K64F generated.
         SYSCLK          : in    std_logic;
         CTLCLK          : in    std_logic;
-        CTL_CLKSLCT     : out   std_logic;
-
-        -- Mode signals.
-        CFG_MZ80A       : in    std_logic;
-        CFG_MZ700       : in    std_logic 
-
-        -- Reserved.
-      --TBA             : in    std_logic_vector(10 downto 0)
+        CTL_CLKSLCT     : out   std_logic 
     );
 end entity;
 
@@ -173,7 +162,6 @@ architecture rtl of cpld512 is
     signal OUTBUF                 :       std_logic_vector(11 downto 0);
 
     -- Z80 Wait Insert generator when I/O ports in region > 0XE0 are accessed to give the K64F time to proces them.
-    --
   --signal REQ_WAITn            :       std_logic;
 
     -- RAM select and write signals.
@@ -236,27 +224,7 @@ begin
             else
                 MODE_SWITCH           <= '0';
             end if;
-
-            -- The external signals override the register settings if applied.
-            --
-            if(CFG_MZ700 = '0' and CFG_MZ80A = '1') then
-                MODE_MZ80A            <= '1';
-
-                if MODE_MZ80A = '0' then
-                    MODE_SWITCH       <= '1';
-                end if;
-
-            elsif(CFG_MZ700 = '1' and CFG_MZ80A = '0') then
-                MODE_MZ700            <= '1';
-
-                if MODE_MZ700 = '0' then
-                    MODE_SWITCH       <= '1';
-                end if;
-            else
-                null;
-            end if;
         end if;
-
     end process;
 
 
@@ -634,15 +602,15 @@ begin
                         OUTDATA(3 downto 0) <= (others => '0');
                         OUTBUF              <= (others => '0');
                     end if;
-                    XMIT_CYCLE          := 1;
+                    XMIT_CYCLE              := 1;
 
                 when 1 =>
                     OUTDATA(3 downto 0) <= OUTBUF(3 downto 0);
-                    XMIT_CYCLE          := 2;
+                    XMIT_CYCLE              := 2;
 
                 when 2 =>
                     OUTDATA(3 downto 0) <= OUTBUF(7 downto 4);
-                    XMIT_CYCLE          := 3;
+                    XMIT_CYCLE              := 3;
 
                 when 3 =>
                     -- Double check, if we started with a valid mainboard cycle but the clock switched, or we started with an invalid mainboard
@@ -653,7 +621,7 @@ begin
                     else
                         OUTDATA(3 downto 0) <= (others => '0');
                     end if;
-                    XMIT_CYCLE          := 0;
+                    XMIT_CYCLE              := 0;
             end case;
         end if;
     end process;
@@ -719,7 +687,7 @@ begin
             -- mainboard resources, especially for Refresh of DRAM.
             when "00000" => 
                 DISABLE_BUSn        <= '1';
-                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
                 RAM_OEni            <= '1';
@@ -728,7 +696,7 @@ begin
             -- Whenever running in RAM ensure the mainboard is disabled to prevent decoder propagation delay glitches.
             when "00001" => 
                 RAM_CSni            <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                 if( unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000") then
                     DISABLE_BUSn    <= '0';
                     RAM_OEni        <= Z80_RDn;
@@ -748,7 +716,7 @@ begin
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when "00010" => 
                 RAM_CSni            <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                 if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
                     DISABLE_BUSn    <= '0';
                     RAM_OEni        <= Z80_RDn;
@@ -769,7 +737,7 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then 
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -778,12 +746,12 @@ begin
                     end if;
                 elsif (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "001" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "001" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -794,9 +762,9 @@ begin
                 RAM_CSni            <= '0';
                 if( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -806,12 +774,12 @@ begin
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "010" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "010" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -822,7 +790,7 @@ begin
                 RAM_CSni            <= '0';
                 if( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -832,12 +800,12 @@ begin
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "011" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "011" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -848,13 +816,13 @@ begin
                 RAM_CSni            <= '0';
                 if (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then 
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "100" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "100" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -866,19 +834,19 @@ begin
                 RAM_CSni            <= '0';
                 if ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"0100") or (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "100" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "100" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"0100" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "101" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "101" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -887,7 +855,7 @@ begin
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when "01000" => 
                 RAM_CSni            <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                 if((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
                     RAM_OEni        <= Z80_RDn;
@@ -903,19 +871,19 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -925,25 +893,25 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -953,25 +921,25 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -981,25 +949,25 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -1009,25 +977,25 @@ begin
                 RAM_CSni            <= '0';
                 if(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
 
                 else
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                    Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -1035,7 +1003,7 @@ begin
             -- Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
             when "11000" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "000" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "000" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1043,7 +1011,7 @@ begin
             -- Set 25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
             when "11001" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "001" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "001" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1051,7 +1019,7 @@ begin
             -- Set 26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
             when "11010" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "010" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "010" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1059,7 +1027,7 @@ begin
             -- Set 27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
             when "11011" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "011" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "011" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1067,7 +1035,7 @@ begin
             -- Set 28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
             when "11100" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "100" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "100" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1075,7 +1043,7 @@ begin
             -- Set 29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.                
             when "11101" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "101" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "101" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1083,7 +1051,7 @@ begin
             -- Set 30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
             when "11110" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "110" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "110" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1091,7 +1059,7 @@ begin
             -- Set 31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
             when "11111" =>
                 DISABLE_BUSn        <= '0';
-                Z80_HI_ADDR(18 downto 15) <= "111" & Z80_ADDR(15);
+                Z80_HI_ADDR(18 downto 12) <= "111" & Z80_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= Z80_RDn;
                 RAM_WEni            <= Z80_WRn;
@@ -1204,8 +1172,6 @@ begin
     SCK_RDn     <= '0'                                                     when TZIO_CSn = '0' and Z80_ADDR(3 downto 1) = "011"                   -- IO 66
                    else '1';
     SVCREQn     <= '0'                                                     when TZIO_CSn = '0' and Z80_ADDR(3 downto 1) = "100"                   -- IO 68
-                   else '1';
-    SYSREQn     <= '0'                                                     when TZIO_CSn = '0' and Z80_ADDR(3 downto 1) = "101"                   -- IO 6A
                    else '1';
     CPLD_CFGn   <= '0'                                                     when TZIO_CSn = '0' and Z80_ADDR(3 downto 0) = "1110"                  -- IO 6E
                    else '1';

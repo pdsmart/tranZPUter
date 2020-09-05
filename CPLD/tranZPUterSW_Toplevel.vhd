@@ -36,7 +36,7 @@ use altera.altera_syn_attributes.all;
 entity tranZPUterSW is
     port (
         -- Z80 Address and Data.
-        Z80_HI_ADDR     : out   std_logic_vector(18 downto 15);
+        Z80_HI_ADDR     : out   std_logic_vector(18 downto 12);
         Z80_ADDR        : inout std_logic_vector(15 downto 0);
         Z80_DATA        : inout std_logic_vector(7 downto 0);
 
@@ -64,7 +64,6 @@ entity tranZPUterSW is
         CTL_RFSHn       : out   std_logic;
         CTL_WAITn       : in    std_logic;
         SVCREQn         : out   std_logic;
-        SYSREQn         : out   std_logic;
         Z80_MEM         : out   std_logic_vector(4 downto 0);
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
@@ -78,29 +77,13 @@ entity tranZPUterSW is
         RAM_WEn         : out   std_logic;
     
         -- Graphics Board I/O and Memory Select.
-    --    VMEM_CSn        : out   std_logic;
-    --    VADDR           : out   std_logic_vector(13 downto 11);
-    --    VIORQn          : out   std_logic;
         INCLK           : in    std_logic;
         OUTDATA         : out   std_logic_vector(3 downto 0);
 
         -- Clocks, system and K64F generated.
         SYSCLK          : in    std_logic;
         CTLCLK          : in    std_logic;
-        CTL_CLKSLCT     : out   std_logic;
-
-        -- Mode signals.
-        CFG_MZ80A       : in    std_logic;
-        CFG_MZ700       : in    std_logic 
-
-        -- Reserved.
-      --TBA             : in    std_logic_vector(10 downto 0)
-
-        -- JTAG / ISP
-        --TCK             : in    std_logic;
-        --TDI             : in    std_logic;
-        --TDO             : out   std_logic;
-        --TMS             : in    std_logic 
+        CTL_CLKSLCT     : out   std_logic 
     );
 END entity;
 
@@ -142,7 +125,6 @@ begin
         CTL_RFSHn       => CTL_RFSHn,
         CTL_WAITn       => CTL_WAITn,
         SVCREQn         => SVCREQn,
-        SYSREQn         => SYSREQn,
         Z80_MEM         => Z80_MEM,
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
@@ -156,23 +138,13 @@ begin
         RAM_WEn         => RAM_WEn,
 
         -- Graphics Board I/O and Memory Select.
-     -- VMEM_CSn        => VMEM_CSn,
-     -- VADDR           => VADDR,
-     -- VIORQn          => VIORQn,
         INCLK           => INCLK,
         OUTDATA         => OUTDATA,
 
         -- Clocks, system and K64F generated.
         SYSCLK          => SYSCLK,
         CTLCLK          => CTLCLK,
-        CTL_CLKSLCT     => CTL_CLKSLCT,
-
-        -- Mode signals.
-        CFG_MZ80A       => CFG_MZ80A,
-        CFG_MZ700       => CFG_MZ700 
-
-        -- Reserved.
-      --TBA             => TBA
+        CTL_CLKSLCT     => CTL_CLKSLCT 
     );
 
 end architecture;
