@@ -120,13 +120,25 @@ MONITOR:    LD      A, (SCRNMODE)
             CP      0
             JR      NZ, SIGNON
             ;
-SET40CHAR:  LD      A, 0                                                 ; Using MROM in Bank 0 = 40 char mode.
+SET40CHAR:  IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current video mode.
+            AND     ~MODE_80CHAR                                         ; Clear 80 char flag.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            LD      A, 0                                                 ; Using MROM in Bank 0 = 40 char mode.
             LD      (DSPCTL), A                                          ; Set hardware register to select 40char mode.
+            ENDIF
             LD      A, 0
             LD      (SPAGE), A                                           ; Allow MZ80A scrolling
             JR      SIGNON
-SET80CHAR:  LD      A, 128                                               ; Using MROM in Bank 1 = 80 char mode.
+SET80CHAR:  IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current video mode.
+            OR      MODE_80CHAR                                          ; Set 80 char flag.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            LD      A, 128                                               ; Using MROM in Bank 1 = 80 char mode.
             LD      (DSPCTL), A                                          ; Set hardware register to select 80char mode.
+            ENDIF
             LD      A, 1
             LD      A, 0FFH
             LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
@@ -520,8 +532,15 @@ GOTOX:      CALL    HEXIYX
             ;====================================
 
             ; Commands to start the Sharp MZ-80A in its original mode loading either a 40 or 80 column BIOS as directed.
-SETMODE40:  LD      A, 0
+SETMODE40:  IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current video mode.
+            AND     ~MODE_80CHAR                                         ; Clear 80 char flag.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            XOR     A
             LD      (DSPCTL), A
+            ENDIF
+            XOR     A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
             ;
             LD      A,TZSVC_CMD_LOAD40BIOS                               ; Request the I/O processor loads the SA1510 40column BIOS into memory.
@@ -531,8 +550,14 @@ SETBIOS:    CALL    SVC_CMD                                              ; And m
             LD      DE,MSGFAILBIOS
             CALL    ?PRINTMSG
             RET                                                          ; Return status to caller, 0 = success.
-SETMODE80:  LD      A, 128
+SETMODE80:  IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current video mode.
+            OR      MODE_80CHAR                                          ; Set 80 char flag.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            LD      A, 128
             LD      (DSPCTL), A
+            ENDIF
             LD      A,1
             LD      (SCRNMODE),A
             LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
@@ -541,18 +566,33 @@ SETMODE80:  LD      A, 128
             ; Commands to switch into MZ-700 compatible mode. This involves loading the original (but patched for keyboard use for v1.1) 1Z-013A BIOS
             ; and changing the frequency, and on the v1.1 board also enabling of additional traps to detect and change memory mode which are catered for in 
             ; hardware on v2+ boards..
-SETMODE700: LD      A, 0
+SETMODE700: IF BUILD_VIDEOMODULE = 1
+            LD      A,VMMODE_MZ700                                       ; Setup the display to 40 char MZ700 mode.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            XOR     A
             LD      (DSPCTL), A
+            ENDIF
+            XOR     A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
-            LD      A,SET_MODE_MZ700
-            OUT     (CPLDCFG),A                                          ; Set the CPLD compatibility mode.
+            LD      A,SYSMODE_MZ700                                      ; Setup the board to run at 3.54MHz
+            OUT     (SYSCTRL),A                                          ; Activate
+            LD      A,SET_MODE_MZ700                                     ; Set the tranZPUter CPLD hardware translation to MZ700 mode.
+            OUT     (CPLDCFG),A                                          ;
             LD      A,TZSVC_CMD_LOAD700BIOS40                            ; Request the I/O processor loads the MZ700 1Z-013A 40column BIOS into memory.
             JR      SETBIOS
 
-SETMODE7008:LD      A, 128
+SETMODE7008:IF BUILD_VIDEOMODULE = 1
+            LD      A,VMMODE_MZ700 | MODE_80CHAR                         ; Setup the display to 80char MZ700 mode.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            LD      A, 128
             LD      (DSPCTL), A
+            ENDIF
             LD      A,1
             LD      (SCRNMODE),A
+            LD      A,SYSMODE_MZ700                                      ; Setup the board to run at 3.54MHz
+            OUT     (SYSCTRL),A                                          ; Activate
             LD      A,SET_MODE_MZ700
             OUT     (CPLDCFG),A                                          ; Set the CPLD compatibility mode.
             LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
@@ -561,10 +601,17 @@ SETMODE7008:LD      A, 128
 
             ; Command to switch into the Sharp MZ-80B compatible mode. This involves loading the IPL, switching
             ; the frequency to 4MHz and enabling of additional traps to detect and change memory mode.
-SETMODE80B: LD      A, 128
+SETMODE80B: IF BUILD_VIDEOMODULE = 1
+            LD      A,VMMODE_MZ80B | MODE_80CHAR                         ; Setup the display to 80char MZ80B mode.
+            OUT     (VMCTRL),A                                           ; Activate.
+            ELSE
+            LD      A, 128
             LD      (DSPCTL), A
+            ENDIF
             LD      A,1
             LD      (SCRNMODE),A
+            LD      A,SYSMODE_MZ80B                                      ; Setup the board to run at 4MHz
+            OUT     (SYSCTRL),A                                          ; Activate
             LD      A,TZSVC_CMD_LOAD80BIPL                               ; Request the I/O processor loads the IPL and switches frequency.
             JR      SETBIOS
 

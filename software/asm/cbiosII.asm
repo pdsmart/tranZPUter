@@ -257,9 +257,16 @@ INIT3:      ; Setup keyboard buffer control.
             LD      A,080H                                               ; Cursor on (Bit D7=1).
             LD      (FLASHCTL),A
 
-            ; Change to 80 character mode.
-            LD      A, 128                                               ; 80 char mode.
+INIT80CHAR: IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)           ; Get current display mode.
+            OR      MODE_80CHAR          ; Enable 80 char display.
+            OUT     (VMCTRL),A           ; Activate.
+            ELSE
+            ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
+            LD      A, 128               ; 80 char mode.
             LD      (DSPCTL), A
+            ENDIF
+            ;
             CALL    MLDSP
             CALL    NL
             LD      DE,CBIOSSIGNON                                       ; Start of sign on message, as devices are detected they are added to the sign on.

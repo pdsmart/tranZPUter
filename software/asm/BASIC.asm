@@ -52,7 +52,7 @@ HEADER2:    IF BUILD_RFS = 1
             ENDIF
 
 HEADER3:    IF BUILD_TZFS = 1
-            DB      "TZFS BASIC V1.1", 0DH, 0DH                                                             ; Title/Name (17 bytes).
+            DB      "TZFS BASIC V1.2", 0DH, 0DH                                                             ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
@@ -151,9 +151,16 @@ INIT3:      ; Setup keyboard buffer control.
             LD      A,080H               ; Cursor on (Bit D7=1).
             LD      (FLASHCTL),A
 
-            ; Change to 80 character mode.
+INIT80CHAR: IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)           ; Get current display mode.
+            OR      MODE_80CHAR          ; Enable 80 char display.
+            OUT     (VMCTRL),A           ; Activate.
+            ELSE
+            ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
             LD      A, 128               ; 80 char mode.
             LD      (DSPCTL), A
+            ENDIF
+            ;
             CALL    MLDSP
             CALL    BEL                  ; Beep to indicate startup - for cases where screen is slow to startup.
             LD      A,0FFH
