@@ -155,6 +155,8 @@ INIT80CHAR: IF BUILD_VIDEOMODULE = 1
             IN      A,(VMCTRL)           ; Get current display mode.
             OR      MODE_80CHAR          ; Enable 80 char display.
             OUT     (VMCTRL),A           ; Activate.
+            LD      A, SYSMODE_MZ80B     ; Set bus and default CPU speed to 4MHz
+            OUT     (SYSCTRL),A          ; Activate.            
             ELSE
             ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
             LD      A, 128               ; 80 char mode.
@@ -8642,6 +8644,19 @@ REBOOT:     DI
 REBOOTTZ:   IF BUILD_TZFS +BUILD_RFS > 0
             LD      A,TZMM_TZFS
             OUT     (MMCFG),A
+            ENDIF
+
+            ; Switch machine back to default state.
+            IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current display mode.
+            AND     ~MODE_80CHAR                                         ; Disable 80 char display.
+            OUT     (VMCTRL),A                                           ; Activate.
+            LD      A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
+            OUT     (SYSCTRL),A                                          ; Activate.
+            ELSE
+            ; Change to 40 character mode on the 40/80 Char Colour board v1.0.
+            LD      A, 0                                                 ; 40 char mode.
+            LD      (DSPCTL), A
             ENDIF
 
 REBOOT80A:  IF BUILD_MZ80A = 1

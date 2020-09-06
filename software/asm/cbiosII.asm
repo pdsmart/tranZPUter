@@ -258,12 +258,14 @@ INIT3:      ; Setup keyboard buffer control.
             LD      (FLASHCTL),A
 
 INIT80CHAR: IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)           ; Get current display mode.
-            OR      MODE_80CHAR          ; Enable 80 char display.
-            OUT     (VMCTRL),A           ; Activate.
+            IN      A,(VMCTRL)                                           ; Get current display mode.
+            OR      MODE_80CHAR                                          ; Enable 80 char display.
+            OUT     (VMCTRL),A                                           ; Activate.
+            LD      A, SYSMODE_MZ80B                                     ; Set bus and default CPU speed to 4MHz
+            OUT     (SYSCTRL),A                                          ; Activate.
             ELSE
             ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
-            LD      A, 128               ; 80 char mode.
+            LD      A, 128                                               ; 80 char mode.
             LD      (DSPCTL), A
             ENDIF
             ;
@@ -2034,6 +2036,20 @@ BOOTSTG1:   LD      A,TZMM_CPM2
             ; mode 7 to mode 2, the code continues.
 REBOOT:     LD      A,TZMM_TZFS
             OUT     (MMCFG),A
+
+            ; Switch machine back to default state.
+            IF BUILD_VIDEOMODULE = 1
+            IN      A,(VMCTRL)                                           ; Get current display mode.
+            AND     ~MODE_80CHAR                                         ; Disable 80 char display.
+            OUT     (VMCTRL),A                                           ; Activate.
+            LD      A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
+            OUT     (SYSCTRL),A                                          ; Activate.
+            ELSE
+            ; Change to 40 character mode on the 40/80 Char Colour board v1.0.
+            LD      A, 0                                                 ; 40 char mode.
+            LD      (DSPCTL), A
+            ENDIF
+            ;
             JP      MROMADDR                                             ; Now restart in the SA1510 monitor.
 
 
