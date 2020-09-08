@@ -160,6 +160,7 @@ architecture rtl of cpld512 is
     signal VM_MEM_CSn             :       std_logic;
     signal VM_IORQn               :       std_logic;
     signal OUTBUF                 :       std_logic_vector(11 downto 0);
+    signal OUTCOUNT               :       integer range 0 to 3;
 
     -- Z80 Wait Insert generator when I/O ports in region > 0XE0 are accessed to give the K64F time to proces them.
   --signal REQ_WAITn            :       std_logic;

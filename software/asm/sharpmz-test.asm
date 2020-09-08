@@ -14,9 +14,10 @@
 ;-                      4. Graphics RAM Test
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         October 2018 - Merged 2 utilities to create this compilation.
+;- History:         October 2018   - Merged 2 utilities to create this compilation.
+;-                  September 2020 - Updated to enable testing of the Video Module v2.0
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -64,12 +65,48 @@ MEMSTART:  EQU      01200h
 GRAMSTART: EQU      0C000h
 GRAMEND:   EQU      0FFFFh
 MSTART:    EQU      0BF00h
-GRCTL:     EQU      0C8h
-GRREDFLT:  EQU      0C9h
-GRGRNFLT:  EQU      0CAh
-GRBLUFLT:  EQU      0CBh
-GRENABLE:  EQU      0CCh
-GRDISABLE: EQU      0CDh
+
+;-----------------------------------------------
+; IO ports in hardware and values.
+;-----------------------------------------------
+MMCFG                   EQU     060H                                     ; Memory management configuration latch.
+SETXMHZ                 EQU     062H                                     ; Select the alternate clock frequency.
+SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
+CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
+SVCREQ                  EQU     068H                                     ; I/O Processor service request.
+CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
+CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
+CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
+GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
+VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
+VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
+VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMGREENMASK             EQU     0FBH                                     ; Video Module Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+
+;-----------------------------------------------
+; Video Module control bits.
+;-----------------------------------------------
+MODE_80CHAR             EQU     008H                                     ; Enable 80 character display.
+MODE_COLOUR             EQU     010H                                     ; Enable colour display.
+SYSMODE_MZ80A           EQU     000H                                     ; System board mode MZ80A, 2MHz CPU/Bus.
+SYSMODE_MZ80B           EQU     001H                                     ; System board mode MZ80B, 4MHz CPU/Bus.
+SYSMODE_MZ700           EQU     002H                                     ; System board mode MZ700, 3.54MHz CPU/Bus.
+VMMODE_MZ80A            EQU     000H                                     ; Video mode = MZ80A
+VMMODE_MZ700            EQU     001H                                     ; Video mode = MZ700
+VMMODE_MZ800            EQU     002H                                     ; Video mode = MZ800
+VMMODE_MZ80B            EQU     003H                                     ; Video mode = MZ80B
+VMMODE_MZ80K            EQU     004H                                     ; Video mode = MZ80K
+VMMODE_MZ80C            EQU     005H                                     ; Video mode = MZ80C
+VMMODE_MZ1200           EQU     006H                                     ; Video mode = MZ1200
+VMMODE_MZ2000           EQU     007H                                     ; Video mode = MZ2000
+VMMODE_PCGRAM           EQU     020H                                     ; Enable PCG RAM.
+VMMODE_VGA_OFF          EQU     000H                                     ; Set VGA mode off, external monitor is driven by standard internal signals.
+VMMODE_VGA_640x480      EQU     040H                                     ; Set external monitor to VGA 640x480 @ 60Hz mode.
+VMMODE_VGA_1024x768     EQU     080H                                     ; Set external monitor to VGA 1024x768 @ 60Hz mode.
+VMMODE_VGA_800x600      EQU     0C0H                                     ; Set external monitor to VGA 800x600 @ 60Hz mode.
 
 
            ORG      TPSTART
@@ -115,8 +152,11 @@ BUFER:     DS       virtual 81                                           ; GET L
 
            ; Graphics Initialisation. Needs to be in memory before C000-FFFF
            ;
-GRAMINIT:  OUT      (GRCTL),A
-           OUT      (GRENABLE),A
+           ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. 
+           ; Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+GRAMINIT:  OUT      (VMGRMODE),A
+           LD       A,001H
+           OUT      (VMPAGE),A
 GRAM0:     LD       HL,GRAMSTART
            LD       BC,GRAMEND - GRAMSTART
 GRAM1:     LD       A,000h
@@ -126,13 +166,15 @@ GRAM1:     LD       A,000h
            LD       A,B
            OR       C
            JR       NZ,GRAM1
-           OUT      (GRDISABLE),A
+           LD       A,0
+           OUT      (VMPAGE),A
            RET
 
            ; Graphics Test. Needs to be in memory before C000-FFFF
            ;
-GRAMTEST:  OUT      (GRCTL),A
-           OUT      (GRENABLE),A
+GRAMTEST:  OUT      (VMGRMODE),A
+           LD       A,001H
+           OUT      (VMPAGE),A
            LD       E,080h
 GRAMTEST0: LD       HL,GRAMSTART
            LD       BC,GRAMEND - GRAMSTART
@@ -146,7 +188,8 @@ GRAMTEST1: LD       A,E
            SRL      E
            JR       NZ,GRAMTEST0
            JR       C,GRAMTEST0
-           OUT      (GRDISABLE),A
+           LD       A,0
+           OUT      (VMPAGE),A
            RET
 
            ; Graphics Test routine.
@@ -164,24 +207,26 @@ GRAPHICS:  LD       A,000h
            LD       A,00Ah
            CALL     GRAMTEST
            LD       A,0AAh      ; Set Red filter.
-           OUT      (GRREDFLT),A
+           OUT      (VMREDMASK),A
            LD       A,055h      ; Set Green filter.
-           OUT      (GRGRNFLT),A
+           OUT      (VMGREENMASK),A
            LD       A,0FFh      ; Set Blue filter.
-           OUT      (GRBLUFLT),A
+           OUT      (VMBLUEMASK),A
            LD       A, 00Ch     ; Set graphics mode to Indirect Page write.
            CALL     GRAMTEST
            LD       A, 0CCh     ; Set graphics mode to Indirect Page write.
-           OUT      (GRCTL),A
+           OUT      (VMGRMODE),A
            JR       GETL1
 
            ; Graphics progress bar indicator. Needs to be in memory before C000-FFFF
            ;
 GRPHIND:   LD       HL,(GRPHPOS) ; Get position of graphics progress line.
-           OUT      (GRENABLE),A ; Enable graphics memory.
+           LD       A,001H
+           OUT      (VMPAGE),A   ; Enable graphics memory.
            LD       A,0FFh
            LD       (HL),A
-           OUT      (GRDISABLE),A; Disable graphics memory.
+           LD       A,0
+           OUT      (VMPAGE),A   ; Disable graphics memory.
            INC      HL
            LD       (GRPHPOS),HL
            RET
@@ -190,7 +235,10 @@ GRPHIND:   LD       HL,(GRPHPOS) ; Get position of graphics progress line.
            ;
            ; Start of main program.
            ;
-START:     CALL     LETNL
+START:     LD       A,0 ; MODE_COLOUR    ; Setup for standard monitor, colour mode.
+           OUT      (VMCTRL),A
+           ;
+           CALL     LETNL
            LD       DE,TITLE
            CALL     MSG
            CALL     LETNL
@@ -200,11 +248,11 @@ INITGRPH:  LD       DE,MSG_INITGR
            CALL     MSG
            CALL     LETNL
            LD       A,0FFh      ; Set Red filter.
-           OUT      (GRREDFLT),A
+           OUT      (VMREDMASK),A
            LD       A,000h      ; Set Green filter.
-           OUT      (GRGRNFLT),A
+           OUT      (VMGREENMASK),A
            LD       A,000h      ; Set Blue filter.
-           OUT      (GRBLUFLT),A
+           OUT      (VMBLUEMASK),A
            LD       A,000h
            CALL     GRAMINIT
            LD       A,005h
@@ -212,7 +260,7 @@ INITGRPH:  LD       DE,MSG_INITGR
            LD       A,00Ah
            CALL     GRAMINIT
            LD       A, 0CCh     ; Set graphics mode to Indirect Page write.
-           OUT      (GRCTL),A
+           OUT      (VMGRMODE),A
            LD       HL,0DE00h
            LD       (GRPHPOS),HL
            ;
