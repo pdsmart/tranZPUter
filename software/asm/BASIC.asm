@@ -52,7 +52,7 @@ HEADER2:    IF BUILD_RFS = 1
             ENDIF
 
 HEADER3:    IF BUILD_TZFS = 1
-            DB      "TZFS BASIC V1.2", 0DH, 0DH                                                             ; Title/Name (17 bytes).
+            DB      "TZFS BASIC V1.3", 0DH, 0DH                                                             ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
@@ -122,12 +122,6 @@ INIT1:      LD      (HL),D               ; Clear variable memory including stack
             JR      NZ,INIT1
             ;
             CALL    MODE                 ; Configure 8255 port C, set Motor Off, VGATE to 1 (off) and INTMSK to 0 (interrupts disabled).
-            LD      A,000H               ; Clear the screen buffer.
-            LD      HL,SCRN
-            CALL    CLR8
-            LD      A,017H               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
-            LD      HL,ARAM
-            CALL    CLR8
             LD      A,004H
             LD      (TEMPW),A            ; Setup the tempo for sound output.
 
@@ -152,16 +146,41 @@ INIT3:      ; Setup keyboard buffer control.
             LD      (FLASHCTL),A
 
 INIT80CHAR: IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)           ; Get current display mode.
+            IN      A, (CPLDINFO)        ; Get hardware information.
+            BIT     3,A
+            JR      Z, INIT40CHAR        ; If no video module present then need to use 40 char mode.
+            AND     007H
+            LD      D, A
+            OR      MODE_VIDEO_FPGA      ; Ensure the video hardware is enabled.
+            OUT     (CPLDCFG),A
+            LD      A, D
             OR      MODE_80CHAR          ; Enable 80 char display.
+            LD      C, A
+            IN      A, (VMCTRL)          ; Get current graphics mode and vga mode.
+            AND     0C0H                 ; Mask out all but VGA mode.
+            OR      C                    ; Add in new hardware/80char mode.
             OUT     (VMCTRL),A           ; Activate.
+            LD      A, D
+            CP      MODE_MZ80A           ; Check to see if this is the MZ80A, if so, change BUS speed.
+            JR      NZ, INIT80END
             LD      A, SYSMODE_MZ80B     ; Set bus and default CPU speed to 4MHz
             OUT     (SYSCTRL),A          ; Activate.            
+            JR      INIT80END
+
+INIT40CHAR: LD      A, 40                ; Set BASIC to 40 column width.
+            LD      (INITABW),A
             ELSE
             ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
             LD      A, 128               ; 80 char mode.
             LD      (DSPCTL), A
             ENDIF
+            ;
+INIT80END:  LD      A,000H               ; Clear the screen buffer.
+            LD      HL,SCRN
+            CALL    CLR8
+            LD      A,071H               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+            LD      HL,ARAM
+            CALL    CLR8
             ;
             CALL    MLDSP
             CALL    BEL                  ; Beep to indicate startup - for cases where screen is slow to startup.
@@ -455,21 +474,21 @@ WORDTB:     DW      PEND
             DW      CONT
             DW      LIST
             DW      CLEAR
-            DW      SETANSITERM         ; Enable/disable the ANSI Terminal Emulator.
+            DW      SETANSITERM          ; Enable/disable the ANSI Terminal Emulator.
 
             ; Optional commands to be builtin when a tranZPUter board is present.
 OPTIONS1:   IF BUILD_TZFS = 1
-            DW      CLOADTZ             ; Load tokenised BASIC program.
-            DW      CSAVETZ             ; Save tokenised BASIC program.
-            DW      LOAD                ; Load ASCII text BASIC program.
-            DW      SAVE                ; Save BASIC as ASCII text.
-            DW      SETFREQ             ; Set the CPU Frequency.    
-            DW      DIRSDCARD           ; List out the SD directory.
-            DW      SETDIR              ; Change directory for all load and save operations.
+            DW      CLOADTZ              ; Load tokenised BASIC program.
+            DW      CSAVETZ              ; Save tokenised BASIC program.
+            DW      LOAD                 ; Load ASCII text BASIC program.
+            DW      SAVE                 ; Save BASIC as ASCII text.
+            DW      SETFREQ              ; Set the CPU Frequency.    
+            DW      DIRSDCARD            ; List out the SD directory.
+            DW      SETDIR               ; Change directory for all load and save operations.
             ENDIF
 OPTIONS2:   IF BUILD_RFS = 1
-            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
             DW      REM
             DW      REM
@@ -477,8 +496,8 @@ OPTIONS2:   IF BUILD_RFS = 1
             DW      REM
             ENDIF
 OPTIONS3:   IF BUILD_MZ80A = 1
-            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
             DW      REM
             DW      REM
@@ -489,61 +508,61 @@ OPTIONS3:   IF BUILD_MZ80A = 1
 
             ; RESERVED WORD TOKEN VALUES
 
-ZEND        EQU    080H                 ; END    - ZEND marks the start of the table.
-ZFOR        EQU    081H                 ; FOR
-ZDATA       EQU    083H                 ; DATA
-ZGOTO       EQU    088H                 ; GOTO
-ZGOSUB      EQU    08CH                 ; GOSUB
-ZREM        EQU    08EH                 ; REM
-ZPRINT      EQU    09EH                 ; PRINT
-ZNEW        EQU    0AAH                 ; NEW    - ZNEW marks the end of the table
-                                        ; AA..BF are reserved for future commands.
+ZEND        EQU     080H                 ; END    - ZEND marks the start of the table.
+ZFOR        EQU     081H                 ; FOR
+ZDATA       EQU     083H                 ; DATA
+ZGOTO       EQU     088H                 ; GOTO
+ZGOSUB      EQU     08CH                 ; GOSUB
+ZREM        EQU     08EH                 ; REM
+ZPRINT      EQU     09EH                 ; PRINT
+ZNEW        EQU     0AAH                 ; NEW    - ZNEW marks the end of the table
+                                         ; AA..BF are reserved for future commands.
 
             ; Space for expansion, a block of tokens for commands has been created from 0xA5 to 0xBF.
 
-FUNCSTRT    EQU    0C0H                 ; Function start.
-ZTAB        EQU    FUNCSTRT + 00H       ; 0A5H            ; TAB
-ZTO         EQU    FUNCSTRT + 01H       ; 0A6H            ; TO
-ZFN         EQU    FUNCSTRT + 02H       ; 0A7H            ; FN
-ZSPC        EQU    FUNCSTRT + 03H       ; 0A8H            ; SPC
-ZTHEN       EQU    FUNCSTRT + 04H       ; 0A9H            ; THEN
-ZNOT        EQU    FUNCSTRT + 05H       ; 0AAH            ; NOT
-ZSTEP       EQU    FUNCSTRT + 06H       ; 0ABH            ; STEP
+FUNCSTRT    EQU     0C0H                 ; Function start.
+ZTAB        EQU     FUNCSTRT + 00H       ; 0A5H            ; TAB
+ZTO         EQU     FUNCSTRT + 01H       ; 0A6H            ; TO
+ZFN         EQU     FUNCSTRT + 02H       ; 0A7H            ; FN
+ZSPC        EQU     FUNCSTRT + 03H       ; 0A8H            ; SPC
+ZTHEN       EQU     FUNCSTRT + 04H       ; 0A9H            ; THEN
+ZNOT        EQU     FUNCSTRT + 05H       ; 0AAH            ; NOT
+ZSTEP       EQU     FUNCSTRT + 06H       ; 0ABH            ; STEP
 
-ZPLUS       EQU    FUNCSTRT + 07H       ; 0ACH            ; +
-ZMINUS      EQU    FUNCSTRT + 08H       ; 0ADH            ; -
-ZTIMES      EQU    FUNCSTRT + 09H       ; 0AEH            ; *
-ZDIV        EQU    FUNCSTRT + 0AH       ; 0AFH            ; /
-                                        ; 0B0H
-                                        ; 0B1H
-ZOR         EQU    FUNCSTRT + 0dH       ; 0B2H            ; OR
-ZGTR        EQU    FUNCSTRT + 0eH       ; 0B3H            ; >
-ZEQUAL      EQU    FUNCSTRT + 0fH       ; 0B4H            ; M
-ZLTH        EQU    FUNCSTRT + 10H       ; 0B5H            ; <
-ZSGN        EQU    FUNCSTRT + 11H       ; 0B6H            ; SGN
-                                        ; 0B7H
-                                        ; 0B8H
-                                        ; 0B9H
-                                        ; 0BAH
-                                        ; 0BBH
-                                        ; 0BCH
-                                        ; 0BDH
-                                        ; 0BEH
-                                        ; 0BFH
-                                        ; 0C0H
-                                        ; 0C1H
-                                        ; 0C2H
-                                        ; 0C3H
-                                        ; 0C4H
-                                        ; 0C5H
-                                        ; 0C6H
-ZPOINT      EQU    FUNCSTRT + 22H       ; 0C7H            ; POINT
-                                        ; 0C8H
-                                        ; 0C9H
-                                        ; 0CAH
-                                        ; 0CBH
-                                        ; 0CCH
-ZLEFT       EQU    FUNCSTRT + 2aH       ; 0CFH            ; LEFT$
+ZPLUS       EQU     FUNCSTRT + 07H       ; 0ACH            ; +
+ZMINUS      EQU     FUNCSTRT + 08H       ; 0ADH            ; -
+ZTIMES      EQU     FUNCSTRT + 09H       ; 0AEH            ; *
+ZDIV        EQU     FUNCSTRT + 0AH       ; 0AFH            ; /
+                                         ; 0B0H
+                                         ; 0B1H
+ZOR         EQU     FUNCSTRT + 0dH       ; 0B2H            ; OR
+ZGTR        EQU     FUNCSTRT + 0eH       ; 0B3H            ; >
+ZEQUAL      EQU     FUNCSTRT + 0fH       ; 0B4H            ; M
+ZLTH        EQU     FUNCSTRT + 10H       ; 0B5H            ; <
+ZSGN        EQU     FUNCSTRT + 11H       ; 0B6H            ; SGN
+                                         ; 0B7H
+                                         ; 0B8H
+                                         ; 0B9H
+                                         ; 0BAH
+                                         ; 0BBH
+                                         ; 0BCH
+                                         ; 0BDH
+                                         ; 0BEH
+                                         ; 0BFH
+                                         ; 0C0H
+                                         ; 0C1H
+                                         ; 0C2H
+                                         ; 0C3H
+                                         ; 0C4H
+                                         ; 0C5H
+                                         ; 0C6H
+ZPOINT      EQU     FUNCSTRT + 22H       ; 0C7H            ; POINT
+                                         ; 0C8H
+                                         ; 0C9H
+                                         ; 0CAH
+                                         ; 0CBH
+                                         ; 0CCH
+ZLEFT       EQU     FUNCSTRT + 2aH       ; 0CFH            ; LEFT$
 
             ; Space for expansion, reserve a block of tokens for functions.
 
@@ -632,7 +651,7 @@ INITAB:     JP      WARMST               ; Warm start jump
             RET
 
             DB      1                    ; POS (x) number (1)
-            DB      COLW                 ; Terminal width
+INITABW:    DB      COLW                 ; Terminal width
             DB      28                   ; Width for commas (3 columns)
             DB      0                    ; No nulls after input bytes
             DB      0                    ; Output enabled (^O off)
@@ -5504,6 +5523,10 @@ FLSHCTL1:   LD      HL,(DSPXYADDR)                                       ; Load 
             ; Keyboard processing.
             ;
 TIMIN3:                                                                  ; Perform keyboard sweep - inline to avoid overhead of a call.
+            ;
+            ; Keyboard routine for the Sharp MZ-80A hardware.
+            ;
+            IF      BUILD_MZ80A = 1                                           ; Perform keyboard sweep - inline to avoid overhead of a call.
             ; KEYBOARD SWEEP
             ;
             ; EXIT B,D7=0    NO DATA
@@ -5565,7 +5588,6 @@ SWEP1:      LD      D,088H                                               ; Break
             JR      SWEP9                   
 SWEP1A:     JP      REBOOT                                               ; Shift + Graph + Break ON = RESET.
             ;
-            JR      SWEP9                   
 SWEP6:      LD      HL,SWPW
             PUSH    HL
             JR      NC,SWEP11                
@@ -6048,6 +6070,560 @@ KTBLC:      ; CTRL ON
             DB      NOKEY
             DB      CTRL_RB
             DB      NOKEY
+            ENDIF
+
+            ;
+            ; Keyboard routine for the MZ-700 hardware.
+            ;
+            IF      BUILD_MZ700 = 1
+            ;
+            ;    KEY BOARD SWEEP
+            ;    EXIT B,D7=0  NO DATA
+            ;             =1  DATA
+            ;           D6=0  SHIFT OFF
+            ;             =1  SHIFT ON
+            ;           D5=0  CTRL OFF
+            ;             =1  CTRL ON
+            ;           D4=0  SHIFT+CTRL OFF
+            ;             =1  SHIFT+CTRL ON
+            ;         C   = ROW & COLUMN
+            ;        7 6 5 4 3 2 1 0
+            ;        * * ^ ^ ^ < < <
+            XOR     A
+            LD      B,0F8H
+            LD      D,A
+
+            ;    BREAK KEY CHECK
+            ;    AND SHIFT, CTRL KEY CHECK
+            ;    EXIT BREAK ON : ZERO=1
+            ;               OFF: ZERO=0
+            ;         NO KEY   : CY  =0
+            ;         KEY IN   : CY  =1
+            ;          A D6=1  : SHIFT ON
+            ;              =0  :       OFF
+            ;            D5=1  : CTRL ON
+            ;              =0  :      OFF
+            ;            D4=1  : SHIFT+CNT ON
+            ;              =0  :           OFF
+            ;            D3=1  : BREAK ON
+            ;              =0  :       OFF
+BREAK:      LD      A,0F8H                                               ; LINE 8SWEEP
+            LD      (KEYPA),A
+            NOP     
+            LD      A,(KEYPB)
+            CP      03EH                                                 ; BREAK + CTRL + SHIFT = RESET TO MONITOR
+            JP      Z, REBOOT
+            OR      A
+            RRA     
+            JP      C,BREAK2                                             ; SHIFT ?
+            RLA     
+            RLA     
+            JR      NC,BREAK1                                            ; BREAK ?
+            LD      A,40H                                                ; SHIFT D6=1
+            SCF     
+            JR      SWEP6
+
+BREAK1:     XOR     A                                                    ; SHIFT ?
+            JR      SWEP6
+
+            ;    BREAK SUBROUTINE BYPASS 1
+            ;    CTRL OR NOT KEY
+BREAK2:     BIT     5,A                                                  ; NOT OR CTRL
+            JR      Z,BREAK3                                             ; CTRL
+            OR      A                                                    ; NOTKEY A=7FH
+            JR      SWEP6
+
+BREAK3:     LD      A,20H                                                ; CTRL D5=1
+            OR      A                                                    ; ZERO FLG CLR
+            SCF     
+            JR      SWEP6
+
+SWEP1:      LD      D,88H                                                ; BREAK ON
+            JR      SWEP9
+
+SWEP6:      JR      NC,SWEP0
+            LD      D,A
+            JR      SWEP0
+
+SWEP01:     SET     7,D
+SWEP0:      DEC     B
+            LD      A,B
+            LD      (KEYPA),A
+            CP      0EFH                                                 ; MAP SWEEP END ?
+            JR      NZ,SWEP3
+            CP      0F8H                                                 ; BREAK KEY ROW
+            JR      Z,SWEP0
+SWEP9:      LD      B,D
+            JP      ISRKEY0
+
+SWEP3:      LD      A,(KEYPB)
+            LD      E,A
+            CPL     
+            OR      A
+            JR      Z,SWEP0
+            LD      E,A
+SWEP2:      LD      H,8
+            LD      A,B
+            AND     0FH
+            RLCA    
+            RLCA    
+            RLCA    
+            LD      C,A
+            LD      A,E
+L0A89:      DEC     H
+            RRCA    
+            JR      NC,L0A89
+            LD      A,H
+            ADD     A,C
+            LD      C,A
+            JR      SWEP01
+
+ISRKEY0:    LD      A,B
+            RLCA    
+            JP      C,ISRKEY2                                            ; CY=1 then data available.
+            XOR     A
+            LD      (KEYRPT),A                                           ; No key held then clear the auto repeat initial pause counter.
+            LD      A,NOKEY                                              ; No key code.
+            JR      ISRKEY10
+            ;
+ISRKEY1:    LD      E, A
+            LD      A,(KEYLAST)
+            CP      E
+            JR      Z, ISRAUTORPT
+            LD      A, E
+ISRKEY10:   CP      NOKEY
+            LD      (KEYLAST),A
+            JR      Z,ISREXIT
+            CP      GRAPHKEY
+            JR      Z,LOCKTOGGLE
+            CP      ALPHAKEY
+            JR      Z,ALPHATOGGLE
+ISRKEYRPT:  LD      A,(KEYCOUNT)                                         ; Get current count of bytes in the keyboard buffer.
+            CP      KEYBUFSIZE - 1
+            JR      NC, ISREXIT                                          ; Keyboard buffer full, so waste character.
+            INC     A
+            LD      (KEYCOUNT),A
+            LD      HL,(KEYWRITE)                                        ; Get the write buffer pointer.
+            LD      (HL), E                                              ; Store the character.
+            INC     L
+            LD      A,L
+            AND     KEYBUFSIZE-1                                         ; Circular buffer, keep boundaries.
+            LD      L,A
+            LD      (KEYWRITE),HL                                        ; Store updated pointer.
+            ;
+ISREXIT
+MEMSW3:     IF BUILD_TZFS+BUILD_RFS > 0
+            LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
+            OUT     (MMCFG),A
+            ENDIF
+            ;
+            POP     HL
+            POP     DE
+            POP     BC
+            POP     AF
+            ;
+            LD      SP,(SPISRSAVE)
+            EI      
+            RET     
+
+            ;
+            ; Helper to determine if a key is being held down and autorepeat should be applied.
+            ; The criterion is a timer, if this expires then autorepeat is applied.
+            ;
+ISRAUTORPT: LD      A,(KEYRPT)                                           ; Increment an initial pause counter.
+            INC     A
+            CP      10
+            JR      C,ISRAUTO1                                           ; Once expired we can auto repeat the last key.
+            LD      A,(KEYLAST)
+            CP      080H
+            JR      NC,ISREXIT                                           ; Dont auto repeat control keys.
+            LD      E,A
+            JR      ISRKEYRPT 
+ISRAUTO1:   LD      (KEYRPT),A
+            JR      ISREXIT
+
+            ;
+            ; Method to alternate through the 3 shift modes, CAPSLOCK=1, SHIFTLOCK=2, NO LOCK=0
+            ;
+LOCKTOGGLE: LD      HL,FLSDT
+            LD      A,(SFTLK)
+            INC     A
+            CP      3
+            JR      C,LOCK0
+            XOR     A
+LOCK0:      LD      (SFTLK),A
+            OR      A
+            LD      (HL),043H                                            ; Thick block cursor when lower case.
+            JR      Z,LOCK1
+            CP      1
+            LD      (HL),03EH                                            ; Thick underscore when CAPS lock.
+            JR      Z,LOCK1
+            LD      (HL),0EFH                                            ; Block cursor when SHIFT lock.
+LOCK1:      JP      ISREXIT
+
+            ; Method to alternate between NO LOCK and CAPSLOCK.
+ALPHATOGGLE:LD      HL,FLSDT
+            LD      A,(SFTLK)
+            INC     A
+            AND     001H
+            JR      LOCK0
+
+ISRKEY2:    LD      DE,KTBLSL                                            ; KEY TABLE WITH SHIFT LOCK
+            LD      A,B
+            CP      88H                                                  ; BREAK IN (SHIFT & BRK)
+            JR      Z,ISRBRK
+            LD      H,0                                                  ; HL=ROW & COLUMN
+            LD      L,C
+            BIT     5,A                                                  ; CTRL CHECK
+            JR      NZ,ISRKEY15                                          ; YES, CTRL
+            LD      A,(SFTLK)                                            ; CAPSLOCK=1, SHIFTLOCK=2, NO LOCK=0
+            RRCA
+            JR      C,ISRKEY3
+            RRCA
+            JR      C,ISRKEY6
+            LD      A, B
+            BIT     6, A
+            LD      DE,KTBLSL                                            ; Shift lock.
+            JR      NZ, ISRKEY5
+            LD      DE,KTBLNS                                            ; Lower case.
+            JR      ISRKEY5
+
+            ; Setup pointer to Control Key mapping.
+ISRKEY15:   LD      DE,KTBLC
+            ; Add in offset.
+ISRKEY5:    ADD     HL,DE
+            ; Get key.
+ISRKEY55:   LD      A,(HL)
+            JP      ISRKEY1                   
+
+            ; Setup pointer to Caps Lock mapping.
+ISRKEY3:    LD      A, B
+            BIT     6, A                                                 ; Shift pressed when caps lock on?
+            LD      DE, KTBLSL
+            JR      NZ, ISRKEY5
+            LD      DE,KTBLCL
+            JR      ISRKEY5
+
+            ; Setup pointer to Shift Lock mapping.
+ISRKEY6:    LD      A, B
+            BIT     6, A                                                 ; Shift pressed when shift lock on?
+            LD      DE, KTBLNS
+            JR      NZ, ISRKEY5
+            LD      DE,KTBLSL
+            JR      ISRKEY5                   
+
+            ; Break key pressed, handled in getkey routine.
+ISRBRK:     LD      A,(KEYLAST)
+            CP      BREAKKEY
+            JP      Z,ISREXIT
+            XOR     A                                                    ; Reset the keyboard buffer.
+            LD      (KEYCOUNT),A
+            LD      HL,KEYBUF
+            LD      (KEYWRITE),HL
+            LD      (KEYREAD),HL
+            LD      A,BREAKKEY
+            JP      ISRKEY10
+
+KTBLSL:     ; SHIFT LOCK.
+            ;S0   00 - 07
+            DB      0BFH                                                 ; SPARE
+            DB      GRAPHKEY                                             ; GRAPH
+            DB      58H                                                  ; 
+            DB      ALPHAKEY                                             ; ALPHA
+            DB      NOKEY                                                ; NO
+            DB      ';'                                                  ; ;
+            DB      ':'                                                  ; :
+            DB      CR                                                   ; CR
+            ;S1   08 - 0F
+            DB      'Y'                                                  ; Y
+            DB      'Z'                                                  ; Z
+            DB      '@'                                                  ; @
+            DB      '('                                                  ; [
+            DB      ')'                                                  ; ]
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            ;S2   10 - 17
+            DB      'Q'                                                  ; Q
+            DB      'R'                                                  ; R
+            DB      'S'                                                  ; S
+            DB      'T'                                                  ; T
+            DB      'U'                                                  ; U
+            DB      'V'                                                  ; V
+            DB      'W'                                                  ; W
+            DB      'X'                                                  ; X
+            ;S3   18 - 1F
+            DB      'I'                                                  ; I
+            DB      'J'                                                  ; J
+            DB      'K'                                                  ; K
+            DB      'L'                                                  ; L
+            DB      'M'                                                  ; M
+            DB      'N'                                                  ; N
+            DB      'O'                                                  ; O
+            DB      'P'                                                  ; P
+            ;S4   20 - 27
+            DB      'A'                                                  ; A
+            DB      'B'                                                  ; B
+            DB      'C'                                                  ; C
+            DB      'D'                                                  ; D
+            DB      'E'                                                  ; E
+            DB      'F'                                                  ; F
+            DB      'G'                                                  ; G
+            DB      'H'                                                  ; H
+            ;S5   28 - 2F
+            DB      '!'                                                  ; !
+            DB      '"'                                                  ; "
+            DB      '#'                                                  ; #
+            DB      '$'                                                  ; $
+            DB      '%'                                                  ; %
+            DB      '&'                                                  ; &
+            DB      '\''                                                 ; '
+            DB      '('                                                  ; (
+            ;S6   30 - 37
+            DB      '\\'                                                 ; \
+            DB      '#'                                                  ; POND MARK
+            DB      2BH                                                  ; YEN
+            DB      ' '                                                  ; SPACE
+            DB      ' '                                                  ; ¶
+            DB      ')'                                                  ; )
+            DB      '<'                                                  ; <
+            DB      '>'                                                  ; >
+            ;S7   38 - 3F
+            DB      INSERT                                               ; INST.
+            DB      DELETE                                               ; DEL.
+            DB      CURSUP                                               ; CURSOR UP
+            DB      CURSDOWN                                             ; CURSOR DOWN
+            DB      CURSRIGHT                                            ; CURSOR RIGHT
+            DB      CURSLEFT                                             ; CURSOR LEFT
+            DB      '?'                                                  ; ?
+            DB      '/'                                                  ; /
+            ;
+
+            ;
+KTBLNS:     ; NO SHIFT
+            ;S0   00 - 07
+            DB      0BFH                                                 ; SPARE
+            DB      GRAPHKEY                                             ; GRAPH
+            DB      1BH                                                  ; POND
+            DB      ALPHAKEY                                             ; ALPHA
+            DB      NOKEY                                                ; NO
+            DB      '+'                                                  ; +
+            DB      '*'                                                  ; *
+            DB      CR                                                   ; CR
+            ;S1   08 - 0F
+            DB      'y'                                                  ; y
+            DB      'z'                                                  ; z
+            DB      '`'                                                  ; `
+            DB      '{'                                                  ; {
+            DB      '}'                                                  ; }
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            ;S2   10 - 17
+            DB      'q'                                                  ; q
+            DB      'r'                                                  ; r
+            DB      's'                                                  ; s
+            DB      't'                                                  ; t
+            DB      'u'                                                  ; u
+            DB      'v'                                                  ; v
+            DB      'w'                                                  ; w
+            DB      'x'                                                  ; x
+            ;S3   18 - 1F
+            DB      'i'                                                  ; i
+            DB      'j'                                                  ; j
+            DB      'k'                                                  ; k
+            DB      'l'                                                  ; l
+            DB      'm'                                                  ; m
+            DB      'n'                                                  ; n
+            DB      'o'                                                  ; o
+            DB      'p'                                                  ; p
+            ;S4   20 - 27
+            DB      'a'                                                  ; a
+            DB      'b'                                                  ; b
+            DB      'c'                                                  ; c
+            DB      'd'                                                  ; d
+            DB      'e'                                                  ; e
+            DB      'f'                                                  ; f
+            DB      'g'                                                  ; g
+            DB      'h'                                                  ; h
+            ;S5   28 - 2F
+            DB      '1'                                                  ; 1
+            DB      '2'                                                  ; 2
+            DB      '3'                                                  ; 3
+            DB      '4'                                                  ; 4
+            DB      '5'                                                  ; 5
+            DB      '6'                                                  ; 6
+            DB      '7'                                                  ; 7
+            DB      '8'                                                  ; 8
+            ;S6   30 - 37
+            DB      '\\'                                                 ; \
+            DB      CURSUP                                               ; 
+            DB      '-'                                                  ; -
+            DB      ' '                                                  ; SPACE
+            DB      '0'                                                  ; 0
+            DB      '9'                                                  ; 9
+            DB      ','                                                  ; ,
+            DB      '.'                                                  ; .
+            ;S7   38 - 3F
+            DB      CLRKEY                                               ; CLR.
+            DB      HOMEKEY                                              ; HOME.
+            DB      CURSUP                                               ; CURSOR UP
+            DB      CURSDOWN                                             ; CURSOR DOWN
+            DB      CURSRIGHT                                            ; CURSOR RIGHT
+            DB      CURSLEFT                                             ; CURSOR LEFT
+            DB      0C6H                                                 ; CLR
+            DB      5AH                                                  ;
+            DB      45H                                                  ;
+            ;
+            ;
+KTBLCL:     ;   CAPS LOCK
+            ;S0   00 - 07
+            DB      0BFH                                                 ; SPARE
+            DB      GRAPHKEY                                             ; GRAPH
+            DB      58H                                                  ; 
+            DB      ALPHAKEY                                             ; ALPHA
+            DB      NOKEY                                                ; NO
+            DB      ';'                                                  ; ;
+            DB      ':'                                                  ; :
+            DB      CR                                                   ; CR
+            ;S1   08 - 0F
+            DB      'Y'                                                  ; Y
+            DB      'Z'                                                  ; Z
+            DB      '@'                                                  ; @
+            DB      '('                                                  ; [
+            DB      ')'                                                  ; ]
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            DB      NOKEY                                                ; NULL
+            ;S2   10 - 17
+            DB      'Q'                                                  ; Q
+            DB      'R'                                                  ; R
+            DB      'S'                                                  ; S
+            DB      'T'                                                  ; T
+            DB      'U'                                                  ; U
+            DB      'V'                                                  ; V
+            DB      'W'                                                  ; W
+            DB      'X'                                                  ; X
+            ;S3   18 - 1F
+            DB      'I'                                                  ; I
+            DB      'J'                                                  ; J
+            DB      'K'                                                  ; K
+            DB      'L'                                                  ; L
+            DB      'M'                                                  ; M
+            DB      'N'                                                  ; N
+            DB      'O'                                                  ; O
+            DB      'P'                                                  ; P
+            ;S4   20 - 27
+            DB      'A'                                                  ; A
+            DB      'B'                                                  ; B
+            DB      'C'                                                  ; C
+            DB      'D'                                                  ; D
+            DB      'E'                                                  ; E
+            DB      'F'                                                  ; F
+            DB      'G'                                                  ; G
+            DB      'H'                                                  ; H
+            ;S5   28 - 2F
+            DB      '1'                                                  ; 1
+            DB      '2'                                                  ; 2
+            DB      '3'                                                  ; 3
+            DB      '4'                                                  ; 4
+            DB      '5'                                                  ; 5
+            DB      '6'                                                  ; 6
+            DB      '7'                                                  ; 7
+            DB      '8'                                                  ; 8
+            ;S6   30 - 37
+            DB      '\\'                                                 ; \
+            DB      CURSUP                                               ; 
+            DB      '-'                                                  ; -
+            DB      ' '                                                  ; SPACE
+            DB      '0'                                                  ; 0
+            DB      '9'                                                  ; 9
+            DB      ','                                                  ; ,
+            DB      '.'                                                  ; .
+            ;S7   38 - 3F
+            DB      INSERT                                               ; INST.
+            DB      DELETE                                               ; DEL.
+            DB      CURSUP                                               ; CURSOR UP
+            DB      CURSDOWN                                             ; CURSOR DOWN
+            DB      CURSRIGHT                                            ; CURSOR RIGHT
+            DB      CURSLEFT                                             ; CURSOR LEFT
+            DB      '?'                                                  ; ?
+            DB      '/'                                                  ; /
+            ;
+            ;
+KTBLC:      ; CONTROL CODE
+            ;S0   00 - 07
+            DB      NOKEY
+            DB      NOKEY
+            DB      CTRL_CAPPA                                           ; ^
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            ;S1   08 - 0F
+            DB      CTRL_Y                                               ; ^Y E3
+            DB      CTRL_Z                                               ; ^Z E4 (CHECKER)
+            DB      CTRL_AT                                              ; ^@
+            DB      CTRL_LB                                              ; ^[ EB/E5
+            DB      CTRL_RB                                              ; ^] EA/E7 
+            DB      NOKEY                                                ; #NULL
+            DB      NOKEY                                                ; #NULL
+            DB      NOKEY                                                ; #NULL
+            ;S2   10 - 17
+            DB      CTRL_Q                                               ; ^Q
+            DB      CTRL_R                                               ; ^R
+            DB      CTRL_S                                               ; ^S
+            DB      CTRL_T                                               ; ^T
+            DB      CTRL_U                                               ; ^U
+            DB      CTRL_V                                               ; ^V
+            DB      CTRL_W                                               ; ^W E1
+            DB      CTRL_X                                               ; ^X E2
+            ;S3   18 - 1F
+            DB      CTRL_I                                               ; ^I F9
+            DB      CTRL_J                                               ; ^J FA
+            DB      CTRL_K                                               ; ^K FB
+            DB      CTRL_L                                               ; ^L FC
+            DB      CTRL_M                                               ; ^M CD
+            DB      CTRL_N                                               ; ^N FE
+            DB      CTRL_O                                               ; ^O FF
+            DB      CTRL_P                                               ; ^P E0
+            ;S4   20 - 27
+            DB      CTRL_A                                               ; ^A F1
+            DB      CTRL_B                                               ; ^B F2
+            DB      CTRL_C                                               ; ^C F3
+            DB      CTRL_D                                               ; ^D F4
+            DB      CTRL_E                                               ; ^E F5
+            DB      CTRL_F                                               ; ^F F6
+            DB      CTRL_G                                               ; ^G F7
+            DB      CTRL_H                                               ; ^H F8
+            ;S5   28 - 2F
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            ;S6   30 - 37 (ERROR? 7 VALUES ONLY!!)
+            DB      NOKEY                                                ; ^YEN E6
+            DB      CTRL_CAPPA                                           ; ^    EF
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      CTRL_UNDSCR                                          ; ^,
+            DB      NOKEY
+            ;S7   38 - 3F
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      CTRL_SLASH                                           ; ^/ EE
+            ENDIF
 
             ;-------------------------------------------------------------------------------
             ; END OF TIMER INTERRUPT                                                                      
@@ -6394,8 +6970,14 @@ TIMESET:    LD      (TIMESEC),HL                                         ; Load 
             LD      (HL),E                                               ; Place current time in Counter 2
             LD      (HL),D
             DEC     HL
-            LD      (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
-            LD      (HL),001H
+            IF      BUILD_MZ80A = 1
+              LD    (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
+              LD    (HL),001H
+            ENDIF
+            IF      BUILD_MZ700 = 1
+              LD    (HL),09CH                                            ; Place divisor in Counter 1, = 156, thus 15611/156 = 100
+              LD    (HL),000H
+            ENDIF
             NOP     
             NOP     
             NOP     
@@ -7029,9 +7611,14 @@ CLRS:       LD      HL,MANG
             LD      B,01BH
             CALL    CLER
             LD      HL,SCRN
-            PUSH    HL
             CALL    CLR8Z
-            POP     HL
+            IF      MODE80C = 0
+              LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+            ELSE
+              LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+            ENDIF
+            CALL    CLR8                                                    ; D800H-DFFFH CLEAR
+
 CLRS1:      LD      A,(SCLDSP)
 HOM0:       LD      HL,00000H
             JP      CURS3
@@ -8617,7 +9204,7 @@ NUMBERBUF   DS      20,   0                                              ; Buffe
 NUMBERPOS   DW      1,    NUMBERBUF                                      ; Address within buffer
 CHARACTERNO DS      1,    0                                              ; Byte within Ansi sequence. 0=first,255=other
 CURSORCOUNT DS      1,    0                                              ; 1/50ths of a second since last change
-FONTSET     DS      1,    017H                                           ; Ansi font setup - Blue background White Foreground as default.
+FONTSET     DS      1,    071H                                           ; Ansi font setup - Blue background White Foreground as default.
 JSW_FF      DS      1,    0                                              ; Byte value to turn on/off FF routine
 JSW_LF      DS      1,    0                                              ; Byte value to turn on/off LF routine
 CHARACTER   DS      1,    0                                              ; To buffer character to be printed.    

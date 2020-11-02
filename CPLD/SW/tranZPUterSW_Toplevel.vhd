@@ -47,8 +47,8 @@ entity tranZPUterSW is
         Z80_IORQn       : in    std_logic;
         Z80_MREQn       : inout std_logic;
         Z80_NMIn        : inout std_logic;
-        Z80_RDn         : inout std_logic;
-        Z80_WRn         : inout std_logic;
+        Z80_RDn         : in    std_logic;
+        Z80_WRn         : in    std_logic;
         Z80_RESETn      : in    std_logic;
         Z80_HALTn       : in    std_logic;
         Z80_WAITn       : out   std_logic;
@@ -70,6 +70,8 @@ entity tranZPUterSW is
         SYS_BUSACKn     : out   std_logic;
         SYS_BUSRQn      : in    std_logic;
         SYS_WAITn       : in    std_logic;
+        SYS_WRn         : out   std_logic;
+        SYS_RDn         : out   std_logic;
 
         -- RAM control.
         RAM_CSn         : out   std_logic;
@@ -131,6 +133,8 @@ begin
         SYS_BUSACKn     => SYS_BUSACKn,
         SYS_BUSRQn      => SYS_BUSRQn,
         SYS_WAITn       => SYS_WAITn,
+        SYS_WRn         => SYS_WRn,
+        SYS_RDn         => SYS_RDn,
 
         -- RAM control.
         RAM_CSn         => RAM_CSn,

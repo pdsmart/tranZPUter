@@ -39,7 +39,6 @@
             ;============================================================
             ORG     BANKRAMADDR
 
-
             ; Ensure we fill the entire 4K by padding with FF's.
             ;
             ALIGN_NOPS      10000H

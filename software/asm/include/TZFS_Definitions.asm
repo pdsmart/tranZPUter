@@ -33,7 +33,6 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
-BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
@@ -195,8 +194,24 @@ SVCREQ                  EQU     068H                                     ; I/O P
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+PALSLCTOFF              EQU     0D3H                                     ; set the palette slot Off position to be adjusted.
+PALSLCTON               EQU     0D4H                                     ; set the palette slot On position to be adjusted.
+PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
+PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
+PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
 SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
 GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
+VMPALETTE               EQU     0F5H                                     ; Select Palette:
+                                                                         ;    0xF5 sets the palette. The Video Module supports 4 bit per colour output but there is only enough RAM for 1 bit per colour so the pallette is used to change the colours output.
+                                                                         ;      Bits [7:0] defines the pallete number. This indexes a lookup table which contains the required 4bit output per 1bit input.
+                                                                         ; GPU:
+GPUPARAM                EQU     0F6H                                     ;    0xF6 set parameters. Store parameters in a long word to be used by the graphics command processor.
+                                                                         ;      The parameter word is 128 bit and each write to the parameter word shifts left by 8 bits and adds the new byte at bits 7:0.
+GPUCMD                  EQU     0F7H                                     ;    0xF7 set the graphics processor unit commands.
+GPUSTATUS               EQU     0F7H                                     ;         [7;1] - FSM state, [0] - 1 = busy, 0 = idle
+                                                                         ;      Bits [5:0] - 0 = Reset parameters.
+                                                                         ;                   1 = Clear to val. Start Location (16 bit), End Location (16 bit), Red Filter, Green Filter, Blue Filter
+                                                                         ; 
 VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
 VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
 VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
@@ -207,8 +222,15 @@ VMPAGE                  EQU     0FDH                                     ; Video
 ;-----------------------------------------------
 ; CPLD Configuration constants.
 ;-----------------------------------------------
-SET_MODE_MZ80A          EQU     1                                        ; Set to original unmodified hardware.
-SET_MODE_MZ700          EQU     2                                        ; Map keyboard and memory mode settings to MZ700 mode.
+MODE_MZ80K              EQU     0                                        ; Set to MZ-80K mode.
+MODE_MZ80C              EQU     1                                        ; Set to MZ-80C mode.
+MODE_MZ1200             EQU     2                                        ; Set to MZ-1200 mode.
+MODE_MZ80A              EQU     3                                        ; Set to MZ-80A mode (base mode on MZ-80A hardware).
+MODE_MZ700              EQU     4                                        ; Set to MZ-700 mode (base mode on MZ-700 hardware).
+MODE_MZ800              EQU     5                                        ; Set to MZ-800 mode.
+MODE_MZ80B              EQU     6                                        ; Set to MZ-80B mode.
+MODE_MZ2000             EQU     7                                        ; Set to MZ-2000 mode.
+MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
 
 ;-----------------------------------------------
 ; Video Module control bits.
@@ -218,19 +240,29 @@ MODE_COLOUR             EQU     010H                                     ; Enabl
 SYSMODE_MZ80A           EQU     000H                                     ; System board mode MZ80A, 2MHz CPU/Bus.
 SYSMODE_MZ80B           EQU     001H                                     ; System board mode MZ80B, 4MHz CPU/Bus.
 SYSMODE_MZ700           EQU     002H                                     ; System board mode MZ700, 3.54MHz CPU/Bus.
-VMMODE_MZ80A            EQU     000H                                     ; Video mode = MZ80A
-VMMODE_MZ700            EQU     001H                                     ; Video mode = MZ700
-VMMODE_MZ800            EQU     002H                                     ; Video mode = MZ800
-VMMODE_MZ80B            EQU     003H                                     ; Video mode = MZ80B
-VMMODE_MZ80K            EQU     004H                                     ; Video mode = MZ80K
-VMMODE_MZ80C            EQU     005H                                     ; Video mode = MZ80C
-VMMODE_MZ1200           EQU     006H                                     ; Video mode = MZ1200
+VMMODE_MZ80K            EQU     000H                                     ; Video mode = MZ80K
+VMMODE_MZ80C            EQU     001H                                     ; Video mode = MZ80C
+VMMODE_MZ1200           EQU     002H                                     ; Video mode = MZ1200
+VMMODE_MZ80A            EQU     003H                                     ; Video mode = MZ80A
+VMMODE_MZ700            EQU     004H                                     ; Video mode = MZ700
+VMMODE_MZ800            EQU     005H                                     ; Video mode = MZ800
+VMMODE_MZ80B            EQU     006H                                     ; Video mode = MZ80B
 VMMODE_MZ2000           EQU     007H                                     ; Video mode = MZ2000
 VMMODE_PCGRAM           EQU     020H                                     ; Enable PCG RAM.
 VMMODE_VGA_OFF          EQU     000H                                     ; Set VGA mode off, external monitor is driven by standard internal signals.
 VMMODE_VGA_640x480      EQU     040H                                     ; Set external monitor to VGA 640x480 @ 60Hz mode.
 VMMODE_VGA_1024x768     EQU     080H                                     ; Set external monitor to VGA 1024x768 @ 60Hz mode.
 VMMODE_VGA_800x600      EQU     0C0H                                     ; Set external monitor to VGA 800x600 @ 60Hz mode.
+
+;-----------------------------------------------
+; GPU commands.
+;-----------------------------------------------
+GPUCLEARVRAM            EQU     001H                                     ; Clear the VRAM without updating attributes.
+GPUCLEARVRAMCA          EQU     002H                                     ; Clear the VRAM/ARAM with given attribute byte,
+GPUCLEARVRAMP           EQU     003H                                     ; Clear the VRAM/ARAM with parameters.
+GPUCLEARGRAM            EQU     081H                                     ; Clear the entire Framebuffer.
+GPUCLEARGRAMP           EQU     082H                                     ; Clear the Framebuffer according to parameters.
+GPURESET                EQU     0FFH                                     ; Reset the GPU, return to idle state.
 
 ;-----------------------------------------------
 ; tranZPUter SW Memory Management modes
@@ -358,7 +390,7 @@ BUFER:                  DS      virtual 81                               ; GET L
 TZVARMEM:               EQU     0EC80H
 TZVARSIZE:              EQU     00100H
 WARMSTART:              DS      virtual 1                                ; Warm start mode, 0 = cold start, 1 = warm start.
-SCRNMODE:               DS      virtual 1                                ; Mode of screen, 0 = 40 char, 1 = 80 char.
+SCRNMODE:               DS      virtual 1                                ; Mode of screen, [0] = 0 - 40 char, 1 - 80 char, [1] = 0 - Mainboard video, 1 - FPGA Video, [4:2] Video mode, [7:6] - VGA mode.
 MMCFGVAL:               DS      virtual 1                                ; Current memory model value.
 HLSAVE:                 DS      virtual 2                                ; Storage for HL during bank switch manipulation.
 AFSAVE:                 DS      virtual 2                                ; Storage for AF during bank switch manipulation.
@@ -436,8 +468,8 @@ TZSVC_CMD_LOADFILE      EQU     08H                                      ; Servi
 TZSVC_CMD_SAVEFILE      EQU     09H                                      ; Service command to save a file directly from tranZPUter memory. 
 TZSVC_CMD_ERASEFILE     EQU     0aH                                      ; Service command to erase a file on the SD card.
 TZSVC_CMD_CHANGEDIR     EQU     0bH                                      ; Service command to change the active directory on the SD card.
-TZSVC_CMD_LOAD40BIOS    EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
-TZSVC_CMD_LOAD80BIOS    EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD40ABIOS   EQU     20H                                      ; Service command requesting that the 40 column version of the SA1510 BIOS is loaded.
+TZSVC_CMD_LOAD80ABIOS   EQU     21H                                      ; Service command requesting that the 80 column version of the SA1510 BIOS is loaded.
 TZSVC_CMD_LOAD700BIOS40 EQU     22H                                      ; Service command requesting that the MZ700 1Z-013A 40 column BIOS is loaded.
 TZSVC_CMD_LOAD700BIOS80 EQU     23H                                      ; Service command requesting that the MZ700 1Z-013A 80 column patched BIOS is loaded.
 TZSVC_CMD_LOAD80BIPL    EQU     24H                                      ; Service command requesting the MZ-80B IPL is loaded.

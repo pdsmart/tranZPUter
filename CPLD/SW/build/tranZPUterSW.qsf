@@ -153,6 +153,8 @@ set_location_assignment PIN_125 -to SYSCLK
 set_location_assignment PIN_48 -to SYS_WAITn
 set_location_assignment PIN_49 -to SYS_BUSRQn
 set_location_assignment PIN_47 -to SYS_BUSACKn
+set_location_assignment PIN_37 -to SYS_RDn
+set_location_assignment PIN_46 -to SYS_WRn
 
 set_global_assignment -name VHDL_FILE ../tranZPUterSW_Toplevel.vhd
 set_global_assignment -name VHDL_FILE ../tranZPUterSW_pkg.vhd

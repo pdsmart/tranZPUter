@@ -60,9 +60,9 @@ ST0:    LD      B,0FFH                                                   ; BUFFE
         LD      A,16H                                                    ; LASTER CLR.
         CALL    PRNT
         IF      MODE80C = 0
-          LD    A,017H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+          LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    A,017H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
       ; LD      A,71H                                                    ; BACK:BLUE CHA.:WRITE
         LD      HL,0D800H                                                ; COLOR ADDRESS
@@ -2755,6 +2755,389 @@ KTBLG:
     DB    0BBH                                                           ; DASH
     DB    0BEH                                                           ; RO
 
+;KTBL:
+;            ;S0   00 - 07
+;            DB      0BFH                                                           ; SPARE
+;            DB      0CAH                                                           ; GRAPH
+;            DB      58H                                                            ; 
+;            DB      0C9H                                                           ; ALPHA
+;            DB      0F0H                                                           ; NO
+;            DB      2CH                                                            ;         ;
+;            DB      4FH                                                            ; :
+;            DB      0CDH                                                           ; CR
+;            ;S1   08 - 0F
+;            DB      19H                                                            ; Y
+;            DB      1AH                                                            ; Z
+;            DB      55H                                                            ; @
+;            DB      52H                                                            ; [
+;            DB      54H                                                            ; ]
+;            DB      0F0H                                                           ; NULL
+;            DB      0F0H                                                           ; NULL
+;            DB      0F0H                                                           ; NULL
+;            ;S2   10 - 17
+;            DB      11H                                                            ; Q
+;            DB      12H                                                            ; R
+;            DB      13H                                                            ; S
+;            DB      14H                                                            ; T
+;            DB      15H                                                            ; U
+;            DB      16H                                                            ; V
+;            DB      17H                                                            ; W
+;            DB      18H                                                            ; X
+;            ;S3   18 - 1F
+;            DB      09H                                                            ; I
+;            DB      0AH                                                            ; J
+;            DB      0BH                                                            ; K
+;            DB      0CH                                                            ; L
+;            DB      0DH                                                            ; M
+;            DB      0EH                                                            ; N
+;            DB      0FH                                                            ; O
+;            DB      10H                                                            ; P
+;            ;S4   20 - 27
+;            DB      01H                                                            ; A
+;            DB      02H                                                            ; B
+;            DB      03H                                                            ; C
+;            DB      04H                                                            ; D
+;            DB      05H                                                            ; E
+;            DB      06H                                                            ; F
+;            DB      07H                                                            ; G
+;            DB      08H                                                            ; H
+;            ;S5   28 - 2F
+;            DB      21H                                                            ; 1
+;            DB      22H                                                            ; 2
+;            DB      23H                                                            ; 3
+;            DB      24H                                                            ; 4
+;            DB      25H                                                            ; 5
+;            DB      26H                                                            ; 6
+;            DB      27H                                                            ; 7
+;            DB      28H                                                            ; 8
+;            ;S6   30 - 37
+;            DB      59H                                                            ; \
+;            DB      50H                                                            ; 
+;            DB      2AH                                                            ; -
+;            DB      00H                                                            ; SPACE
+;            DB      20H                                                            ; 0
+;            DB      29H                                                            ; 9
+;            DB      2FH                                                            ; ,
+;            DB      2EH                                                            ; .
+;            ;S7   38 - 3F
+;            DB      0C8H                                                           ; INST.
+;            DB      0C7H                                                           ; DEL.
+;            DB      0C2H                                                           ; CURSOR UP
+;            DB      0C1H                                                           ; CURSOR DOWN
+;            DB      0C3H                                                           ; CURSOR RIGHT
+;            DB      0C4H                                                           ; CURSOR LEFT
+;            DB      49H                                                            ; ?
+;            DB      2DH                                                            ; /
+;            ;
+;            ;
+;            ;   KTBL SHIFT ON
+;            ;
+;KTBLS:
+;            ;S0   00 - 07
+;            DB      0BFH                                                           ; SPARE
+;            DB      0CAH                                                           ; GRAPH
+;            DB      1BH                                                            ; POND
+;            DB      0C9H                                                           ; ALPHA
+;            DB      0F0H                                                           ; NO
+;            DB      6AH                                                            ; +
+;            DB      6BH                                                            ; *
+;            DB      0CDH                                                           ; CR
+;            ;S1   08 - 0F
+;            DB      99H                                                            ; y
+;            DB      9AH                                                            ; z
+;            DB      0A4H                                                           ; `
+;            DB      0BCH                                                           ; {
+;            DB      40H                                                            ; }
+;            DB      0F0H                                                           ; NULL
+;            DB      0F0H                                                           ; NULL
+;            DB      0F0H                                                           ; NULL
+;            ;S2   10 - 17
+;            DB      91H                                                            ; q
+;            DB      92H                                                            ; r
+;            DB      93H                                                            ; s
+;            DB      94H                                                            ; t
+;            DB      95H                                                            ; u
+;            DB      96H                                                            ; v
+;            DB      97H                                                            ; w
+;            DB      98H                                                            ; x
+;            ;S3   18 - 1F
+;            DB      89H                                                            ; i
+;            DB      8AH                                                            ; j
+;            DB      8BH                                                            ; k
+;            DB      8CH                                                            ; l
+;            DB      8DH                                                            ; m
+;            DB      8EH                                                            ; n
+;            DB      8FH                                                            ; o
+;            DB      90H                                                            ; p
+;            ;S4   20 - 27
+;            DB      81H                                                            ; a
+;            DB      82H                                                            ; b
+;            DB      83H                                                            ; c
+;            DB      84H                                                            ; d
+;            DB      85H                                                            ; e
+;            DB      86H                                                            ; f
+;            DB      87H                                                            ; g
+;            DB      88H                                                            ; h
+;            ;S5   28 - 2F
+;            DB      61H                                                            ; !
+;            DB      62H                                                            ; "
+;            DB      63H                                                            ; #
+;            DB      64H                                                            ; $
+;            DB      65H                                                            ; %
+;            DB      66H                                                            ; &
+;            DB      67H                                                            ; '
+;            DB      68H                                                            ; (
+;            ;S6   30 - 37
+;            DB      80H                                                            ; \
+;            DB      0A5H                                                           ; POND MARK
+;            DB      2BH                                                            ; YEN
+;            DB      00H                                                            ; SPACE
+;            DB      60H                                                            ; ¶
+;            DB      69H                                                            ; )
+;            DB      51H                                                            ; <
+;            DB      57H                                                            ; >
+;            ;S7   38 - 3F
+;            DB      0C6H                                                           ; CLR
+;            DB      0C5H                                                           ; HOME
+;            DB      0C2H                                                           ; CURSOR UP
+;            DB      0C1H                                                           ; CURSOR DOWN
+;            DB      0C3H                                                           ; CURSOR RIGHT
+;            DB      0C4H                                                           ; CURSOR LEFT
+;            DB      5AH                                                            ;
+;            DB      45H                                                            ;
+;            ;
+;            ;
+;            ;   GRAPHIC
+;            ;
+;KTBLCL:
+;            ;S0   00 - 07
+;            DB      0BFH                                                           ; SPARE
+;            DB      0F0H                                                           ; GRAPH BUT NULL
+;            DB      0E5H                                                           ; #
+;            DB      0C9H                                                           ; ALPHA
+;            DB      0F0H                                                           ; NO
+;            DB      42H                                                            ; #        ;
+;            DB      0B6H                                                           ; #:
+;            DB      0CDH                                                           ; CR
+;            ;S1   08 - 0F
+;            DB      75H                                                            ; #Y
+;            DB      76H                                                            ; #Z
+;            DB      0B2H                                                           ; #@
+;            DB      0D8H                                                           ; #[
+;            DB      4EH                                                            ; #]
+;            DB      0F0H                                                           ; #NULL
+;            DB      0F0H                                                           ; #NULL
+;            DB      0F0H                                                           ; #NULL
+;            ;S2   10 - 17
+;            DB      3CH                                                            ; #Q
+;            DB      30H                                                            ; #R
+;            DB      44H                                                            ; #S
+;            DB      71H                                                            ; #T
+;            DB      79H                                                            ; #U
+;            DB      0DAH                                                           ; #V
+;            DB      38H                                                            ; #W
+;            DB      6DH                                                            ; #X
+;            ;S3   18 - 1F
+;            DB      7DH                                                            ; #I
+;            DB      5CH                                                            ; #J
+;            DB      5BH                                                            ; #K
+;            DB      0B4H                                                           ; #L
+;            DB      1CH                                                            ; #M
+;            DB      32H                                                            ; #N
+;            DB      0B0H                                                           ; #O
+;            DB      0D6H                                                           ; #P
+;            ;S4   20 - 27
+;            DB      53H                                                            ; #A
+;            DB      6FH                                                            ; #B
+;            DB      0DEH                                                           ; #C
+;            DB      47H                                                            ; #D
+;            DB      34H                                                            ; #E
+;            DB      4AH                                                            ; #F
+;            DB      4BH                                                            ; #G
+;            DB      72H                                                            ; #H
+;            ;S5   28 - 2F
+;            DB      37H                                                            ; #1
+;            DB      3EH                                                            ; #2
+;            DB      7FH                                                            ; #3
+;            DB      7BH                                                            ; #4
+;            DB      3AH                                                            ; #5
+;            DB      5EH                                                            ; #6
+;            DB      1FH                                                            ; #7
+;            DB      0BDH                                                           ; #8
+;            ;S6   30 - 37
+;            DB      0D4H                                                           ; #YEN
+;            DB      9EH                                                            ; #+
+;            DB      0D2H                                                           ; #-
+;            DB      00H                                                            ; SPACE
+;            DB      9CH                                                            ; #0
+;            DB      0A1H                                                           ; #9
+;            DB      0CAH                                                           ; #,
+;            DB      0B8H                                                           ; #.
+;            ;S7   38 - 3F
+;            DB      0C8H                                                           ; INST
+;            DB      0C7H                                                           ; DEL.
+;            DB      0C2H                                                           ; CURSOR UP
+;            DB      0C1H                                                           ; CURSOR DOWN
+;            DB      0C3H                                                           ; CURSOR RIGHT
+;            DB      0C4H                                                           ; CURSOR LEFT
+;            DB      0BAH                                                           ; #?
+;            DB      0DBH                                                           ; #/
+;            ;
+;            ;
+;            ;   CONTROL CODE
+;            ;
+;KTBLC:
+;            ;S0   00 - 07
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H                                                           ; ^
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            ;S1   08 - 0F
+;            DB      0F0H                                                           ; ^Y E3
+;            DB      5AH                                                            ; ^Z E4 (CHECKER)
+;            DB      0F0H                                                           ; ^@
+;            DB      0F0H                                                           ; ^[ EB/E5
+;            DB      0F0H                                                           ; ^] EA/E7 
+;            DB      0F0H                                                           ; #NULL
+;            DB      0F0H                                                           ; #NULL
+;            DB      0F0H                                                           ; #NULL
+;            ;S2   10 - 17
+;            DB      0C1H                                                           ; ^Q
+;            DB      0C2H                                                           ; ^R
+;            DB      0C3H                                                           ; ^S
+;            DB      0C4H                                                           ; ^T
+;            DB      0C5H                                                           ; ^U
+;            DB      0C6H                                                           ; ^V
+;            DB      0F0H                                                           ; ^W E1
+;            DB      0F0H                                                           ; ^X E2
+;            ;S3   18 - 1F
+;            DB      0F0H                                                           ; ^I F9
+;            DB      0F0H                                                           ; ^J FA
+;            DB      0F0H                                                           ; ^K FB
+;            DB      0F0H                                                           ; ^L FC
+;            DB      0F0H                                                           ; ^M CD
+;            DB      0F0H                                                           ; ^N FE
+;            DB      0F0H                                                           ; ^O FF
+;            DB      0F0H                                                           ; ^P E0
+;            ;S4   20 - 27
+;            DB      0F0H                                                           ; ^A F1
+;            DB      0F0H                                                           ; ^B F2
+;            DB      0F0H                                                           ; ^C F3
+;            DB      0F0H                                                           ; ^D F4
+;            DB      0F0H                                                           ; ^E F5
+;            DB      0F0H                                                           ; ^F F6
+;            DB      0F0H                                                           ; ^G F7
+;            DB      0F0H                                                           ; ^H F8
+;            ;S5   28 - 2F
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            ;S6   30 - 37 (ERROR? 7 VALUES ONLY!!)
+;            DB      0F0H                                                           ; ^YEN E6
+;            DB      0F0H                                                           ; ^    EF
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H                                                           ; ^,
+;            DB      0F0H
+;            ;S7   38 - 3F
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H                                                           ; ^/ EE
+;            ;
+;            ;
+;            ;   KANA
+;            ;
+;KTBLG:
+;            ;S0   00 - 07
+;            DB      0BFH                                                           ; SPARE
+;            DB      0F0H                                                           ; GRAPH BUT NULL
+;            DB      0CFH                                                           ; NIKO WH.
+;            DB      0C9H                                                           ; ALPHA
+;            DB      0F0H                                                           ; NO
+;            DB      0B5H                                                           ; MO
+;            DB      4DH                                                            ; DAKU TEN
+;            DB      0CDH                                                           ; CR
+;            ;S1   08 - 0F
+;            DB      35H                                                            ; HA
+;            DB      77H                                                            ; TA
+;            DB      0D7H                                                           ; WA
+;            DB      0B3H                                                           ; YO
+;            DB      0B7H                                                           ; HANDAKU
+;            DB      0F0H
+;            DB      0F0H
+;            DB      0F0H
+;            ;S2   10 - 17
+;            DB      7CH                                                            ; KA
+;            DB      70H                                                            ; KE
+;            DB      41H                                                            ; SHI
+;            DB      31H                                                            ; KO
+;            DB      39H                                                            ; HI
+;            DB      0A6H                                                           ; TE
+;            DB      78H                                                            ; KI
+;            DB      0DDH                                                           ; CHI
+;            ;S3   18 - 1F
+;            DB      3DH                                                            ; FU
+;            DB      5DH                                                            ; MI
+;            DB      6CH                                                            ; MU
+;            DB      56H                                                            ; ME
+;            DB      1DH                                                            ; RHI
+;            DB      33H                                                            ; RA
+;            DB      0D5H                                                           ; HE
+;            DB      0B1H                                                           ; HO
+;            ;S4   20 - 27
+;            DB      46H                                                            ; SA
+;            DB      6EH                                                            ; TO
+;            DB      0D9H                                                           ; THU
+;            DB      48H                                                            ; SU
+;            DB      74H                                                            ; KU
+;            DB      43H                                                            ; SE
+;            DB      4CH                                                            ; SO
+;            DB      73H                                                            ; MA
+;            ;S5   28 - 2F
+;            DB      3FH                                                            ; A
+;            DB      36H                                                            ; I
+;            DB      7EH                                                            ; U
+;            DB      3BH                                                            ; E
+;            DB      7AH                                                            ; O
+;            DB      1EH                                                            ; NA
+;            DB      5FH                                                            ; NI
+;            DB      0A2H                                                           ; NU
+;            ;S6   30 - 37
+;            DB      0D3H                                                           ; YO
+;            DB      9FH                                                            ; YU
+;            DB      0D1H                                                           ; YA
+;            DB      00H                                                            ; SPACE
+;            DB      9DH                                                            ; NO
+;            DB      0A3H                                                           ; NE
+;            DB      0D0H                                                           ; RU
+;            DB      0B9H                                                           ; RE
+;            ;S7   38 - 3F
+;            DB      0C6H                                                           ; ?CLR
+;            DB      0C5H                                                           ; ?HOME
+;            DB      0C2H                                                           ; ?CURSOR UP
+;            DB      0C1H                                                           ; ?CURSOR DOWN
+;            DB      0C3H                                                           ; ?CURSOR RIGHT
+;            DB      0C4H                                                           ; ?CURSOR LEFT 
+;            DB      0BBH                                                           ; DASH
+;            DB      0BEH                                                           ; RO
+
+
+
         ;    MEMORY DUMP COMMAND "D"
 
 DUMP:   CALL    HEXIY                                                    ; START ADDRESS
@@ -2951,9 +3334,9 @@ CLRS:   LD      HL,MANG
         LD      HL,0D000H                                                ; SCRN TOP
         CALL    NCLR08
         IF      MODE80C = 0
-          LD    A,017H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+          LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    A,017H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
        ;LD      A,71H                                                    ; COLOR DATA
         CALL    NCLR8                                                    ; D800H-DFFFH CLEAR
@@ -2998,9 +3381,9 @@ SCROL:  LD      BC,SCRNSZ - COLW
         LD      B,COLW                                                   ; ONE LINE
         EX      DE,HL
         IF      MODE80C = 0
-          LD    A,017H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+          LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    A,017H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
        ;LD      A,71H                                                    ; COLOR RAM INITIAL DATA
         CALL    QDINT
@@ -3054,9 +3437,9 @@ INST2:  SET     3,H                                                     ; COLOR 
         LD      (HL),0
         SET     3,H                                                      ; COLOR RAM
         IF      MODE80C = 0
-          LD    (HL),17H                                                 ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+          LD    (HL),071H                                                ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    (HL),17H                                                 ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    (HL),071H                                                ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
        ;LD      (HL),71H
         JR      QRSTR
@@ -3120,9 +3503,9 @@ DEL2:   LD      A,(HL)                                                   ; CHANG
         LD      (HL),0
         SET     3,H
         IF      MODE80C = 0
-          LD    HL,017H                                                  ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+          LD    HL,071H                                                  ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    HL,017H                                                  ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    HL,071H                                                  ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
        ;LD      HL,71H                                                   ; BLUE + WHITE
 L0F33:  LD      A,0C4H                                                   ; JP CURSL

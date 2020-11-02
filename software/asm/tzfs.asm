@@ -56,11 +56,11 @@ TZFS:       NOP                                                          ; Nop i
             ;
             LD      A,TZMM_TZFS                
             LD      (MMCFGVAL),A                                         ; Store the value in a memory variable as we cant read the latch once programmed.
-            OUT     (MMCFG),A                                            ; Switch to the TZFS memory mode, SA1510 is now in RAM at 0000H
+            OUT     (MMCFG),A                                            ; Switch to the TZFS memory mode, SA1510/monitor is now in RAM at 0000H
             ;
             LD      A,1                                                  ; TZMM_BOOT doesnt allow writes to User ROM space, so need to be in mode TZMM_TZFS first.
             LD      (WARMSTART),A                                        ; Set warm start flag so next invocation goes to monitor.
-            JP      MROMADDR                                             ; Cold start the RAM based SA1510 monitor which in turn will recall us to warm start.
+            JP      MROMADDR                                             ; Cold start the RAM based SA1510/monitor which in turn will recall us to warm start.
             
 
             ALIGN_NOPS UROMBSTBL
@@ -92,6 +92,14 @@ BANKTOBANK_:JMPTOBNK
 ?PRTFN:     CALLBNK PRTFN,       TZMM_TZFS2
 ?PRTSTR:    CALLBNK PRTSTR,      TZMM_TZFS2
 ?HELP:      CALLBNK HELP,        TZMM_TZFS2
+?MCORX:     CALLBNK MCORX,       TZMM_TZFS3
+?DUMPBC:    CALLBNK DUMPBC,      TZMM_TZFS3
+?DUMPX:     CALLBNK DUMPX,       TZMM_TZFS3
+?DUMP:      CALLBNK DUMP,        TZMM_TZFS3
+?INITMEMX:  CALLBNK INITMEMX,    TZMM_TZFS3
+?SETVMODE:  CALLBNK SETVMODE,    TZMM_TZFS2
+?SETVGAMODE:CALLBNK SETVGAMODE,  TZMM_TZFS2
+?SETFREQ:   CALLBNK SETFREQ,     TZMM_TZFS2
             ;-----------------------------------------
 
 
@@ -112,38 +120,54 @@ TZFS_2:     LD      (HL),A
             ; START OF RFS INITIALISATION AND COMMAND ENTRY PROCESSOR FUNCTIONALITY.
             ;-------------------------------------------------------------------------------
             ;
-            ; Replacement command processor in place of the SA1510 command processor.
+            ; Replacement command processor in place of the ROM MONITOR command processor.
             ;
 MONITOR:    LD      A, (SCRNMODE)
-            CP      1
-            JR      Z, SET80CHAR
-            CP      0
-            JR      NZ, SIGNON
+            LD      C, A
+            BIT     1, A                                                 ; FPGA video enabled?
+            JR      Z, MONITOR1
             ;
-SET40CHAR:  IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current video mode.
-            AND     ~MODE_80CHAR                                         ; Clear 80 char flag.
+            IN      A,(CPLDCFG)
+            OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware translation to MZ700 mode.
+            OUT     (CPLDCFG),A                                 
+            ;
+MONITOR1:   LD      A, C                                                 ; Recall screen mode.
+            BIT     0, A
+            JR      NZ, SET80CHAR
+            ;
+SET40CHAR:  IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            JR      Z,SET40_1
+            ;
+            AND     007H                                                 ; Get the base machine mode, use as the starting mode for the video.
+            LD      D, A
+            LD      A, C                                                 ; Get the VGA mode and add.
+            AND     0C0H
+            OR      D
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
-            LD      A, 0                                                 ; Using MROM in Bank 0 = 40 char mode.
-            LD      (DSPCTL), A                                          ; Set hardware register to select 40char mode.
-            ENDIF
-            LD      A, 0
+SET40_1:    LD      A, 0
             LD      (SPAGE), A                                           ; Allow MZ80A scrolling
             JR      SIGNON
-SET80CHAR:  IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current video mode.
+            ;
+SET80CHAR:  IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            JR      Z,SET40_1                                            ; No hardware so cannot set 80 char mode.
+            ;
+            AND     007H
             OR      MODE_80CHAR                                          ; Set 80 char flag.
+            LD      D, A
+            LD      A, C                                                 ; Get the VGA mode and add.
+            AND     0C0H
+            OR      D
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
-            LD      A, 128                                               ; Using MROM in Bank 1 = 80 char mode.
-            LD      (DSPCTL), A                                          ; Set hardware register to select 80char mode.
-            ENDIF
-            LD      A, 1
-            LD      A, 0FFH
+            LD      A, C                                                 ; Indicate we are using the FPGA video hardware.
+            SET     1, A
+            LD      (SCRNMODE), A
+            ;
+SET80_1:    LD      A, 0FFH
             LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
             ;
-SIGNON:     LD      A,0C4h                                               ; Move cursor left to overwrite part of SA-1510 monitor banner.
+SIGNON:     LD      A,0C4h                                               ; Move cursor left to overwrite part of SA-1510/monitor banner.
             LD      E,004h                                               ; 4 times.
 SIGNON1:    CALL    DPCT
             DEC     E
@@ -152,7 +176,7 @@ SIGNON1:    CALL    DPCT
             CALL    ?PRINTMSG
 
             ; Command processor, table based.
-            ; A line is inpt then a comparison made with entries in the table. If a match is found then the bank and function
+            ; A line is input then a comparison made with entries in the table. If a match is found then the bank and function
             ; address are extracted and a call to the function @ given bank made. The commands can be of variable length
             ; but important to not that longer commands using the same letters as shorter commands must appear first in the table.
             ;
@@ -206,12 +230,18 @@ CMDCMPEND:  JP      ST1X
             ;
             ;         7     6     5:3    2:0
             ;        END  MATCH  UNUSED  SIZE 
-CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
-            DB      '4'                                                  ; 40 Char screen mode.
-            DW      SETMODE40
+CMDTABLE:   DB      000H | 000H | 000H | 003H
+            DB      "40A"                                                ; Switch to the 40char Sharp MZ-80A compatbile mode.
+            DW      SETMODE40A
+            DB      000H | 000H | 000H | 003H
+            DB      "80A"                                                ; Switch to the 80char Sharp MZ-80A compatbile mode.
+            DW      SETMODE80A
             DB      000H | 000H | 000H | 003H
             DB      "80B"                                                ; Switch to the Sharp MZ-80B compatbile mode.
             DW      SETMODE80B
+            DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
+            DB      '4'                                                  ; 40 Char screen mode.
+            DW      SETMODE40
             DB      000H | 000H | 000H | 001H
             DB      '8'                                                  ; 80 Char screen mode.
             DW      SETMODE80
@@ -232,10 +262,10 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DW      LOADCPM
             DB      000H | 000H | 000H | 001H
             DB      'C'                                                  ; Clear Memory.
-            DW      INITMEMX
+            DW      ?INITMEMX
             DB      000H | 000H | 000H | 001H
             DB      'D'                                                  ; Dump Memory.
-            DW      DUMPX
+            DW      ?DUMPX
             DB      000H | 000H | 000H | 002H
             DB      "EC"                                                 ; Erase file.
             DW      ERASESD
@@ -244,7 +274,7 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DW      EXITTZFS 
             DB      000H | 000H | 000H | 004H
             DB      "FREQ"                                               ; Set or change the CPU frequency.
-            DW      SETFREQ
+            DW      ?SETFREQ
             DB      000H | 000H | 000H | 001H
             DB      'F'                                                  ; RFS Floppy boot code.
             DW      FLOPPY
@@ -274,7 +304,7 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DW      LOADTAPE
             DB      000H | 000H | 000H | 001H
             DB      'M'                                                  ; Edit Memory.
-            DW      MCORX
+            DW      ?MCORX
             DB      000H | 000H | 000H | 001H
             DB      'P'                                                  ; Printer test.
             DW      PTESTX
@@ -305,6 +335,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 001H
             DB      'T'                                                  ; Timer test.
             DW      TIMERTST
+            DB      000H | 000H | 000H | 005H
+            DB      "VMODE"                                              ; Set VGA mode.
+            DW      ?SETVMODE
+            DB      000H | 000H | 000H | 003H
+            DB      "VGA"                                                ; Set VGA mode.
+            DW      ?SETVGAMODE
             DB      000H | 000H | 000H | 001H
             DB      'V'                                                  ; Verify CMT Save.
             DW      VRFYX
@@ -527,122 +563,163 @@ GOTOX:      CALL    HEXIYX
 
             ;====================================
             ;
-            ; Screen Width Commands
+            ; Screen Width and Mode Commands
             ;
             ;====================================
 
-            ; Commands to start the Sharp MZ-80A in its original mode loading either a 40 or 80 column BIOS as directed.
-SETMODE40:  IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current video mode.
-            AND     ~MODE_80CHAR                                         ; Clear 80 char flag.
+            ; Commands to start the machine in its original mode loading either a 40 or 80 column BIOS as directed.
+SETMODE40:  IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            AND     07H                                                  ; Get model info.
+            CP      MODE_MZ80A
+            JR      Z, SETMODE40A                                        ; MZ80A hardware so setup MZ80A 40 char mode.
+            CP      MODE_MZ700
+            JP      Z, SETMODE700                                        ; MZ700 hardware so setup MZ700 40 char mode.
+            LD      DE, MSGUNKNHW                                        ; Indicate detected hardware not yet handled.
+            CALL    ?PRINTMSG
+            RET                                                          ; Return status to caller, 0 = success.
+
+SETMODE80:  IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            AND     07H                                                  ; Get model info.
+            CP      MODE_MZ80A
+            JR      Z, SETMODE80A                                        ; MZ80A hardware so setup MZ80A 80 char mode.
+            CP      MODE_MZ700
+            JP      Z, SETMODE7008                                       ; MZ700 hardware so setup MZ700 80 char mode.
+            LD      DE, MSGUNKNHW                                        ; Indicate detected hardware not yet handled.
+            CALL    ?PRINTMSG
+            RET                                                          ; Return status to caller, 0 = success.
+
+            ; Start the machine as an MZ-80A in 40 char mode.
+SETMODE40A: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            LD      A,MODE_MZ80A                                         ; Set the tranZPUter CPLD hardware translation to MZ80A mode.
+            JR      Z,SETMODE40_1
+            LD      A,VMMODE_MZ80A                                       ; Setup the display to 40 char MZ80A mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
+            LD      A, MODE_MZ80A + MODE_VIDEO_FPGA                      ; Set the tranZPUter CPLD hardware translation to MZ80A mode with FPGA video enabled.
+SETMODE40_1:OUT     (CPLDCFG),A                                          ;
             XOR     A
-            LD      (DSPCTL), A
-            ENDIF
-            XOR     A
-            LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
-            ;
-            LD      A,TZSVC_CMD_LOAD40BIOS                               ; Request the I/O processor loads the SA1510 40column BIOS into memory.
+            LD      (SPAGE), A                                           ; Allow MZ80A scrolling
+            LD      A,(SCRNMODE)
+            RES     0, A
+            LD      (SCRNMODE),A                                         ; Bit 0 = 0 = 40char mode on reset.
+
+            IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
+            AND     007H
+            CP      MODE_MZ80A
+            JR      Z,SETMODE40_2
+            LD      A,SYSMODE_MZ80A                                      ; Setup the board to run at 2MHz
+            OUT     (SYSCTRL),A                                          ; Activate
+
+SETMODE40_2:LD      A,TZSVC_CMD_LOAD40ABIOS                              ; Request the I/O processor loads the SA1510 40column BIOS into memory.
 SETBIOS:    CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the result of load operation.
             OR      A
-            JP      Z,MONIT
+            JP      Z,MROMADDR
             LD      DE,MSGFAILBIOS
             CALL    ?PRINTMSG
             RET                                                          ; Return status to caller, 0 = success.
-SETMODE80:  IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current video mode.
-            OR      MODE_80CHAR                                          ; Set 80 char flag.
+
+            ; Start the machine as an MZ-80A in 80 char mode.
+SETMODE80A: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            LD      A, MODE_MZ80A                                        ; Set the tranZPUter CPLD hardware translation to MZ80A mode.
+            JR      Z,SETMODE40_1                                        ; No hardware so cannot do 80 char mode.
+            ;
+            LD      A,VMMODE_MZ80A + MODE_80CHAR                         ; Setup the display to 80 char MZ80A mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
-            LD      A, 128
-            LD      (DSPCTL), A
-            ENDIF
-            LD      A,1
+            LD      A, MODE_MZ80A + MODE_VIDEO_FPGA                      ; Set the tranZPUter CPLD hardware translation to MZ80A mode with FPGA video enabled.
+SETMODE80_1:OUT     (CPLDCFG),A                                          ;
+            LD      A, 0FFH
+            LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
+            LD      A,(SCRNMODE)
+            SET     0, A                                                 ; Indicate 80 column mode for startup.
             LD      (SCRNMODE),A
-            LD      A,TZSVC_CMD_LOAD80BIOS                               ; Request the I/O processor loads the SA1510 80column BIOS into memory.
+
+            IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
+            AND     007H
+            CP      MODE_MZ80A
+            JR      Z,SETMODE80_2
+            LD      A,SYSMODE_MZ80A                                      ; Setup the board to run at 2MHz
+            OUT     (SYSCTRL),A                                          ; Activate
+
+SETMODE80_2:LD      A,TZSVC_CMD_LOAD80ABIOS                              ; Request the I/O processor loads the SA1510 80column BIOS into memory.
             JR      SETBIOS
 
-            ; Commands to switch into MZ-700 compatible mode. This involves loading the original (but patched for keyboard use for v1.1) 1Z-013A BIOS
-            ; and changing the frequency, and on the v1.1 board also enabling of additional traps to detect and change memory mode which are catered for in 
-            ; hardware on v2+ boards..
-SETMODE700: IF BUILD_VIDEOMODULE = 1
+
+            ; Commands to switch into MZ-700 compatible mode. This involves switching the CPLD mode which makes hardware keyboard mapping
+            ; and changing the frequency, and also enabling of additional traps to detect and change memory mode which are catered for in 
+            ; hardware on v2+ boards.
+SETMODE700: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            LD      A, MODE_MZ700                                        ; Set the tranZPUter CPLD hardware translation to MZ700 mode.
+            JR      Z,SETMODE7_1
             LD      A,VMMODE_MZ700                                       ; Setup the display to 40 char MZ700 mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
+            LD      A, MODE_MZ700 + MODE_VIDEO_FPGA                      ; Set the tranZPUter CPLD hardware translation to MZ700 mode with FPGA video enabled.
+SETMODE7_1: OUT     (CPLDCFG),A                                          ;
             XOR     A
-            LD      (DSPCTL), A
-            ENDIF
-            XOR     A
+            LD      (SPAGE), A                                           ; Allow MZ80A scrolling
+            LD      A,(SCRNMODE)
+            RES     0, A
             LD      (SCRNMODE),A                                         ; 0 = 40char mode on reset.
+
+            IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
+            AND     007H
+            CP      MODE_MZ700
+            JR      Z,SETMODE7_2
             LD      A,SYSMODE_MZ700                                      ; Setup the board to run at 3.54MHz
             OUT     (SYSCTRL),A                                          ; Activate
-            LD      A,SET_MODE_MZ700                                     ; Set the tranZPUter CPLD hardware translation to MZ700 mode.
-            OUT     (CPLDCFG),A                                          ;
-            LD      A,TZSVC_CMD_LOAD700BIOS40                            ; Request the I/O processor loads the MZ700 1Z-013A 40column BIOS into memory.
+
+SETMODE7_2: LD      A,TZSVC_CMD_LOAD700BIOS40                            ; Request the I/O processor loads the MZ700 1Z-013A 40column BIOS into memory.
             JR      SETBIOS
 
-SETMODE7008:IF BUILD_VIDEOMODULE = 1
-            LD      A,VMMODE_MZ700 | MODE_80CHAR                         ; Setup the display to 80char MZ700 mode.
+SETMODE7008:IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            JR      Z,SETMODE7_1                                         ; No hardware so cannot select 80 char mode.
+            LD      A,VMMODE_MZ700 + MODE_80CHAR                         ; Setup the display to 80char MZ700 mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
-            LD      A, 128
-            LD      (DSPCTL), A
-            ENDIF
-            LD      A,1
+            LD      A, MODE_MZ700 + MODE_VIDEO_FPGA                      ; Set the tranZPUter CPLD hardware translation to MZ700 mode with FPGA video enabled.
+SETMODE78_1:OUT     (CPLDCFG),A                                          ;
+            LD      A, 0FFH
+            LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
+            LD      A,(SCRNMODE)
+            SET     0, A                                                 ; Indicate 80 column mode for startup.
             LD      (SCRNMODE),A
+
+            IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
+            AND     007H
+            CP      MODE_MZ700
+            JR      Z,SETMODE78_2
             LD      A,SYSMODE_MZ700                                      ; Setup the board to run at 3.54MHz
             OUT     (SYSCTRL),A                                          ; Activate
-            LD      A,SET_MODE_MZ700
-            OUT     (CPLDCFG),A                                          ; Set the CPLD compatibility mode.
-            LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
-            JR      SETBIOS
+
+SETMODE78_2:LD      A,TZSVC_CMD_LOAD700BIOS80                            ; Request the I/O processor loads the SA1510 80column BIOS into memory.
+            JP      SETBIOS
 
 
             ; Command to switch into the Sharp MZ-80B compatible mode. This involves loading the IPL, switching
             ; the frequency to 4MHz and enabling of additional traps to detect and change memory mode.
-SETMODE80B: IF BUILD_VIDEOMODULE = 1
-            LD      A,VMMODE_MZ80B | MODE_80CHAR                         ; Setup the display to 80char MZ80B mode.
+SETMODE80B: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            JP      Z,SETMODE40_1                                        ; Without the video hardware cannot select 80B mode.
+            LD      A,VMMODE_MZ80B + MODE_80CHAR                         ; Setup the display to 80char MZ80B mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            ELSE
-            LD      A, 128
-            LD      (DSPCTL), A
-            ENDIF
-            LD      A,1
+            LD      A, MODE_MZ80B + MODE_VIDEO_FPGA                      ; Set the tranZPUter CPLD hardware translation to MZ80B mode with FPGA video enabled.
+SETMODE8B_1:OUT     (CPLDCFG),A                                          ;
+            LD      A, 0FFH
+            LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
+            LD      A,(SCRNMODE)
+            SET     0,A                                                  ; Indicate 80 column mode for startup.
             LD      (SCRNMODE),A
-            LD      A,SYSMODE_MZ80B                                      ; Setup the board to run at 4MHz
-            OUT     (SYSCTRL),A                                          ; Activate
-            LD      A,TZSVC_CMD_LOAD80BIPL                               ; Request the I/O processor loads the IPL and switches frequency.
-            JR      SETBIOS
 
-            ; Method to enable/disable the alternate CPU frequency and change it's values.
-            ;
-SETFREQ:    CALL    ConvertStringToNumber                                ; Convert the input into 0 (disable) or frequency in KHz.
-            JR      NZ,BADNUMERR
-            LD      (TZSVC_CPU_FREQ),HL                                  ; Set the required frequency in the service structure.
-            LD      A,H
-            CP      L
-            JR      NZ,SETFREQ1
-            LD      A, TZSVC_CMD_CPU_BASEFREQ                            ; Switch to the base frequency.
-            JR      SETFREQ2
-SETFREQ1:   LD      A, TZSVC_CMD_CPU_ALTFREQ                             ; Switch to the alternate frequency.
-SETFREQ2:   CALL    SVC_CMD
-            OR      A
-            JR      NZ,SETFREQERR
-            LD      A,H
-            CP      L
-            RET     Z                                                    ; If we are disabling the alternate cpu frequency (ie. = 0) exit.
-            LD      A, TZSVC_CMD_CPU_CHGFREQ                             ; Switch to the base frequency.
-            CALL    SVC_CMD
-            OR      A
-            JR      NZ,SETFREQERR
-            RET
-            ;
-SETFREQERR: LD      DE,MSGFREQERR
-            JR      BADNUM2
-BADNUMERR:  LD      DE,MSGBADNUM
-BADNUM2:    CALL    ?PRINTMSG
-            RET
+            IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
+            AND     007H
+            CP      MODE_MZ700
+            JR      Z,SETMODE8B_2
+            LD      A,SYSMODE_MZ700                                      ; Setup the board to run at 3.54MHz
+            OUT     (SYSCTRL),A                                          ; Activate
+
+SETMODE8B_2:LD      A,TZSVC_CMD_LOAD80BIPL                               ; Request the I/O processor loads the IPL and switches frequency.
+            JP      SETBIOS
 
             ; Exit out of TZFS - This entails clearing the DRAM as it wont have been refreshed, switching memory mode and then branching to the monitor start entry point.
             ; This is all done by the I/O processor as we need to be in memory mode 0 where all tranZPUter memory is paged out.
@@ -650,168 +727,10 @@ BADNUM2:    CALL    ?PRINTMSG
 EXITTZFS:   LD      A,TZSVC_CMD_EXIT                                     ; Request the I/O processor restarts the host in original mode.
             CALL    SVC_CMD                                              
             OR      A
-            JP      Z,MONIT
+            JP      Z,MROMADDR
             LD      DE,MSGFAILEXIT                                       ; Print message if the I/O processor cant process the command.
             CALL    ?PRINTMSG
             RET                                                          ; Return status to caller, 0 = success.
-
-            ;
-            ;       Memory correction
-            ;       command 'M'
-            ;
-MCORX:      CALL    READ4HEX                                             ; correction address
-            RET     C
-MCORX1:     CALL    NLPHL                                                ; corr. adr. print
-            CALL    SPHEX                                                ; ACC ASCII display
-            CALL    PRNTS                                                ; space print
-            LD      DE,BUFER                                             ; Input the data.
-            CALL    GETL
-            LD      A,(DE)
-            CP      01Bh                                                 ; If . pressed, exit.
-            RET     Z
-            PUSH    HL
-            POP     BC
-            CALL    HLHEX                                                ; If the existing address is no longer hex, reset. HLASCII(DE). If it is hex, take as the address to store data into.
-            JR      C,MCRX3                                              ; Line is corrupted as the address is no longer in Hex, reset.
-            INC     DE
-            INC     DE
-            INC     DE
-            INC     DE
-            INC     DE                                                   ;
-            CALL    _2HEX                                                ; Get value entered.
-            JR      C,MCORX1                                             ; Not hex, reset.
-            CP      (HL)                                                 ; Not same as memory, reset.
-            JR      NZ,MCORX1
-            INC     DE                                                   ; 
-            LD      A,(DE)                                               ; Check if no data just CR, if so, move onto next address.
-            CP      00Dh                                                 ; not correction
-            JR      Z,MCRX2
-            CALL    _2HEX                                                ; Get the new entered data. ACCHL(ASCII)
-            JR      C,MCORX1                                             ; New data not hex, reset.
-            LD      (HL),A                                               ; data correct so store.
-MCRX2:      INC     HL
-            JR      MCORX1
-MCRX3:      LD      H,B                                                  ; memory address
-            LD      L,C
-            JR      MCORX1
-
-
-            ; Dump method when called interbank as HL cannot be passed.
-            ;
-            ; BC = Start
-            ; DE = End
-DUMPBC:     PUSH    BC
-            POP     HL
-            JR      DUMP
-
-            ; Command line utility to dump memory.
-            ; Get start and optional end addresses from the command line, ie. XXXX[XXXX]
-            ; Paging is implemented, 23 lines at a time, pressing U goes back 100H, pressing D scrolls down 100H
-            ;
-DUMPX:      CALL    HLHEX                                                ; Get start address if present into HL
-            JR      NC,DUMPX1
-            LD      DE,(DUMPADDR)                                        ; Setup default start and end.
-            JR      DUMPX2
-DUMPX1:     INC     DE
-            INC     DE
-            INC     DE
-            INC     DE
-            PUSH    HL
-            CALL    HLHEX                                                ; Get end address if present into HL
-            POP     DE                                                   ; DE = Start address
-            JR      NC,DUMPX4                                            ; Both present? Then display.
-DUMPX2:     LD      A,(SCRNMODE)
-            OR      A
-            LD      HL,000A0h                                            ; Make up an end address based on 160 bytes from start for 40 column mode.
-            JR      Z,DUMPX3
-            LD      HL,00140h                                            ; Make up an end address based on 320 bytes from start for 80 column mode.
-DUMPX3:     ADD     HL,DE
-DUMPX4:     EX      DE,HL
-            ;
-            ; HL = Start
-            ; DE = End
-DUMP:       LD      A,23
-DUMP0:      LD      (TMPCNT),A
-            LD      A,(SCRNMODE)                                         ; Configure output according to screen mode, 40/80 chars.
-            OR      A
-            JR      NZ,DUMP1
-            LD      B,008H                                               ; 40 Char, output 23 lines of 40 char.
-            LD      C,017H
-            JR      DUMP2
-DUMP1:      LD      B,010h                                               ; 80 Char, output 23 lines of 80 char.
-            LD      C,02Fh
-DUMP2:      CALL    NLPHL
-DUMP3:      CALL    SPHEX
-            INC     HL
-            PUSH    AF
-            LD      A,(DSPXY)
-            ADD     A,C
-            LD      (DSPXY),A
-            POP     AF
-            CP      020h
-            JR      NC,DUMP4
-            LD      A,02Eh
-DUMP4:      CALL    ?ADCN
-            CALL    PRNT3
-            LD      A,(DSPXY)
-            INC     C
-            SUB     C
-            LD      (DSPXY),A
-            DEC     C
-            DEC     C
-            DEC     C
-            PUSH    HL
-            SBC     HL,DE
-            POP     HL
-            JR      NC,DUMP9
-DUMP5:      DJNZ    DUMP3
-            LD      A,(TMPCNT)
-            DEC     A
-            JR      NZ,DUMP0
-DUMP6:      CALL    GETKY                                                ; Pause, X to quit, D to go down a block, U to go up a block.
-            OR      A
-            JR      Z,DUMP6
-            CP      'D'
-            JR      NZ,DUMP7
-            LD      A,8
-            JR      DUMP0
-DUMP7:      CP      'U'
-            JR      NZ,DUMP8
-            PUSH    DE
-            LD      DE,00100H
-            OR      A
-            SBC     HL,DE
-            POP     DE
-            LD      A,8
-            JR      DUMP0
-DUMP8:      CP      'X'
-            JR      Z,DUMP9
-            JR      DUMP
-DUMP9:      LD      (DUMPADDR),HL                                        ; Store last address so we can just press D for next page,
-            CALL    NL
-            RET
-
-
-            ; Cmd tool to clear memory.
-            ; Read cmd line for an init byte, if one not present, use 00H
-            ;
-INITMEMX:   CALL    _2HEX
-            JR      NC,INITMEMX1
-            LD      A,000H
-INITMEMX1:  PUSH    AF
-            LD      DE,MSGINITM
-            CALL    ?PRINTMSG
-            LD      HL,1200h
-            LD      BC,0D000h - 1200h
-            POP     DE
-CLEAR1:     LD      A,D
-            LD      (HL),A
-            INC     HL
-            DEC     BC
-            LD      A,B
-            OR      C
-            JP      NZ,CLEAR1
-            RET
 
 
             ; Method to get the CMT parameters from the command line.
@@ -1524,7 +1443,7 @@ PRTDIR:     PUSH    BC
             PUSH    HL
             ;
             LD      A,(SCRNMODE)
-            CP      0
+            BIT     0, A
             LD      H,47
             JR      Z,PRTDIR0
             LD      H,93
@@ -1561,7 +1480,7 @@ PRTNOWAIT:  LD      A,E
             JR      C, PRTDIR2
             ;
             LD      A,(SCRNMODE)                                         ; 40 Char mode? 2 columns of filenames displayed so NL.
-            CP      0
+            BIT     0,A
             JR      Z,PRTDIR1
             ;
             LD      A,L                                                  ; 80 Char mode we print 4 columns of filenames.

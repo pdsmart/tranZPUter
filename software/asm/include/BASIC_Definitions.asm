@@ -33,6 +33,12 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
+BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_MZ700             EQU     1                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_RFS               EQU     0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
+BUILD_TZFS              EQU     1                                        ; Build for TZFS where extended memory is available.
+INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ;-----------------------------------------------
 
@@ -56,13 +62,6 @@ TAPELOAD                EQU     1
 CTAPELOAD               EQU     2
 TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
-
-; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_RFS               EQU     0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
-BUILD_TZFS              EQU     1                                        ; Build for TZFS where extended memory is available.
-BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
-INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
@@ -199,6 +198,7 @@ CTRL_Y                  EQU     019H
 CTRL_Z                  EQU     01AH
 ESC                     EQU     01BH
 CTRL_SLASH              EQU     01CH
+CTRL_LB                 EQU     01BH
 CTRL_RB                 EQU     01DH
 CTRL_CAPPA              EQU     01EH
 CTRL_UNDSCR             EQU     01FH
@@ -213,7 +213,8 @@ INSERT                  EQU     0F6H
 CLRKEY                  EQU     0F7H
 HOMEKEY                 EQU     0F8H
 BREAKKEY                EQU     0FBH
-
+GRAPHKEY                EQU     0FCH
+ALPHAKEY                EQU     0FDH
 
 ;-----------------------------------------------
 ; IO ports in hardware and values.
@@ -235,6 +236,18 @@ VMGREENMASK             EQU     0FBH                                     ; Video
 VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
 
+;-----------------------------------------------
+; CPLD Configuration constants.
+;-----------------------------------------------
+MODE_MZ80K              EQU     0                                        ; Set to MZ-80K mode.
+MODE_MZ80C              EQU     1                                        ; Set to MZ-80C mode.
+MODE_MZ1200             EQU     2                                        ; Set to MZ-1200 mode.
+MODE_MZ80A              EQU     3                                        ; Set to MZ-80A mode (base mode on MZ-80A hardware).
+MODE_MZ700              EQU     4                                        ; Set to MZ-700 mode (base mode on MZ-700 hardware).
+MODE_MZ800              EQU     5                                        ; Set to MZ-800 mode.
+MODE_MZ80B              EQU     6                                        ; Set to MZ-80B mode.
+MODE_MZ2000             EQU     7                                        ; Set to MZ-2000 mode.
+MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
 
 ;-----------------------------------------------
 ; Video Module control bits.

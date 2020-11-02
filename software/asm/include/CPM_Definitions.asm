@@ -33,6 +33,9 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
+BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_MZ80A             EQU     1                                        ; Build for the Sharp MZ-80A base hardware.
+BUILD_MZ700             EQU     0                                        ; Build for the Sharp MZ-700 base hardware.
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
@@ -68,9 +71,15 @@ IOBYT                   EQU     00003H                                   ; IOBYT
 CDISK                   EQU     00004H                                   ; Address of Current drive name and user number
 CPMUSERDMA              EQU     00080h                                   ; Default CPM User DMA address.
 DPSIZE                  EQU     16                                       ; Size of a Disk Parameter Block
-FDCJMP1BLK              EQU     0F3C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+; Old Flash RAM mapping
+;FDCJMP1BLK              EQU     0F3C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+;FDCJMP1                 EQU     0F3FEH                                   ; ROM paged vector 1.
+;FDCJMP2BLK              EQU     0F7C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+;FDCJMP2                 EQU     0F7FEH                                   ; ROM paged vector 2.
+; New CPLD mapping
+FDCJMP1BLK              EQU     0F3FEH                                   ; The memory mapping CPLD has 1byte granularity so we need to block just 2 bytes per FDC vector.
 FDCJMP1                 EQU     0F3FEH                                   ; ROM paged vector 1.
-FDCJMP2BLK              EQU     0F7C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
+FDCJMP2BLK              EQU     0F7FEH                                   ; The memory mapping CPLD has 1byte granularity so we need to block just 2 bytes per FDC vector.
 FDCJMP2                 EQU     0F7FEH                                   ; ROM paged vector 2.
 
 
@@ -96,7 +105,6 @@ SCRNSZ:                 EQU     COLW * ROW                               ; Total
 SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
 MODE80C:                EQU     1
 
-BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 
 ; BIOS equates
 MAXDISKS                EQU     7                                        ; Max number of Drives supported
@@ -189,6 +197,7 @@ CTRL_Y                  EQU     019H
 CTRL_Z                  EQU     01AH
 ESC                     EQU     01BH
 CTRL_SLASH              EQU     01CH
+CTRL_LB                 EQU     01BH
 CTRL_RB                 EQU     01DH
 CTRL_CAPPA              EQU     01EH
 CTRL_UNDSCR             EQU     01FH
@@ -203,6 +212,8 @@ INSERT                  EQU     0F6H
 CLRKEY                  EQU     0F7H
 HOMEKEY                 EQU     0F8H
 BREAKKEY                EQU     0FBH
+GRAPHKEY                EQU     0FCH
+ALPHAKEY                EQU     0FDH
 
 
 ; MMC/SD command (SPI mode)
@@ -251,14 +262,27 @@ SVCREQ                  EQU     068H                                     ; I/O P
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
-SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
-GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
+;SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
+;GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
 VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
 VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
 VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMGREENMASK             EQU     0FBH                                     ; Video Module Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+
+;-----------------------------------------------
+; CPLD Configuration constants.
+;-----------------------------------------------
+MODE_MZ80K              EQU     0                                        ; Set to MZ-80K mode.
+MODE_MZ80C              EQU     1                                        ; Set to MZ-80C mode.
+MODE_MZ1200             EQU     2                                        ; Set to MZ-1200 mode.
+MODE_MZ80A              EQU     3                                        ; Set to MZ-80A mode (base mode on MZ-80A hardware).
+MODE_MZ700              EQU     4                                        ; Set to MZ-700 mode (base mode on MZ-700 hardware).
+MODE_MZ800              EQU     5                                        ; Set to MZ-800 mode.
+MODE_MZ80B              EQU     6                                        ; Set to MZ-80B mode.
+MODE_MZ2000             EQU     7                                        ; Set to MZ-2000 mode.
+MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
 
 ;-----------------------------------------------
 ; Video Module control bits.
@@ -268,13 +292,13 @@ MODE_COLOUR             EQU     010H                                     ; Enabl
 SYSMODE_MZ80A           EQU     000H                                     ; System board mode MZ80A, 2MHz CPU/Bus.
 SYSMODE_MZ80B           EQU     001H                                     ; System board mode MZ80B, 4MHz CPU/Bus.
 SYSMODE_MZ700           EQU     002H                                     ; System board mode MZ700, 3.54MHz CPU/Bus.
-VMMODE_MZ80A            EQU     000H                                     ; Video mode = MZ80A
-VMMODE_MZ700            EQU     001H                                     ; Video mode = MZ700
-VMMODE_MZ800            EQU     002H                                     ; Video mode = MZ800
-VMMODE_MZ80B            EQU     003H                                     ; Video mode = MZ80B
-VMMODE_MZ80K            EQU     004H                                     ; Video mode = MZ80K
-VMMODE_MZ80C            EQU     005H                                     ; Video mode = MZ80C
-VMMODE_MZ1200           EQU     006H                                     ; Video mode = MZ1200
+VMMODE_MZ80K            EQU     000H                                     ; Video mode = MZ80K
+VMMODE_MZ80C            EQU     001H                                     ; Video mode = MZ80C
+VMMODE_MZ1200           EQU     002H                                     ; Video mode = MZ1200
+VMMODE_MZ80A            EQU     003H                                     ; Video mode = MZ80A
+VMMODE_MZ700            EQU     004H                                     ; Video mode = MZ700
+VMMODE_MZ800            EQU     005H                                     ; Video mode = MZ800
+VMMODE_MZ80B            EQU     006H                                     ; Video mode = MZ80B
 VMMODE_MZ2000           EQU     007H                                     ; Video mode = MZ2000
 VMMODE_PCGRAM           EQU     020H                                     ; Enable PCG RAM.
 VMMODE_VGA_OFF          EQU     000H                                     ; Set VGA mode off, external monitor is driven by standard internal signals.
@@ -294,7 +318,8 @@ TZMM_TZFS3              EQU     004H ; TZMM_ENIOWAIT                     ; TZFS 
 TZMM_TZFS4              EQU     005H ; TZMM_ENIOWAIT                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 3.
 TZMM_CPM                EQU     006H ; TZMM_ENIOWAIT                     ; CPM main memory configuration, all memory on the tranZPUter board, 64K block 4 selected. Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_CPM2               EQU     007H ; TZMM_ENIOWAIT                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
-                                                                         ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+                                                                         ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3FE:F3FF & F7FE:F7FF (floppy disk paging vectors) which resides on the mainboard.
+TZMM_COMPAT             EQU     008H ; TZMM_ENIOWAIT                     ; Original mode but with main DRAM in Bank 0 to allow bootstrapping of programs from other machines such as the MZ700.
 TZMM_MZ700_0            EQU     00AH ; TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
 TZMM_MZ700_1            EQU     00BH ; TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_2            EQU     00CH ; TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.

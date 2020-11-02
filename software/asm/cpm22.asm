@@ -3746,6 +3746,7 @@ CKSUMTBL: DB   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
            INCLUDE "CPM_Definitions.asm"
            INCLUDE "cpm22-bios.asm"
 
+           ALIGN_NOPS        CBIOSSTART
 
 ;*
 ;******************   E N D   O F   C P / M   *****************

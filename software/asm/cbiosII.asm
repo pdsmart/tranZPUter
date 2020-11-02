@@ -158,21 +158,22 @@ CHGCURSMODE DS      1
 ANSIMODE    DS      1                                                    ; 1 = on, 0 = off
 COLOUR      EQU     0
 
+LVAREND     EQU     $                                                    ; End of local page variables
+
             IF $ > 0300H
                 ERROR "Keybuf var not aligned, addr=%s, required=%s"; % $, 0300H
             ENDIF
             ALIGN_NOPS 0300H
-KEYBUF:     DS      KEYBUFSIZE                                           ; Interrupt driven keyboard buffer.
-KEYCOUNT:   DS      1
-KEYWRITE:   DS      2                                                    ; Pointer into the buffer where the next character should be placed.
-KEYREAD:    DS      2                                                    ; Pointer into the buffer where the next character can be read.
-KEYLAST:    DS      1                                                    ; KEY LAST VALUE
-KEYRPT:     DS      1                                                    ; KEY REPEAT COUNTER
+KEYBUF:     DS      KEYBUFSIZE, 0DH                                      ; Interrupt driven keyboard buffer.
+KEYCOUNT:   DS      1, 000H
+KEYWRITE:   DS      2, 000H                                              ; Pointer into the buffer where the next character should be placed.
+KEYREAD:    DS      2, 000H                                              ; Pointer into the buffer where the next character can be read.
+KEYLAST:    DS      1, 000H                                              ; KEY LAST VALUE
+KEYRPT:     DS      1, 000H                                              ; KEY REPEAT COUNTER
 
             DS      64, 0FFH                                             ; Stack space for cold and warm boot.
 BOOTSTACK   EQU     $
             ;
-LVAREND     EQU     $                                                    ; End of local page variables
 
             ; Start of CPM entry points.
             ;
@@ -206,6 +207,11 @@ QBOOT_:     DI                                                           ; Disab
             ;
             LD      SP,BOOTSTACK                                         ; Setup to use local stack until CPM takes over.
             ;
+            LD      HL,0066H                                             ; Set NMI so it doesnt bother us.
+            LD      (HL), 0EDH                                           ; Set to RETN instruction.
+            INC     HL
+            LD      (HL), 045H
+            ;
             LD      HL,GVARSTART                                         ; Start of global variable area
             LD      BC,GVAREND-GVARSTART                                 ; Size of global variable area.
             XOR     A
@@ -229,11 +235,6 @@ INIT2:      LD      (HL),D                                               ; Clear
             JR      NZ,INIT2
             ;
             CALL    MODE                                                 ; Configure 8255 port C, set Motor Off, VGATE to 1 (off) and INTMSK to 0 (interrupts disabled).
-            LD      A,016H
-            CALL    PRNT
-            LD      A,017H                                               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
-            LD      HL,ARAM
-            CALL    CLR8
             LD      A,004H
             LD      (TEMPW),A                                            ; Setup the tempo for sound output.
 
@@ -258,17 +259,38 @@ INIT3:      ; Setup keyboard buffer control.
             LD      (FLASHCTL),A
 
 INIT80CHAR: IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current display mode.
+            IN      A, (CPLDINFO)                                        ; Get hardware information.
+            BIT     3,A
+            JR      Z, INIT40CHAR                                        ; If no video module present then need to use 40 char mode.
+            AND     007H
+            LD      D, A
+            OR      MODE_VIDEO_FPGA                                      ; Ensure the video hardware is enabled.
+            OUT     (CPLDCFG),A
+            LD      A, D
             OR      MODE_80CHAR                                          ; Enable 80 char display.
+            LD      C, A
+            IN      A, (VMCTRL)                                          ; Get current graphics mode and vga mode.
+            AND     0C0H                                                 ; Mask out all but VGA mode.
+            OR      C                                                    ; Add in new hardware/80char mode.
             OUT     (VMCTRL),A                                           ; Activate.
-            LD      A, SYSMODE_MZ80B                                     ; Set bus and default CPU speed to 4MHz
-            OUT     (SYSCTRL),A                                          ; Activate.
+            LD      A, D
+            CP      MODE_MZ80A                                           ; Check to see if this is the MZ80A, if so, change BUS speed.
+            JR      NZ, INIT80END
+          ; LD      A, SYSMODE_MZ80B                                     ; Set bus and default CPU speed to 4MHz
+          ; OUT     (SYSCTRL),A                                          ; Activate.            
+            JR      INIT80END
+INIT40CHAR:                                                              ; Currently nothing to do!
             ELSE
             ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
             LD      A, 128                                               ; 80 char mode.
             LD      (DSPCTL), A
             ENDIF
             ;
+INIT80END:  LD      A,016H
+            CALL    PRNT
+            LD      A,071H                                               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+            LD      HL,ARAM
+            CALL    CLR8
             CALL    MLDSP
             CALL    NL
             LD      DE,CBIOSSIGNON                                       ; Start of sign on message, as devices are detected they are added to the sign on.
@@ -360,7 +382,7 @@ STRT7:      LD      A,(CDIRBUF)
             ;
 STRT8:      LD      A,(DRVAVAIL)
             BIT     0,A
-            JR      Z,STRT8                                              ; No Floppy drives available then skip.
+            JR      Z,STRT10                                              ; No Floppy drives available then skip.
             ;
             LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
             LD      (CDIRBUF+3),BC
@@ -898,7 +920,6 @@ L09E8:      LD      (HL),D
             RET     
 
 
-
             ;-------------------------------------------------------------------------------
             ; START OF SD CARD DRIVE FUNCTIONALITY
             ;-------------------------------------------------------------------------------
@@ -1368,8 +1389,14 @@ TIMESET:    LD      (TIMESEC),HL                                         ; Load 
             LD      (HL),E                                               ; Place current time in Counter 2
             LD      (HL),D
             DEC     HL
-            LD      (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
-            LD      (HL),001H
+            IF      BUILD_MZ80A = 1
+              LD    (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
+              LD    (HL),001H
+            ENDIF
+            IF      BUILD_MZ700 = 1
+              LD    (HL),09CH                                            ; Place divisor in Counter 1, = 156, thus 15611/156 = 100
+              LD    (HL),000H
+            ENDIF
             NOP     
             NOP     
             NOP     
@@ -1381,7 +1408,7 @@ TIMESET:    LD      (TIMESEC),HL                                         ; Load 
 
             ; Time Read;
             ; Returns BC:DE:HL where HL is lower 16bits, DE is middle 16bits and BC is upper 16bits of milliseconds since 01/01/1980.
-TIMEREAD:  LD      HL,(TIMESEC+4)
+TIMEREAD:   LD      HL,(TIMESEC+4)
             PUSH    HL
             POP     BC
             LD      HL,(TIMESEC+2)
@@ -2042,8 +2069,8 @@ REBOOT:     LD      A,TZMM_TZFS
             IN      A,(VMCTRL)                                           ; Get current display mode.
             AND     ~MODE_80CHAR                                         ; Disable 80 char display.
             OUT     (VMCTRL),A                                           ; Activate.
-            LD      A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
-            OUT     (SYSCTRL),A                                          ; Activate.
+         ;  LD      A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
+         ;  OUT     (SYSCTRL),A                                          ; Activate.
             ELSE
             ; Change to 40 character mode on the 40/80 Char Colour board v1.0.
             LD      A, 0                                                 ; 40 char mode.
@@ -2141,7 +2168,7 @@ PRCKYE:
             JP      NC,CURS2
             LD      L,000H
             INC     H
-            CP      ROW - 1                 ; End of line?
+            CP      ROW - 1                                              ; End of line?
             JR      Z,.CP1                 
             INC     H
             JP      CURS1
@@ -2149,26 +2176,41 @@ PRCKYE:
 .CP1:       LD      (DSPXY),HL
 
             ; SCROLLER
-.SCROL:     LD      BC,SCRNSZ - COLW        ; Scroll COLW -1 lines
-            LD      DE,SCRN                 ; Start of the screen.
-            LD      HL,SCRN + COLW          ; Start of screen + 1 line.
+.SCROL:     LD      BC,SCRNSZ - COLW                                     ; Scroll COLW -1 lines
+            LD      DE,SCRN                                              ; Start of the screen.
+            LD      HL,SCRN + COLW                                       ; Start of screen + 1 line.
+            PUSH    BC                                                   ; 1000 STORE
             LDIR    
+            POP     BC
+            PUSH    DE
+            LD      DE,SCRN + 800H                                       ; COLOR RAM SCROLL
+            LD      HL,SCRN + 800H + COLW                                ; SCROLL TOP + 1 LINE
+            LDIR    
+            LD      B,COLW                                               ; ONE LINE
             EX      DE,HL
-            LD      B,COLW                  ; Clear last line at bottom of screen.
-            CALL    CLER
-            LD      BC,0001AH
-            LD      DE,MANG
-            LD      HL,MANG + 1
+            IF      MODE80C = 0
+              LD    A,071H                                               ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+            ELSE
+              LD    A,071H                                               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+            ENDIF
+           ;LD      A,71H                                                ; COLOR RAM INITIAL DATA
+            CALL    DINT
+            POP     HL
+            LD      B,COLW
+            CALL    CLER                                                 ; LAST LINE CLEAR
+            LD      BC,ROW + 1                                           ; ROW NUMBER+1
+            LD      DE,MANG                                              ; LOGICAL MANAGEMENT
+            LD      HL,MANG+1
             LDIR    
-            LD      (HL),000H
+            LD      (HL),0
             LD      A,(MANG)
             OR      A
             JP      Z,RSTR
-            LD      HL,DSPXY + 1
+            LD      HL,DSPXY+1
             DEC     (HL)
-            JR      .SCROL                   
+            JR      .SCROL
 
-DPCT:       PUSH    AF                      ; Display control, character is mapped to a function call.
+DPCT:       PUSH    AF                                                   ; Display control, character is mapped to a function call.
             PUSH    BC
             PUSH    DE
             PUSH    HL
@@ -2237,15 +2279,6 @@ L098C:      SUB     00AH
             JR      NZ,L098C                
             RET     
 
-            ; Delete a character on screen.
-DELCHR:     LD      A,0C7H
-            CALL    DPCT
-            JR      PRNT1
-
-NEWLINE:    CALL    NL
-            JR      PRNT1
-
-            ;
             ; Function to disable the cursor display.
             ;
 CURSOROFF:  DI
@@ -2331,6 +2364,16 @@ PRNT:       DI
 PRNT1:      CALL    DSPXYTOADDR
             EI
             RET     
+
+            ; Delete a character on screen.
+DELCHR:     LD      A,0C7H
+            CALL    DPCT
+            JR      PRNT1
+
+NEWLINE:    CALL    NL
+            JR      PRNT1
+
+            ;
 
             ;
             ; Function to print out the contents of HL as 4 digit Hexadecimal.
@@ -2487,6 +2530,13 @@ CLRS:       LD      HL,MANG
             LD      HL,SCRN
             PUSH    HL
             CALL    CLR8Z
+            IF      MODE80C = 0
+              LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+            ELSE
+              LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+            ENDIF
+           ;LD      A,71H                                                    ; COLOR DATA
+            CALL    CLR8                                                     ; D800H-DFFFH CLEAR            
             POP     HL
 CLRS1:      LD      A,(SCLDSP)
 HOM0:       LD      HL,00000H
@@ -3527,7 +3577,7 @@ DPBTMPL:    DW      0000H, 0000H, 0000H, 0000H, CDIRBUF
             ; Test Message table
             ;--------------------------------------
 
-CBIOSSIGNON:DB      "** C-BIOS v1.00, (C) P.D. Smart, 2020. Drives:",                  NUL
+CBIOSSIGNON:DB      "** C-BIOS v1.10, (C) P.D. Smart, 2020. Drives:",                  NUL
 CBIOSIGNEND:DB       " **",                                                    CR,     NUL
 CPMSIGNON:  DB      "CP/M v2.23 (64K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
 SDAVAIL:    DB      "SD",                                                              NUL
@@ -3784,7 +3834,7 @@ SEKTRKMSG:  DB      ",S=",   000H
 HSTTRKMSG:  DB      ",H=",   000H
 UNATRKMSG:  DB      ",U=",   000H
 CTLTRKMSG:  DB      ",C=",   000H
-DMAMSG:     DB      ",DMA=",   000H
+DMAMSG:     DB      ",DMA=", 000H
 INFOMSG:    DB      "AF=",   NUL
 INFOMSG2:   DB      ",BC=",  000H
 INFOMSG3:   DB      ",DE=",  000H
