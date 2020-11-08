@@ -59,6 +59,7 @@ entity VideoController700 is
         VZ80_IORQn                : in    std_logic;                                     -- Z80 IORQ.
         VZ80_RDn                  : in    std_logic;                                     -- Z80 RDn.
         VZ80_WRn                  : in    std_logic;                                     -- Z80 WRn.
+        VWAITn                    : out   std_logic;                                     -- WAIT signal to CPU when accessing video RAM when busy. 
 
         -- VGA & Composite output signals.
         VGA_R                     : out   std_logic_vector(3 downto 0);                  -- 16 level Red output.
@@ -75,7 +76,6 @@ entity VideoController700 is
 
         -- RGB & Composite input signals.
         V_CSYNC                   : in    std_logic;                                     -- Composite sync from mainboard.
-        V_CVIDEO                  : in    std_logic;                                     -- Comnposite video from mainboard.
         V_HSYNCn                  : in    std_logic;                                     -- Horizontal sync (negative) from mainboard.
         V_VSYNCn                  : in    std_logic;                                     -- Vertical sync (negative) from mainboard.
         V_COLR                    : in    std_logic;                                     -- Composite and RF base frequency from mainboard.
@@ -158,6 +158,7 @@ begin
         VZ80_IORQn               => VZ80_IORQn,                                          -- Z80 IORQ.
         VZ80_RDn                 => VZ80_RDn,                                            -- Z80 RDn.
         VZ80_WRn                 => VZ80_WRn,                                            -- Z80 WRn.
+        VWAITn                   => VWAITn,                                              -- WAIT signal to CPU when accessing video RAM when busy. 
 
         -- VGA & Composite output signals.
         VGA_R                    => VGA_R,                                               -- 16 level Red output.
@@ -174,7 +175,6 @@ begin
 
         -- RGB & Composite input signals.
         V_CSYNC                  => V_CSYNC,                                             -- Composite sync from mainboard.
-        V_CVIDEO                 => V_CVIDEO,                                            -- Comnposite video from mainboard.
         V_HSYNCn                 => V_HSYNCn,                                            -- Horizontal sync (negative) from mainboard.
         V_VSYNCn                 => V_VSYNCn,                                            -- Vertical sync (negative) from mainboard.
         V_COLR                   => V_COLR,                                              -- Composite and RF base frequency from mainboard.

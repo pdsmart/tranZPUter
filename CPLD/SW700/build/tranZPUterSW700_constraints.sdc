@@ -110,12 +110,13 @@ set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {Z80_
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {Z80_RFSHn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {Z80_WRn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {Z80_RDn}]
+set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {VWAITn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {R_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {G_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {B_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {COLR_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CSYNC_IN}]
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CVIDEO_IN}]
+#set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CVIDEO_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {HSYNC_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {VSYNC_IN}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {VDATA[0]}]
@@ -215,7 +216,6 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_G
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_B}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_COLR}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_CSYNC}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_CVIDEO}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_HSYNC}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {V_VSYNC}]
 
@@ -247,7 +247,7 @@ set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {CTLCLK}]
 #set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {CTLCLK}]
 
 # For both configurations.
-set_false_path -from {cpld512:cpldl512Toplevel|KEY_SUBSTITUTE} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
+#set_false_path -from {cpld512:cpldl512Toplevel|KEY_SUBSTITUTE} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[4]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[3]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[2]} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}

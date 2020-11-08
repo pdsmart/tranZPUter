@@ -107,11 +107,11 @@ entity cpld512 is
         VZ80_IORQn      : out   std_logic;
         VZ80_RDn        : out   std_logic;
         VZ80_WRn        : out   std_logic;
+        VWAITn          : in    std_logic;                         -- Wait signal from asserted when Video RAM is busy.
         VZ80_CLK        : out   std_logic;
 
         -- Graphics signal in/out.
         V_CSYNC         : out   std_logic;
-        V_CVIDEO        : out   std_logic;
         V_HSYNC         : out   std_logic;
         V_VSYNC         : out   std_logic;
         V_G             : out   std_logic;
@@ -119,7 +119,7 @@ entity cpld512 is
         V_R             : out   std_logic;
         V_COLR          : out   std_logic;
         CSYNC_IN        : in    std_logic;
-        CVIDEO_IN       : in    std_logic;
+      --CVIDEO_IN       : in    std_logic;
         HSYNC_IN        : in    std_logic;
         VSYNC_IN        : in    std_logic;
         G_IN            : in    std_logic;
@@ -163,6 +163,7 @@ architecture rtl of cpld512 is
     signal MODE_CPLD_MZ2000       :       std_logic;
     signal MODE_CPLD_SWITCH       :       std_logic;
     signal MODE_CPLD_MB_VIDEOn    :       std_logic;                            -- Mainboard video, 0 = enabled, 1 = disabled. 
+    signal MODE_CPLD_VIDEO_WAIT   :       std_logic;                            -- FPGA video display period wait flag, 1 = enabled, 0 = disabled.
     signal CPLD_CFG_DATA          :       std_logic_vector(7 downto 0);         -- CPLD Configuration register.
     signal CPLD_INFO_DATA         :       std_logic_vector(7 downto 0);         -- CPLD status value.
 
@@ -208,7 +209,7 @@ architecture rtl of cpld512 is
     signal MODE_VIDEO_MZ80C       :       std_logic := '0';                     -- The machine is running in MZ80C mode.
     signal MODE_VIDEO_MZ1200      :       std_logic := '0';                     -- The machine is running in MZ1200 mode.
     signal MODE_VIDEO_MZ2000      :       std_logic := '0';                     -- The machine is running in MZ2000 mode.
-    signal GRAM_PAGE_ENABLE       :       std_logic_vector(1 downto 0);         -- Graphics mode page enable.
+    signal GRAM_PAGE_ENABLE       :       std_logic;                            -- Graphics mode page enable.
     signal MZ80B_VRAM_HI_ADDR     :       std_logic;                            -- Video RAM located at D000:FFFF when high.
     signal MZ80B_VRAM_LO_ADDR     :       std_logic;                            -- Video RAM located at 5000:7FFF when high.
     signal CS_FB_VMn              :       std_logic;                            -- Chip Select for the Video Mode register.
@@ -250,24 +251,27 @@ begin
     -- The mode can be changed by a Z80 transaction write into the register and it is acted upon if the mode switches between differing values. The Z80 write is typically used
     -- by host software such as RFS.
     --
-    -- [2:0] - Mode/emulated machine.
-    --         000 = MZ-80K
-    --         001 = MZ-80C
-    --         010 = MZ-1200
-    --         011 = MZ-80A
-    --         100 = MZ-700
-    --         101 = MZ-800
-    --         110 = MZ-80B
-    --         111 = MZ-2000
-    -- [3]   - Mainboard Video - 1 = Enable, 0 = Disable - This flag allows Z-80 transactions in the range D000:DFFF to be directed to the mainboard. When disabled all transactions
-    --                                                     can only be seen by the FPGA video logic. The FPGA uses this flag to enable/disable it's functionality.
+    -- [2:0] - R/W - Mode/emulated machine.
+    --               000 = MZ-80K
+    --               001 = MZ-80C
+    --               010 = MZ-1200
+    --               011 = MZ-80A
+    --               100 = MZ-700
+    --               101 = MZ-800
+    --               110 = MZ-80B
+    --               111 = MZ-2000
+    -- [3]   - R/W - Mainboard Video - 0 = Enable, 1 = Disable - This flag allows Z-80 transactions in the range D000:DFFF to be directed to the mainboard. When disabled all transactions
+    --                                 can only be seen by the FPGA video logic. The FPGA uses this flag to enable/disable it's functionality.
+    -- [4]   - R/W - Enable WAIT state during frame display period. 1 = Enable, 0 = Disable (default). The flag enables Z80 WAIT assertion during the frame display period. Most video modes
+    --                                 use double buffering so this isnt needed, but use of direct writes to the frame buffer in 8 colour mode (ie. 640x200 or 320x200 8 colour) there
+    --                                 is not enough memory to double buffer so potentially there could be tear or snow, hence this optional wait generator.
     --
     MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPLD_CFGn, CS_CPLD_INFOn, Z80_ADDR, Z80_DATA )
     begin
 
         if(Z80_RESETn = '0') then
             MODE_CPLD_SWITCH          <= '0';
-            CPLD_CFG_DATA             <= "00000100";                            -- Default to Sharp MZ700.
+            CPLD_CFG_DATA             <= "00000100";                            -- Default to Sharp MZ700, mainboard video enabled, wait state off.
 
         elsif(Z80_CLKi'event and Z80_CLKi = '1') then
 
@@ -660,7 +664,7 @@ begin
             MODE_VIDEO_MZ80C      <= '0';
             MODE_VIDEO_MZ1200     <= '0';
             MODE_VIDEO_MZ2000     <= '0';
-            GRAM_PAGE_ENABLE      <= "00";
+            GRAM_PAGE_ENABLE      <= '0';
             MZ80B_VRAM_HI_ADDR    <= '0';
             MZ80B_VRAM_LO_ADDR    <= '0';
     
@@ -700,9 +704,9 @@ begin
                 end case;
             end if;
 
-            -- memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
-            if CS_FB_PAGEn = '0' then
-                GRAM_PAGE_ENABLE          <= Z80_DATA(1 downto 0);
+            -- memory page register. [1:0] switches in 16Kb page (1 of 3 pages) of graphics ram to C000 - FFFF. Bits [0] = page, 0 = Off, 1 = Enabled. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+            if CS_FB_PAGEn = '0' and Z80_WRn = '0' then
+                GRAM_PAGE_ENABLE          <= Z80_DATA(0);
             end if;
 
             -- MZ80B Z80 PIO.
@@ -1293,8 +1297,8 @@ begin
     Z80_CLK               <= Z80_CLKi;
 
 
-    -- Wait states, added by the video circuitry or the K64F.
-    Z80_WAITn             <= '0'                         when SYS_WAITn = '0' or CTL_WAITn = '0' or MB_WAITn = '0'
+    -- Wait states, added by the mainboard video circuitry, FPGA video circuitry or the K64F.
+    Z80_WAITn             <= '0'                         when SYS_WAITn = '0' or CTL_WAITn = '0' or (VWAITn = '0' and MODE_CPLD_VIDEO_WAIT = '1') or MB_WAITn = '0'
                              else '1';
 
     -- Z80 signals passed to the mainboard, if the K64F has control of the bus then the Z80 signals are disabled as they are not tri-stated during a BUSRQ state.
@@ -1321,16 +1325,16 @@ begin
 
     -- Select for video based on the memory being accessed, the mode and control signals.
                              -- Standard access to VRAM/ARAM.
-    CS_VIDEOn             <= '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '0' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) < X"E000"
+    CS_VIDEOn             <= '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '0' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) < X"E000"
                              else
                              -- Graphics RAM enabled, range C000:FFFF is mapped to graphics RAM.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE /= "00" and unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '1'  and unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
                              else
                              -- MZ80B Graphics RAM enabled, range E000:FFFF is mapped to graphics RAMI + II and D000:DFFF to standard video.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
                              else
                              -- MZ80B Graphics RAM enabled, range 6000:7FFF is mapped to graphics RAMI + II and 5000:5FFF to standard video.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"5000" and unsigned(Z80_ADDR(15 downto 0)) <= X"7FFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"5000" and unsigned(Z80_ADDR(15 downto 0)) <= X"7FFF"
                              else '1';
 
     -- Read from memory and IO devices within the FPGA.
@@ -1434,6 +1438,8 @@ begin
     CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0' and Z80_ADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
                               else '1';
 
+    -- Set the video wait state generator, 0 = disabled, 1 = enabled.
+    MODE_CPLD_VIDEO_WAIT  <= CPLD_CFG_DATA(4);
     -- Set the mainboard video state, 0 = enabled, 1 = disabled.
     MODE_CPLD_MB_VIDEOn   <= CPLD_CFG_DATA(3);
     -- Set CPLD mode flag according to value given in config 2:0 
@@ -1456,7 +1462,6 @@ begin
 
     -- Graphics signal in/out.
     V_CSYNC               <= CSYNC_IN;
-    V_CVIDEO              <= CVIDEO_IN;
     V_HSYNC               <= HSYNC_IN;
     V_VSYNC               <= VSYNC_IN;
     V_G                   <= G_IN;

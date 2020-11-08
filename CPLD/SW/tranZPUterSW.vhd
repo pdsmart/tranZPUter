@@ -187,7 +187,7 @@ architecture rtl of cpld512 is
     signal MODE_VIDEO_MZ80C       :       std_logic := '0';                     -- The machine is running in MZ80C mode.
     signal MODE_VIDEO_MZ1200      :       std_logic := '0';                     -- The machine is running in MZ1200 mode.
     signal MODE_VIDEO_MZ2000      :       std_logic := '0';                     -- The machine is running in MZ2000 mode.
-    signal GRAM_PAGE_ENABLE       :       std_logic_vector(1 downto 0);         -- Graphics mode page enable.
+    signal GRAM_PAGE_ENABLE       :       std_logic;                            -- Graphics mode page enable.
     signal MZ80B_VRAM_HI_ADDR     :       std_logic;                            -- Video RAM located at D000:FFFF when high.
     signal MZ80B_VRAM_LO_ADDR     :       std_logic;                            -- Video RAM located at 5000:7FFF when high.
     signal CS_FB_VMn              :       std_logic;                            -- Chip Select for the Video Mode register.
@@ -685,7 +685,7 @@ begin
             MODE_VIDEO_MZ80C      <= '0';
             MODE_VIDEO_MZ1200     <= '0';
             MODE_VIDEO_MZ2000     <= '0';
-            GRAM_PAGE_ENABLE      <= "00";
+            GRAM_PAGE_ENABLE      <= '0';
             MZ80B_VRAM_HI_ADDR    <= '0';
             MZ80B_VRAM_LO_ADDR    <= '0';
     
@@ -725,9 +725,9 @@ begin
                 end case;
             end if;
 
-            -- memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
-            if CS_FB_PAGEn = '0' then
-                GRAM_PAGE_ENABLE          <= Z80_DATA(1 downto 0);
+            -- memory page register. [0] switches in 16Kb page (1 of 3 pages) of graphics ram to C000 - FFFF. Bits [0] = page, 00 = Off, 1 = Enabled. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+            if CS_FB_PAGEn = '0' and Z80_WRn = '0' then
+                GRAM_PAGE_ENABLE          <= Z80_DATA(0);
             end if;
 
             -- MZ80B Z80 PIO.
@@ -779,7 +779,7 @@ begin
     --                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
-    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPLD_CFGn, CS_CPLD_INFOn)
+    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPLD_CFGn, CS_CPLD_INFOn, MODE_CPLD_MB_VIDEOn)
     begin
 
         -- Memory action according to the configured memory mode. Not synchronous as we need to detect and act on address or signals long before a rising edge.
@@ -1438,16 +1438,16 @@ begin
 
     -- Select for video based on the memory being accessed, the mode and control signals.
                              -- Standard access to VRAM/ARAM. Video memory based IO registers in region E000:E2FF are enabled so that the FPGA can set its internal mirrored values but FPGA to block read operations as it will affect mainboard reads from keyboard etc.
-    CS_VIDEOn             <= '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '0' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) < X"E300"
+    CS_VIDEOn             <= '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '0' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) < X"E300"
                              else
                              -- Graphics RAM enabled, range C000:FFFF is mapped to graphics RAM.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE /= "00" and unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
                              else
                              -- MZ80B Graphics RAM enabled, range E000:FFFF is mapped to graphics RAMI + II and D000:DFFF to standard video.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF"
                              else
                              -- MZ80B Graphics RAM enabled, range 6000:7FFF is mapped to graphics RAMI + II and 5000:5FFF to standard video.
-                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"5000" and unsigned(Z80_ADDR(15 downto 0)) <= X"7FFF"
+                             '0'                         when MODE_CPLD_MB_VIDEOn = '1' and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1' and unsigned(Z80_ADDR(15 downto 0)) >= X"5000" and unsigned(Z80_ADDR(15 downto 0)) <= X"7FFF"
                              else '1';
 
     -- Read from memory and IO devices within the FPGA.

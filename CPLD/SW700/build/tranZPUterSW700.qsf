@@ -121,6 +121,7 @@ set_location_assignment PIN_1 -to VZ80_RDn
 set_location_assignment PIN_2 -to VZ80_WRn
 set_location_assignment PIN_5 -to VZ80_IORQn
 set_location_assignment PIN_6 -to VZ80_CLK
+set_location_assignment PIN_8 -to VWAITn
 
 # RAM control
 # ===========
@@ -175,7 +176,6 @@ set_location_assignment PIN_49 -to SYS_BUSACKn
 # Mainboard control signals.
 # ==========================
 set_location_assignment PIN_7 -to V_CSYNC
-set_location_assignment PIN_8 -to V_CVIDEO
 set_location_assignment PIN_9 -to V_HSYNC
 set_location_assignment PIN_10 -to V_VSYNC
 set_location_assignment PIN_11 -to V_G
@@ -183,7 +183,7 @@ set_location_assignment PIN_12 -to V_B
 set_location_assignment PIN_14 -to V_R
 set_location_assignment PIN_15 -to V_COLR
 set_location_assignment PIN_34 -to CSYNC_IN
-set_location_assignment PIN_31 -to CVIDEO_IN
+#set_location_assignment PIN_31 -to CVIDEO_IN
 set_location_assignment PIN_29 -to HSYNC_IN
 set_location_assignment PIN_26 -to VSYNC_IN
 set_location_assignment PIN_23 -to G_IN

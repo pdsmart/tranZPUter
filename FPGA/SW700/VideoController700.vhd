@@ -87,6 +87,7 @@ entity VideoController is
         VZ80_IORQn                : in    std_logic;                                     -- Z80 IORQ.
         VZ80_RDn                  : in    std_logic;                                     -- Z80 RDn.
         VZ80_WRn                  : in    std_logic;                                     -- Z80 WRn.
+        VWAITn                    : out   std_logic;                                     -- WAIT signal to CPU when accessing video RAM when busy. 
 
         -- VGA & Composite output signals.
         VGA_R                     : out   std_logic_vector(3 downto 0);                  -- 16 level Red output.
@@ -103,7 +104,6 @@ entity VideoController is
 
         -- RGB & Composite input signals.
         V_CSYNC                   : in    std_logic;                                     -- Composite sync from mainboard.
-        V_CVIDEO                  : in    std_logic;                                     -- Comnposite video from mainboard.
         V_HSYNCn                  : in    std_logic;                                     -- Horizontal sync (negative) from mainboard.
         V_VSYNCn                  : in    std_logic;                                     -- Vertical sync (negative) from mainboard.
         V_COLR                    : in    std_logic;                                     -- Composite and RF base frequency from mainboard.
@@ -290,7 +290,7 @@ architecture rtl of VideoController is
     signal GRAM_OPT_WRITE        :     std_logic;                            -- Graphics write to GRAMI (0) or GRAMII (1) for MZ80B/MZ2000
     signal GRAM_OPT_OUT1         :     std_logic;                            -- Graphics enable GRAMI output to display
     signal GRAM_OPT_OUT2         :     std_logic;                            -- Graphics enable GRAMII output to display
-    signal GRAM_PAGE_ENABLE      :     std_logic_vector(1 downto 0);         -- Graphics mode page enable.
+    signal GRAM_PAGE_ENABLE      :     std_logic;                            -- Graphics mode page enable.
     signal VIDEO_MODE_REG        :     std_logic_vector(7 downto 0);         -- Programmable mode register to control video mode.
     signal PAGE_MODE_REG         :     std_logic_vector(7 downto 0);         -- Current value of the Page register.
     signal PALETTE_REG           :     std_logic_vector(7 downto 0);         -- Palette register to apply mapping to the digital RGB output.
@@ -733,7 +733,7 @@ begin
 
                 -- Every time we reach the end of the visible display area we enable copying of the VRAM and GRAM into the
                 -- display framebuffer, ready for the next frame display. This starts to occur a fixed set of rows after 
-                -- they have been displayed, initially only during the hblank period of a row, but the during the full row
+                -- they have been displayed, initially only during the hblank period of a row, but during the full row
                 -- in the vblank period.
                 --
                 if V_COUNT = 0 then
@@ -1698,12 +1698,12 @@ begin
     --                  1 = Clear to val. Start Location (16 bit), End Location (16 bit), Red Filter, Green Filter, Blue Filter
     --
     -- IO Range for Graphics enhancements is set by the Video Mode registers at 0xF5->.
-    --   0xF8=<val> sets the mode of the Video Module. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
+    --   0xF8=<val> sets the mode of the Video Module. [2:0] - 000 = MZ-80K, 001 = MZ-80C, 010 = MZ-1200, 011 = MZ--80A, 100 = MZ-700, 101 = MZ-800, 110 = MZ-80B, 111 = MZ-2000. [3] = 0 - 40 col, 1 - 80 col, [4] = 0 - mono, 1 - colour.
     --   0xF9=<val> sets the graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
     --   0xFA=<val> sets the Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
     --   0xFB=<val> sets the Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
     --   0xFC=<val> sets the Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
-    --   0xFD=<val> memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+    --   0xFD=<val> memory page register. [0] switches in 16Kb page (1 of 3 pages) of graphics ram to C000 - FFFF. Bits [0] = page, 0 = off, 1 = GRAM enabled. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
     --
     CTRLREGISTERS: process( VRESETn, IF_CLK, CGROM_PAGE, GRAM_PAGE_ENABLE, VIDEOMODE, MZ80B_VRAM_HI_ADDR, MZ80B_VRAM_LO_ADDR )
     begin
@@ -1734,7 +1734,7 @@ begin
             MODE_CPLD_SWITCH      <= '0';
             VIDEO_MODE_REG        <= "00000000";
             VGAMODE               <= "00";
-            GRAM_PAGE_ENABLE      <= "00";
+            GRAM_PAGE_ENABLE      <= '0';
             CGROM_PAGE            <= '0';
             DISPLAY_VGATE         <= '0';
             VIDEOMODE_RESET_TIMER <= to_unsigned(2, VIDEOMODE_RESET_TIMER'length); --(others => '0') & '1';
@@ -1987,9 +1987,9 @@ begin
                 GRAM_OPT_OUT2             <= VDATA(2);
             end if;
 
-            -- memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+            -- memory page register. [0] switches in 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [0] = page, 0 = off, 1 = GRAM paged in. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
             if CS_FB_PAGEn = '0' and VZ80_WRn = '0' and VZ80_WR_LASTn = '1' then
-                GRAM_PAGE_ENABLE          <= VDATA(1 downto 0);
+                GRAM_PAGE_ENABLE          <= VDATA(0);
                 CGROM_PAGE                <= VDATA(7);
             end if;
 
@@ -2134,8 +2134,8 @@ begin
         end if;
 
         -- Non-registered signal vectors for readback.
-        -- Page register: [7] = CGROM Page setting, [6:1] = Current video mode, [1:0] = GRAM Page setting.
-        PAGE_MODE_REG                 <=  CGROM_PAGE & std_logic_vector(to_unsigned(VIDEOMODE, 5)) & GRAM_PAGE_ENABLE;
+        -- Page register: [7] = CGROM Page setting, [6:2] = Current video mode, [0] = GRAM enabled setting.
+        PAGE_MODE_REG                 <=  CGROM_PAGE & std_logic_vector(to_unsigned(VIDEOMODE, 5)) & '0' & GRAM_PAGE_ENABLE;
 
         -- MZ80B Graphics RAM is enabled whenever one of the two control lines goes active.
         GRAM_MZ80B_ENABLE             <= MZ80B_VRAM_HI_ADDR or MZ80B_VRAM_LO_ADDR;
@@ -2153,17 +2153,17 @@ begin
                              else '1';
     CS_DARAMn             <= '0'                                             when VZ80_IORQn = '1'  and VADDR(13 downto 11) = "011"
                              else '1';
-    CS_EXXXn              <= '0'                                             when VZ80_IORQn = '1'  and VADDR(13 downto 11) = "100" and GRAM_PAGE_ENABLE = "00" and (MODE_VIDEO_MZ80B = '0' or (MODE_VIDEO_MZ80B = '1' and GRAM_MZ80B_ENABLE = '0')) -- Normal memory mapped I/O if Graphics Option not enabled.
+    CS_EXXXn              <= '0'                                             when VZ80_IORQn = '1'  and VADDR(13 downto 11) = "100" and GRAM_PAGE_ENABLE = '0' and (MODE_VIDEO_MZ80B = '0' or (MODE_VIDEO_MZ80B = '1' and GRAM_MZ80B_ENABLE = '0')) -- Normal memory mapped I/O if Graphics Option not enabled.
                              else '1';
                              -- MZ80B Graphics RAM enabled, range E000:FFFF is mapped to graphics RAMI + II and D000:DFFF to standard video.
-    CS_GRAMn              <= '0'                                             when VZ80_IORQn = '1'  and unsigned(VADDR(15 downto 0)) >= X"D000" and unsigned(VADDR(15 downto 0)) <= X"FFFF" and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' 
+    CS_GRAMn              <= '0'                                             when VZ80_IORQn = '1'  and unsigned(VADDR(15 downto 0)) >= X"D000" and unsigned(VADDR(15 downto 0)) <= X"FFFF" and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_HI_ADDR = '1' 
                              else
                              -- MZ80B Graphics RAM enabled, range 6000:7FFF is mapped to graphics RAMI + II and 5000:5FFF to standard video.
-                             '0'                                             when VZ80_IORQn = '1'  and unsigned(VADDR(15 downto 0)) >= X"5000" and unsigned(VADDR(15 downto 0)) <= X"7FFF" and GRAM_PAGE_ENABLE = "00"  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1'
+                             '0'                                             when VZ80_IORQn = '1'  and unsigned(VADDR(15 downto 0)) >= X"5000" and unsigned(VADDR(15 downto 0)) <= X"7FFF" and GRAM_PAGE_ENABLE = '0'  and MODE_VIDEO_MZ80B = '1' and MZ80B_VRAM_LO_ADDR = '1'
                              else '1';
                              -- Graphics RAM enabled, range C000:FFFF is mapped to graphics RAM.
-    CS_FBRAMn             <= '0'                                             when VZ80_IORQn = '1'  and VADDR(15 downto 14) = "11"  and GRAM_PAGE_ENABLE /= "00"
-                             else '0';
+    CS_FBRAMn             <= '0'                                             when VZ80_IORQn = '1'  and VADDR(15 downto 14) = "11"  and GRAM_PAGE_ENABLE = '1'
+                             else '1';
     CS_IO_6XXn            <= '0'                                             when VZ80_IORQn = '0'  and VADDR(7 downto 4) = "0110"
                              else '1';
     CS_IO_DXXn            <= '0'                                             when VZ80_IORQn = '0'  and VADDR(7 downto 4) = "1101"
@@ -2258,17 +2258,17 @@ begin
     -- Data for CPU to read, dependent on what is being accessed.
     VDATA                 <= VRAM_VIDEO_DATA                                 when VZ80_RDn = '0'    and CS_DXXXn = '0'   and CGROM_PAGE = '0'
                              else
-                             GRAM_DO_R                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "01" and GRAM_MODE_REG(1 downto 0) = "00"                            -- For direct framebuffer access, C000:FFFF is assigned to the framebuffer during a read if the GRAM_PAGE_ENABLE register is not 0. 
+                             GRAM_DO_R                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_MODE_REG(1 downto 0) = "00"     -- For direct framebuffer access, C000:FFFF is assigned to the framebuffer during a read if the GRAM_PAGE_ENABLE register is not 0. 
                              else
-                             GRAM_DO_B                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "10" and GRAM_MODE_REG(1 downto 0) = "01"
+                             GRAM_DO_B                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_MODE_REG(1 downto 0) = "01"
                              else
-                             GRAM_DO_G                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "11" and GRAM_MODE_REG(1 downto 0) = "10"
+                             GRAM_DO_G                                       when VZ80_RDn = '0'    and CS_FBRAMn = '0'  and GRAM_MODE_REG(1 downto 0) = "10"
                              else
-                             GRAM_DO_GI                                      when VZ80_RDn = '0'    and CS_GRAMn = '0'   and GRAM_OPT_WRITE = '0'                        -- For MZ80B GRAM I memory read - lower 8K  of red framebuffer.
+                             GRAM_DO_GI                                      when VZ80_RDn = '0'    and CS_GRAMn = '0'   and GRAM_OPT_WRITE = '0'                                            -- For MZ80B GRAM I memory read - lower 8K  of red framebuffer.
                              else
-                             GRAM_DO_GII                                     when VZ80_RDn = '0'    and CS_GRAMn = '0'   and GRAM_OPT_WRITE = '1'                        -- For MZ80B GRAM II memory read - lower 8K of blue framebuffer.
+                             GRAM_DO_GII                                     when VZ80_RDn = '0'    and CS_GRAMn = '0'   and GRAM_OPT_WRITE = '1'                                            -- For MZ80B GRAM II memory read - lower 8K of blue framebuffer.
                              else
-                             VIDEO_MODE_REG                                  when VZ80_RDn = '0'    and CS_FB_VMn = '0'
+                             V_BLANKi & H_BLANKi & VIDEO_MODE_REG(5 downto 0)when VZ80_RDn = '0'    and CS_FB_VMn = '0'
                              else
                              GRAM_MODE_REG                                   when VZ80_RDn = '0'    and CS_FB_CTLn = '0'
                              else
@@ -2360,6 +2360,11 @@ begin
                              else
                              (others=>'Z');
 
+
+    -- Wait state generation, when the GRAM Frame Buffer is being written to and the CPU is attempting to write, pause the CPU.
+    VWAITn                <= '0'                                             when V_BLANKi = '1'    and CS_FBRAMn = '0'
+                             else '1';
+
     -- VRAM mux between the CPU signals and the GPU. GPU takes priority.
     --
     VRAM_ADDR             <= VRAM_GPU_ADDR(11 downto 0)                      when VRAM_GPU_ENABLE = '1'
@@ -2370,7 +2375,7 @@ begin
                              VDATA;
     VRAM_WEN              <= '1'                                             when VRAM_GPU_WEN = '1'
                              else
-                             '1'                                             when VZ80_WRn = '0'    and CS_DXXXn = '0' and CGROM_PAGE = '0' and GRAM_PAGE_ENABLE = "00"
+                             '1'                                             when VZ80_WRn = '0'    and CS_DXXXn = '0' and CGROM_PAGE = '0' and GRAM_PAGE_ENABLE = '0'
                              else '0';
     VRAM_VIDEO_DATA       <= VRAM_DO;
     
@@ -2393,7 +2398,7 @@ begin
                              else (others => '1');
     CG_ADDR               <= CGRAM_ADDR(11 downto 0)                         when CGRAM_WEn = '0'
                              else XFER_CGROM_ADDR;
-    CGROM_WEN             <= '1'                                             when VZ80_WRn = '0'   and CS_DXXXn = '0' and CGROM_PAGE = '1' and GRAM_PAGE_ENABLE = "00"
+    CGROM_WEN             <= '1'                                             when VZ80_WRn = '0'   and CS_DXXXn = '0' and CGROM_PAGE = '1' and GRAM_PAGE_ENABLE = '0'
                              else '0';
     
     
@@ -2434,23 +2439,17 @@ begin
     GRAM_DO_G             <= GRAM_DO_GIII;
     GWEN_R                <= '1'                                             when GWEN_GPU_R = '1'
                              else
-                             '1'                                             when VZ80_WRn = '0' and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "01"  and GRAM_MODE_REG(3 downto 2) = "00"
-                             else
-                             '1'                                             when VZ80_WRn = '0' and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE /= "00" and GRAM_MODE_REG(3 downto 2) = "11"
+                             '1'                                             when VZ80_WRn = '0' and CS_FBRAMn = '0'  and (GRAM_MODE_REG(3 downto 2) = "00" or GRAM_MODE_REG(3 downto 2) = "11")
                              else
                              '0';
     GWEN_B                <= '1'                                             when GWEN_GPU_B = '1'
                              else
-                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "11"  and GRAM_MODE_REG(3 downto 2) = "10"
-                             else
-                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE /= "00" and GRAM_MODE_REG(3 downto 2) = "11"
+                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and (GRAM_MODE_REG(3 downto 2) = "10" or GRAM_MODE_REG(3 downto 2) = "11")
                              else
                              '0';
     GWEN_G                <= '1'                                             when GWEN_GPU_G = '1'
                              else
-                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE = "10"  and GRAM_MODE_REG(3 downto 2) = "01"
-                             else
-                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and GRAM_PAGE_ENABLE /= "00" and GRAM_MODE_REG(3 downto 2) = "11"
+                             '1'                                             when VZ80_WRn='0'   and CS_FBRAMn = '0'  and (GRAM_MODE_REG(3 downto 2) = "01" or GRAM_MODE_REG(3 downto 2) = "11")
                              else
                              '0';
     
@@ -2563,6 +2562,64 @@ begin
 --            end if;
 --        end if;
 --    end process;
+--
+--    process(SYS_CLK)
+--    begin
+--        if rising_edge(SYS_CLK) then
+--            if MODE_CPLD_MB_VIDEOn = '1' then
+--                if H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0') then
+--                    VGA_R(3 downto 0)     <= FB_PALETTE_R(3 downto 0);
+--                    VGA_G(3 downto 0)     <= FB_PALETTE_G(3 downto 0);
+--                    VGA_B(3 downto 0)     <= FB_PALETTE_B(3 downto 0);
+--                else
+--                    VGA_R(3 downto 0)     <= (others => '0');
+--                    VGA_G(3 downto 0)     <= (others => '0');
+--                    VGA_B(3 downto 0)     <= (others => '0');
+--                end if;
+--
+--                if FB_PALETTE_R(4) = '0' then
+--                    VGA_R_COMPOSITE       <= '0';
+--                else
+--                    VGA_R_COMPOSITE       <= 'Z';
+--                end if;
+--
+--                if FB_PALETTE_G(4) = '0' then
+--                    VGA_G_COMPOSITE       <= '0';
+--                else
+--                    VGA_G_COMPOSITE       <= 'Z';
+--                end if;
+--
+--                if FB_PALETTE_B(4) = '0' then
+--                    VGA_B_COMPOSITE       <= '0';
+--                else
+--                    VGA_B_COMPOSITE       <= 'Z';
+--                end if;
+--
+--                if H_POLARITY(0) = '0' then
+--                    HSYNC_OUTn            <= H_SYNCni;
+--                else
+--                    HSYNC_OUTn            <= not H_SYNCni;
+--                end if;
+--
+--                if V_POLARITY(0) = '0' then
+--                    VSYNC_OUTn            <= V_SYNCni;
+--                else
+--                    VSYNC_OUTn            <= not V_SYNCni;
+--                end if;
+--
+--            elsif MODE_CPLD_MB_VIDEOn = '0' then
+--                VGA_R_COMPOSITE       <= V_R;
+--                VGA_G_COMPOSITE       <= V_G;
+--                VGA_B_COMPOSITE       <= V_B;
+--                VGA_R                 <= (others => V_R);
+--                VGA_G                 <= (others => V_G);
+--                VGA_B                 <= (others => V_B);
+--                HSYNC_OUTn            <= V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
+--                VSYNC_OUTn            <= V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
+--            end if;
+--        end if;
+--
+--    end process;
 
 
     -- Set the mainboard video state, 0 = enabled, 1 = disabled.
@@ -2585,29 +2642,29 @@ begin
     MODE_CPLD_MZ2000      <= '1'                                             when to_integer(unsigned(CPLD_CFG_DATA(2 downto 0))) = MODE_MZ2000
                              else '0';
 
-    VGA_R(3 downto 0)     <=  FB_PALETTE_R(3 downto 0)                       when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
+    VGA_R(3 downto 0)     <= FB_PALETTE_R(3 downto 0)                        when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
                              else
                              (others => V_R)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
-    VGA_R_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0'
+    VGA_R_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_R = '1'
                              else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '0' and FB_PALETTE_R(4) = '1'
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_R(4) = '0'
                              else 'Z';
     VGA_G(3 downto 0)     <= FB_PALETTE_G(3 downto 0)                        when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
                              else
                              (others => V_G)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
-    VGA_G_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0'
+    VGA_G_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_G = '1'
                              else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '0' and FB_PALETTE_G(4) = '1'
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_G(4) = '0'
                              else 'Z';
     VGA_B(3 downto 0)     <= FB_PALETTE_B(3 downto 0)                        when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
                              else
                              (others => V_B)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
-    VGA_B_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0'
+    VGA_B_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_B = '1'
                              else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '0' and FB_PALETTE_B(4) = '1'
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_B(4) = '0'
                              else 'Z';
     HSYNC_OUTn            <= H_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '0'
                              else

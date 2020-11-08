@@ -4,7 +4,7 @@
 ;- Created:         October 2018
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series tester utility.
-;-                  This assembly language program is written to aid in testing components
+;-                  This assembly language program is a quick coding to aid in testing components
 ;-                  of the SharpMZ Series FPGA emulation and more recently the tranZPUter
 ;-                  and video module offshoots. It is a rough and ready program just to aid
 ;-                  exercising of hardware changes to verify they work and are reliable.
@@ -91,7 +91,7 @@ VMGRMODE                EQU     0F9H                                     ; Video
 VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMGREENMASK             EQU     0FBH                                     ; Video Module Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
 VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
-VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
+VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [0] switches in 16Kb page (1 of 3 pages) of graphics ram to C000 - FFFF. Bits [0] = page, 0 = Off, 1 = GRAM page, as specified by VM Graphics mode register is paged in. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
 
 ;-----------------------------------------------
 ; GPU commands.
@@ -324,7 +324,7 @@ BUFER:                  DS      virtual 81                               ; GET L
            ;                            [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
 
 GRAMINIT:  OUT      (VMGRMODE),A                           ; Set provided graphics mode.
-           LD       A,C                                    ; Switch graphics page into C000:FFFF memory bank 
+           LD       A,1                                    ; Switch graphics page into C000:FFFF memory bank 
            OUT      (VMPAGE),A
 GRAM0:     LD       HL,GRAMSTART                           ; Start of graphics page.
            LD       BC,GRAMEND - GRAMSTART                 ; Size of graphics page (16KB).
@@ -342,7 +342,7 @@ GRAM1:     LD       A,000h                                 ; Clear memory.
            ; Graphics Test. Needs to be in memory before C000-FFFF
            ;
 GRAMTEST:  OUT      (VMGRMODE),A
-           LD       A,C                                    ; Switch graphics page into C000:FFFF memory bank 
+           LD       A,1                                    ; Switch graphics page into C000:FFFF memory bank 
            OUT      (VMPAGE),A
            LD       D, 1                                   ; Number of iterations.
            LD       E,080h
@@ -355,16 +355,17 @@ GRAMTST1:  LD       A,E
            LD       A,B
            OR       C
            JR       NZ,GRAMTST1
-           SRL      E
+           RR       E
            JR       NZ,GRAMTST0
-           JR       C,GRAMTST0
+          ;JR       C,GRAMTST0
            DEC      D
            JR       NZ,GRAMTST0
            LD       A,0                                    ; Revert to normal memory.
            OUT      (VMPAGE),A
            RET
+           ;
 GRAMTEST2: OUT      (VMGRMODE),A
-           LD       A,C                                    ; Switch graphics page into C000:FFFF memory bank 
+           LD       A,1                                    ; Switch graphics page into C000:FFFF memory bank 
            OUT      (VMPAGE),A
            LD       E,0FFH
 GRAMTST4:  LD       HL,GRAMSTART
@@ -388,21 +389,24 @@ GRAMTST5:  LD       A,E
            ;                   3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect),
            ;                   1/0 = Read mode  (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
            ;
-GRAPHICS:  LD       A,010h
-           LD       C,1                    ; Red page.
+GRAPHICS1: LD       B, 128
+GRAPH0:    PUSH     BC
+           LD       A,010h                 ; Red page read/write.
            CALL     GRAMTEST
-           LD       A,015h
-           LD       C,2                    ; Green page.
+           LD       A,015h                 ; Green page read/write.
            CALL     GRAMTEST
-           LD       A,01Ah
-           LD       C,3                    ; Blue page.
+           LD       A,01Ah                 ; Blue page.
            CALL     GRAMTEST
-           LD       A, 0FFH                ; Run through the filter mask.
+           POP      BC
+           DJNZ     GRAPH0
+           JP       GETL1
+
+
+GRAPHICS2: LD       A, 0FFH                ; Run through the filter mask.
            OUT      (VMREDMASK),A
            OUT      (VMGREENMASK),A
            OUT      (VMBLUEMASK),A
 GRAPH1:    LD       A, 01Ch                ; Set graphics mode to Indirect Page write.
-           LD       C,1                    ; Any page set active for indirect write, 0 - disable.
            CALL     GRAMTEST2
            IN       A,(VMREDMASK)
            DEC      A
@@ -513,18 +517,15 @@ INITGRPH:  LD       DE,MSG_INITGR
            CALL     LETNL
            LD       A,0FFh                 ; Set Red filter.
            OUT      (VMREDMASK),A
-           LD       A,000h                 ; Set Green filter.
+           LD       A,0FFh                 ; Set Green filter.
            OUT      (VMGREENMASK),A
-           LD       A,000h                 ; Set Blue filter.
+           LD       A,0FFh                 ; Set Blue filter.
            OUT      (VMBLUEMASK),A
-           LD       A,000h                 ; Enable graphics output and character display output. Initialise Red page.
-           LD       C,1                    ; Red page.
+           LD       A,010h                 ; Enable graphics output and character display output. Initialise Red page.
            CALL     GRAMINIT
-           LD       A,005h                 ; Initialise Green page.
-           LD       C,3                    ; Green page.
+           LD       A,015h                 ; Initialise Green page.
            CALL     GRAMINIT
-           LD       A,00Ah                 ; Initialise Blue page.
-           LD       C,2                    ; Blue page.
+           LD       A,01Ah                 ; Initialise Blue page.
            CALL     GRAMINIT
            LD       A, 0ECh                ; Set graphics mode to Indirect Page write, disable graphics output.
            OUT      (VMGRMODE),A
@@ -603,9 +604,12 @@ CMDTABLE:
            DB       000H | 000H | 000H | 004H
            DB       "HELP"                    
            DW       HELP
-           DB       000H | 000H | 000H | 004H
-           DB       "GRPH"                    
-           DW       GRAPHICS
+           DB       000H | 000H | 000H | 005H
+           DB       "GRPH1"                    
+           DW       GRAPHICS1
+           DB       000H | 000H | 000H | 005H
+           DB       "GRPH2"                    
+           DW       GRAPHICS2
            DB       000H | 000H | 000H | 004H
            DB       "GPU1"                    
            DW       GPU1
@@ -2470,7 +2474,7 @@ GPUENDX:   DW       00000H
 GPUENDY:   DW       00000H
 
 
-MSG_HELP1: DB       "GRPH     = TEST GRAPHICS",   0Dh, 00h
+MSG_HELP1: DB       "GRPH[1-2]= TEST GRAPHICS",   0Dh, 00h
 MSG_HELP2: DB       "GPU[1-2] = TEST GPU",        0Dh, 00h
 MSG_HELP3: DB       "PAL      = TEST PALETTE",    0Dh, 00h
 MSG_HELP4: DB       "MEMTEST  = TEST MEMORY",     0Dh, 00h

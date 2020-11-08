@@ -87,10 +87,10 @@ entity tranZPUterSW700 is
         VZ80_RDn        : out   std_logic;
         VZ80_WRn        : out   std_logic;
         VZ80_CLK        : out   std_logic;
+        VWAITn          : in    std_logic;                         -- Wait signal from asserted when Video RAM is busy.
 
         -- Graphics signal in/out.
         V_CSYNC         : out   std_logic;
-        V_CVIDEO        : out   std_logic;
         V_HSYNC         : out   std_logic;
         V_VSYNC         : out   std_logic;
         V_G             : out   std_logic;
@@ -98,7 +98,7 @@ entity tranZPUterSW700 is
         V_R             : out   std_logic;
         V_COLR          : out   std_logic;
         CSYNC_IN        : in    std_logic;
-        CVIDEO_IN       : in    std_logic;
+      --CVIDEO_IN       : in    std_logic;
         HSYNC_IN        : in    std_logic;
         VSYNC_IN        : in    std_logic;
         G_IN            : in    std_logic;
@@ -169,11 +169,11 @@ begin
         VZ80_IORQn      => VZ80_IORQn,
         VZ80_RDn        => VZ80_RDn,
         VZ80_WRn        => VZ80_WRn,
+        VWAITn          => VWAITn,                         -- Wait signal from asserted when Video RAM is busy.
         VZ80_CLK        => VZ80_CLK,
 
         -- Graphics signal in/out.
         V_CSYNC         => V_CSYNC,
-        V_CVIDEO        => V_CVIDEO,
         V_HSYNC         => V_HSYNC,
         V_VSYNC         => V_VSYNC,
         V_G             => V_G,
@@ -181,7 +181,7 @@ begin
         V_R             => V_R,
         V_COLR          => V_COLR,
         CSYNC_IN        => CSYNC_IN,
-        CVIDEO_IN       => CVIDEO_IN,
+      --CVIDEO_IN       => CVIDEO_IN,
         HSYNC_IN        => HSYNC_IN,
         VSYNC_IN        => VSYNC_IN,
         G_IN            => G_IN,
