@@ -128,7 +128,7 @@ MONITOR:    LD      A, (SCRNMODE)
             JR      Z, MONITOR1
             ;
             IN      A,(CPLDCFG)
-            OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware translation to MZ700 mode.
+            OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware to enable FPGA video.
             OUT     (CPLDCFG),A                                 
             ;
 MONITOR1:   LD      A, C                                                 ; Recall screen mode.
@@ -142,7 +142,16 @@ SET40CHAR:  IN      A,(CPLDINFO)                                         ; Get c
             AND     007H                                                 ; Get the base machine mode, use as the starting mode for the video.
             LD      D, A
             LD      A, C                                                 ; Get the VGA mode and add.
-            AND     0C0H
+            BIT     2, A
+            JR      Z, SET40_0
+            RRC     A                                                    ; Get the override mode into lower 3 bits.
+            RRC     A
+            RRC     A
+            AND     007H
+            LD      D, A
+            LD      A, C
+            ;
+SET40_0:    AND     0C0H
             OR      D
             OUT     (VMCTRL),A                                           ; Activate.
 SET40_1:    LD      A, 0
@@ -156,8 +165,19 @@ SET80CHAR:  IN      A,(CPLDINFO)                                         ; Get c
             AND     007H
             OR      MODE_80CHAR                                          ; Set 80 char flag.
             LD      D, A
-            LD      A, C                                                 ; Get the VGA mode and add.
-            AND     0C0H
+            ;
+            LD      A, C                                                 ; Check to see if a mode override has been set.
+            BIT     2, A
+            JR      Z, SET80_0
+            RRC     A                                                    ; Get the override mode into lower 3 bits.
+            RRC     A
+            RRC     A
+            AND     007H
+            OR      MODE_80CHAR                                          ; Set 80 char flag.
+            LD      D, A
+            LD      A, C
+            ;
+SET80_0:    AND     0C0H                                                 ; Get the VGA mode and add.
             OR      D
             OUT     (VMCTRL),A                                           ; Activate.
             LD      A, C                                                 ; Indicate we are using the FPGA video hardware.

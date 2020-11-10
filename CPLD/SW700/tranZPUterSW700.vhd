@@ -180,6 +180,8 @@ architecture rtl of cpld512 is
     signal CS_VIDEO_IOn           :       std_logic;                            -- Select to read/write video IO registers according to mode.
     signal CS_VIDEO_RDn           :       std_logic;                            -- Select to read video memory and video IO registers according to mode.
     signal CS_VIDEO_WRn           :       std_logic;                            -- Select to write video memory and video IO registers according to mode.
+    signal CS_DVRAMn              :       std_logic;                            -- Chip select for the Video RAM.
+    signal CS_DARAMn              :       std_logic;                            -- Chip select for the Attribute RAM.
     signal MEM_MODE_LATCH         :       std_logic_vector(4 downto 0);         -- Register to store the active memory mode.
     signal MEM_MODE_DATA          :       std_logic_vector(7 downto 0);         -- Scratch signal to form an 8 bit read of the memory mode register.
 
@@ -266,7 +268,7 @@ begin
     --                                 use double buffering so this isnt needed, but use of direct writes to the frame buffer in 8 colour mode (ie. 640x200 or 320x200 8 colour) there
     --                                 is not enough memory to double buffer so potentially there could be tear or snow, hence this optional wait generator.
     --
-    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPLD_CFGn, CS_CPLD_INFOn, Z80_ADDR, Z80_DATA )
+    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPLD_CFGn, Z80_ADDR, Z80_DATA )
     begin
 
         if(Z80_RESETn = '0') then
@@ -1310,18 +1312,24 @@ begin
                              else 'Z';
  
     -- Bus control logic.
-    SYS_BUSACKni          <= '1'                         when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    SYS_BUSACKni          <= '1'                         when Z80_BUSACKn = '0'         and MB_BUSRQn = '0'
                              else
-                             '0'                         when DISABLE_BUSn = '0' or (KEY_SUBSTITUTE = '1' and Z80_MREQn = '0') or (Z80_BUSACKn = '0' and CTL_BUSACKn = '0') 
+                             '0'                         when DISABLE_BUSn = '0'        or  (KEY_SUBSTITUTE = '1' and Z80_MREQn = '0') or (Z80_BUSACKn = '0' and CTL_BUSACKn = '0') 
                              else '1';
     SYS_BUSACKn           <= SYS_BUSACKni;
-    Z80_BUSRQn            <= '0'                         when SYS_BUSRQn = '0' or CTL_BUSRQn = '0' or MB_BUSRQn = '0'
+    Z80_BUSRQn            <= '0'                         when SYS_BUSRQn = '0'          or  CTL_BUSRQn = '0' or MB_BUSRQn = '0'
                              else '1';
 
     -- Register read values.
     CLK_STATUS_DATA       <= "0000000" & SYSCLK_Q;
     MEM_MODE_DATA         <= "000" & MEM_MODE_LATCH(4 downto 0);
     CPLD_INFO_DATA        <= std_logic_vector(to_unsigned(CPLD_VERSION, 3)) & '0' & CPLD_HAS_FPGA_VIDEO & std_logic_vector(to_unsigned(CPLD_HOST_HW, 3));
+
+    -- Standard access to VRAM/ARAM.
+    CS_DVRAMn             <= '0'                         when Z80_MREQn = '0'           and Z80_ADDR(13 downto 11) = "010"
+                             else '1';
+    CS_DARAMn             <= '0'                         when Z80_MREQn = '0'           and Z80_ADDR(13 downto 11) = "011"
+                             else '1';
 
     -- Select for video based on the memory being accessed, the mode and control signals.
                              -- Standard access to VRAM/ARAM.
@@ -1338,12 +1346,12 @@ begin
                              else '1';
 
     -- Read from memory and IO devices within the FPGA.
-    CS_VIDEO_RDn           <= '0'                        when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0')
-                              else '1';
+    CS_VIDEO_RDn          <= '0'                         when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0')
+                             else '1';
 
     -- Write to memory and IO devices within the FPGA. Duplicate the transaction to the FPGA for CPLD register writes 0x60:0x6F so that the FPGA can register current settings.
-    CS_VIDEO_WRn           <= '0'                        when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0' or CS_IO_EXXn = '0' or CS_IO_6XXn = '0')
-                              else '1';
+    CS_VIDEO_WRn          <= '0'                         when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0' or CS_IO_EXXn = '0' or CS_IO_6XXn = '0')
+                             else '1';
 
     --
     -- Data Bus Multiplexing, plex the output devices onto the Z80 data bus.
@@ -1437,6 +1445,7 @@ begin
     -- MZ80B/MZ2000 I/O Registers E0-EB,
     CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0' and Z80_ADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
                               else '1';
+
 
     -- Set the video wait state generator, 0 = disabled, 1 = enabled.
     MODE_CPLD_VIDEO_WAIT  <= CPLD_CFG_DATA(4);

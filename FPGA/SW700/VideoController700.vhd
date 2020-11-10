@@ -1238,7 +1238,7 @@ begin
                         when others =>
                     end case;
                 end if;
-    
+
                 -- Activate/deactivate signals according to pixel position.
                 --
                 if H_COUNT =  H_DSP_START     then H_BLANKi  <= '0'; end if;
@@ -2268,7 +2268,7 @@ begin
                              else
                              GRAM_DO_GII                                     when VZ80_RDn = '0'    and CS_GRAMn = '0'   and GRAM_OPT_WRITE = '1'                                            -- For MZ80B GRAM II memory read - lower 8K of blue framebuffer.
                              else
-                             V_BLANKi & H_BLANKi & VIDEO_MODE_REG(5 downto 0)when VZ80_RDn = '0'    and CS_FB_VMn = '0'
+                             VIDEO_MODE_REG(7 downto 0)                      when VZ80_RDn = '0'    and CS_FB_VMn = '0'
                              else
                              GRAM_MODE_REG                                   when VZ80_RDn = '0'    and CS_FB_CTLn = '0'
                              else
@@ -2278,7 +2278,7 @@ begin
                              else
                              GRAM_B_FILTER                                   when VZ80_RDn = '0'    and CS_FB_BLUEn = '0'
                              else
-                             PAGE_MODE_REG                                   when VZ80_RDn = '0'    and CS_FB_PAGEn = '0'
+                             PAGE_MODE_REG(7) & V_BLANKi & H_BLANKi & PAGE_MODE_REG(4 downto 0) when VZ80_RDn = '0'     and CS_FB_PAGEn = '0'
                              else
                              CGROM_DO                                        when VZ80_RDn = '0'    and CS_DXXXn = '0'   and CGROM_PAGE = '1'
                              else
@@ -2563,10 +2563,10 @@ begin
 --        end if;
 --    end process;
 --
---    process(SYS_CLK)
---    begin
---        if rising_edge(SYS_CLK) then
---            if MODE_CPLD_MB_VIDEOn = '1' then
+    process(SYS_CLK)
+    begin
+        if rising_edge(SYS_CLK) then
+            if MODE_CPLD_MB_VIDEOn = '1' then
 --                if H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0') then
 --                    VGA_R(3 downto 0)     <= FB_PALETTE_R(3 downto 0);
 --                    VGA_G(3 downto 0)     <= FB_PALETTE_G(3 downto 0);
@@ -2595,31 +2595,31 @@ begin
 --                    VGA_B_COMPOSITE       <= 'Z';
 --                end if;
 --
---                if H_POLARITY(0) = '0' then
---                    HSYNC_OUTn            <= H_SYNCni;
---                else
---                    HSYNC_OUTn            <= not H_SYNCni;
---                end if;
---
---                if V_POLARITY(0) = '0' then
---                    VSYNC_OUTn            <= V_SYNCni;
---                else
---                    VSYNC_OUTn            <= not V_SYNCni;
---                end if;
---
---            elsif MODE_CPLD_MB_VIDEOn = '0' then
+                if H_POLARITY(0) = '0' then
+                    HSYNC_OUTn            <= H_SYNCni;
+                else
+                    HSYNC_OUTn            <= not H_SYNCni;
+                end if;
+
+                if V_POLARITY(0) = '0' then
+                    VSYNC_OUTn            <= V_SYNCni;
+                else
+                    VSYNC_OUTn            <= not V_SYNCni;
+                end if;
+
+            elsif MODE_CPLD_MB_VIDEOn = '0' then
 --                VGA_R_COMPOSITE       <= V_R;
 --                VGA_G_COMPOSITE       <= V_G;
 --                VGA_B_COMPOSITE       <= V_B;
 --                VGA_R                 <= (others => V_R);
 --                VGA_G                 <= (others => V_G);
 --                VGA_B                 <= (others => V_B);
---                HSYNC_OUTn            <= V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
---                VSYNC_OUTn            <= V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
---            end if;
---        end if;
---
---    end process;
+                HSYNC_OUTn            <= V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
+                VSYNC_OUTn            <= V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
+            end if;
+        end if;
+
+    end process;
 
 
     -- Set the mainboard video state, 0 = enabled, 1 = disabled.
@@ -2646,44 +2646,56 @@ begin
                              else
                              (others => V_R)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
-    VGA_R_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_R = '1'
-                             else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_R(4) = '0'
-                             else 'Z';
     VGA_G(3 downto 0)     <= FB_PALETTE_G(3 downto 0)                        when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
                              else
                              (others => V_G)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
-    VGA_G_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_G = '1'
-                             else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_G(4) = '0'
-                             else 'Z';
     VGA_B(3 downto 0)     <= FB_PALETTE_B(3 downto 0)                        when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0')
                              else
                              (others => V_B)                                 when MODE_CPLD_MB_VIDEOn = '0'
                              else (others => '0');
+    VGA_R_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_R = '1'
+                             else
+                             FB_PALETTE_R(4)                                 when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_MONO = '1'   or MODE_VIDEO_MONO80 = '1')
+                             else
+                             '1'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and SR_R_DATA(7) = '1' and PALETTE_REG = X"00"
+                             else
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and FB_PALETTE_R(4) = '0'
+                             else 'Z';
+    VGA_G_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_G = '1'
+                             else
+                             FB_PALETTE_G(4)                                 when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_MONO = '1'   or MODE_VIDEO_MONO80 = '1')
+                             else
+                             '1'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and SR_G_DATA(7) = '1' and PALETTE_REG = X"00"
+                             else
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and FB_PALETTE_G(4) = '0'
+                             else 'Z';
     VGA_B_COMPOSITE       <= '1'                                             when MODE_CPLD_MB_VIDEOn = '0' and V_B = '1'
                              else
-                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and FB_PALETTE_B(4) = '0'
+                             FB_PALETTE_B(4)                                 when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_MONO = '1'   or MODE_VIDEO_MONO80 = '1') 
+                             else
+                             '1'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and SR_B_DATA(7) = '1' and PALETTE_REG = X"00"
+                             else
+                             '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and FB_PALETTE_B(4) = '0'
                              else 'Z';
-    HSYNC_OUTn            <= H_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '0'
-                             else
-                             not H_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '1'
-                             else
-                             V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
-    VSYNC_OUTn            <= V_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '0'
-                             else
-                             not V_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '1'
-                             else
-                             V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
+--    HSYNC_OUTn            <= H_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '0'
+--                             else
+--                             not H_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '1'
+--                             else
+--                             V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
+--    VSYNC_OUTn            <= V_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '0'
+--                             else
+--                             not V_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '1'
+--                             else
+--                             V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
 
     -- Composite video signal output. Composite video is formed in external hardware by the combination of VGA R/G/B signals.
     CSYNC_OUTn            <= not V_CSYNC                                     when MODE_CPLD_MB_VIDEOn = '0'
                              else
-                             not (H_SYNCni or V_SYNCni);
+                             not (H_SYNCni xor not V_SYNCni);
     CSYNC_OUT             <= V_CSYNC                                         when MODE_CPLD_MB_VIDEOn = '0'
                              else
-                             H_SYNCni or V_SYNCni;
+                             H_SYNCni xor not V_SYNCni;
     COLR_OUT              <= V_COLR                                          when MODE_CPLD_MB_VIDEOn = '0'      -- Composite and RF base frequency from mainboard.
                              else
                              V_COLR;

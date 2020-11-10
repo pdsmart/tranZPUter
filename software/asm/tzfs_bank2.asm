@@ -76,11 +76,18 @@ SETVMODE:   IN      A,(CPLDINFO)                                         ; Get c
             OUT     (VMCTRL),A
             RLC     L                                                    ; Shift mode to position for SCRNMODE storage.
             RLC     L
+            RLC     L
             LD      A,(SCRNMODE)                                         ; Repeat for the screen mode variable, used when resetting or changing display settings.
-            AND     0E3H                                                 ; Clear video mode setting.
+            AND     0C7H                                                 ; Clear video mode setting.
             OR      L                                                    ; Add in new setting.
+            SET     2,A                                                  ; Set flag to indicate video mode override - ie, dont use base machine mode.
             SET     1, A                                                 ; Ensure flag set so on restart the FPGA video mode is selected.
             LD      (SCRNMODE),A
+            LD      A, 016H                                              ; Clear the screen so we start from a known position.
+            CALL    PRNT
+            LD      A,071H                                               ; Blue background and white characters.
+            LD      HL,ARAM
+            CALL    CLR8
             RET
 SETVMODEOFF:LD      A,(DE)
             CP      'O'
@@ -147,6 +154,19 @@ SETFREQ2:   CALL    SVC_CMD
             OR      A
             JR      NZ,SETFREQERR
             RET
+
+            ; Simple routine to clear screen or attributes.
+CLR8:       LD      BC,00800H
+            PUSH    DE
+            LD      D,A
+CLR8_1:     LD      (HL),D
+            INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ,CLR8_1
+            POP     DE
+            RET  
             ;
 NOFPGAERR:  LD      DE,MSGNOFPGA
             JR      BADNUM2

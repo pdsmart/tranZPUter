@@ -34,8 +34,8 @@
 ; Features.
 ;-----------------------------------------------
 BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
-BUILD_MZ80A             EQU     0                                        ; Build for the Sharp MZ-80A base hardware.
-BUILD_MZ700             EQU     1                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_MZ80A             EQU     1                                        ; Build for the Sharp MZ-80A base hardware.
+BUILD_MZ700             EQU     0                                        ; Build for the Sharp MZ-700 base hardware.
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
