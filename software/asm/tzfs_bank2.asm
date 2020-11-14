@@ -106,8 +106,8 @@ SETVMODE1:  LD      A,(SCRNMODE)                                         ; Disab
 SETVGAMODE: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
             BIT     3,A
             JP      Z,NOFPGAERR                                          ; No hardware so cannot change mode.
-            CALL    ConvertStringToNumber                                ; Convert the input into 0 (disable) or frequency in KHz.
-            JR      NZ,BADNUMERR
+            CALL    ConvertStringToNumber                                ; Convert the input into 0-3, 0 = off, 1 = 640x480, 2=1024x768, 3=800x600.
+            JP      NZ,BADNUMERR
             LD      A,H
             CP      0
             JR      NZ,BADNUMERR                                         ; Check that the given mode is in range 0 - 3.
@@ -130,6 +130,27 @@ SETVGAMODE: IN      A,(CPLDINFO)                                         ; Get c
             OR      L                                                    ; Add in new setting.
             SET     1, A                                                 ; Ensure flag set so on restart the FPGA video mode is selected.
             LD      (SCRNMODE),A
+            RET
+
+            ; Method to set the VGA border colour on the external display.
+SETVBORDER: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
+            BIT     3,A
+            JP      Z,NOFPGAERR                                          ; No hardware so cannot change mode.
+            CALL    ConvertStringToNumber                                ; Convert the input into 0 - 7, bit 2 = Red, 1 = Green, 0 = Blue.
+            JP      NZ,BADNUMERR
+            LD      A,H
+            CP      0
+            JR      NZ,BADNUMERR                                         ; Check that the given mode is in range 0 - 7.
+            LD      A,L
+            CP      7
+            JR      NC,BADNUMERR
+            ;
+            IN      A,(CPLDCFG) 
+            OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware to enable the FPGA video mode.
+            OUT     (CPLDCFG),A                                 
+            ;
+            LD      A,L
+            OUT     (VMBORDER),A
             RET
 
             ; Method to enable/disable the alternate CPU frequency and change it's values.
@@ -518,6 +539,7 @@ HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "T     - test timer.",                                  00DH
             DB      "T2SD  - copy tape to sd card.",                        00DH
             DB      "V     - verify tape save.",                            00DH
+            DB      "VBORDER[n] - set vga border colour.",                  00DH
             DB      "VMODE[n] - set video mode.",                           00DH
             DB      "VGA[n]- Set VGA mode.",                                00DH
             DB      000H

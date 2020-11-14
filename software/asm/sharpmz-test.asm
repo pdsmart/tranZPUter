@@ -74,6 +74,7 @@ PALSLCTON               EQU     0D4H                                     ; set t
 PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
 PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
 PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
+VMBORDER                EQU     0F3H                                     ; Select VGA Border colour attributes. Bit 2 = Red, 1 = Green, 0 = Blue.
 GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
 VMPALETTE               EQU     0F5H                                     ; Select Palette:
                                                                          ;    0xF5 sets the palette. The Video Module supports 4 bit per colour output but there is only enough RAM for 1 bit per colour so the pallette is used to change the colours output.
@@ -687,6 +688,11 @@ GPUNEXT1:  LD       A,(GPUSTARTX)
 GPUNEXT2:  LD       A,(GPUSTARTY)
            LD       (GPUENDY),A
 
+           ; Wait for the GPU to become ready.
+GPUWAIT1:  IN       A,(GPUSTATUS)
+           BIT      0,A
+           JR       NZ,GPUWAIT1
+
            ; Setup the GPU parameters to fill area.
 GPUNEXT3:  LD       A,(GPUSTARTX)
            OUT      (GPUPARAM),A
@@ -703,17 +709,13 @@ GPUNEXT3:  LD       A,(GPUSTARTX)
            ; Issue the GPU command.
            LD       A,GPUCLEARVRAMP
            OUT      (GPUCMD),A
-           ; Wait for the command to complete.
-GPUWAIT1:  IN       A,(GPUSTATUS)
-           BIT      0,A
-           JR       NZ,GPUWAIT1
 
            ; Next End Y loop.
            LD       A,(GPUENDY)
            INC      A
            LD       (GPUENDY),A
            CP       25
-           JP       C, GPUNEXT3
+           JP       C, GPUWAIT1
 
            ; Change the character.
            LD       A,(GPUCHAR)
@@ -726,6 +728,11 @@ GPUWAIT1:  IN       A,(GPUSTATUS)
            LD       (GPUENDX),A
            CP       40
            JP       C, GPUNEXT2
+
+           ; Wait for the GPU to become ready.
+GPUWAIT2:  IN       A,(GPUSTATUS)
+           BIT      0,A
+           JR       NZ,GPUWAIT2
 
            ; Setup the GPU parameters to clear area.
            LD       A,(GPUSTARTX)
@@ -743,10 +750,6 @@ GPUWAIT1:  IN       A,(GPUSTATUS)
            ; Issue the GPU command.
            LD       A,GPUCLEARVRAMP
            OUT      (GPUCMD),A
-           ; Wait for the command to complete.
-GPUWAIT2:  IN       A,(GPUSTATUS)
-           BIT      0,A
-           JR       NZ,GPUWAIT2
 
            ; Adjust back colour.
            LD       A,(GPUATTR)

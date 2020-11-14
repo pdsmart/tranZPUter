@@ -70,11 +70,13 @@ entity VideoController is
         -- Primary and video clocks.
         SYS_CLK                   : in    std_logic;                                     -- 50MHz main FPGA clock.
         IF_CLK                    : in    std_logic;                                     -- 16MHz CPLD interface clock.
-        VIDCLK_8MHZ               : in    std_logic;                                     -- 8MHz base clock for video timing and gate clocking.
-        VIDCLK_16MHZ              : in    std_logic;                                     -- 16MHz base clock for video timing and gate clocking.
-        VIDCLK_65MHZ              : in    std_logic;                                     -- 65MHz base clock for video timing and gate clocking.
-        VIDCLK_25_175MHZ          : in    std_logic;                                     -- 25.175MHz base clock for video timing and gate clocking.
-        VIDCLK_40MHZ              : in    std_logic;                                     -- 40MHz base clock for video timing and gate clocking.
+        VIDCLK_8MHZ               : in    std_logic;                                     -- 2x 8MHz base clock for video timing and gate clocking.
+        VIDCLK_16MHZ              : in    std_logic;                                     -- 2x 16MHz base clock for video timing and gate clocking.
+        VIDCLK_65MHZ              : in    std_logic;                                     -- 2x 65MHz base clock for video timing and gate clocking.
+        VIDCLK_25_175MHZ          : in    std_logic;                                     -- 2x 25.175MHz base clock for video timing and gate clocking.
+        VIDCLK_40MHZ              : in    std_logic;                                     -- 2x 40MHz base clock for video timing and gate clocking.
+        VIDCLK_8_86719MHZ         : in    std_logic;                                     -- 2x original MZ700 video clock.
+        VIDCLK_17_7344MHZ         : in    std_logic;                                     -- 2x original MZ700 colour modulator clock.
 
         -- V[name] = Voltage translated signals which mirror the mainboard signals but at a lower voltage.
         -- Address Bus
@@ -136,22 +138,24 @@ architecture rtl of VideoController is
     --   H_DSP_START,      H_DSP_END,    H_DSP_WND_START,  H_DSP_WND_END,    V_DSP_START,      V_DSP_END,   V_DSP_WND_START,  V_DSP_WND_END,   H_LINE_END,    V_LINE_END,   MAX_COLUMNS,       H_SYNC_START,        H_SYNC_END,           V_SYNC_START,    V_SYNC_END,             H_POLARITY,       V_POLARITY,         H_PX,             V_PX      			
       (            0,            320,              0,            320,              0,            200,              0,            200,            511,            259,         40,                320  + 43,        320 + 43  + 45,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 0  MZ80K/C/1200/A machines have a monochrome 60Hz display with scan of 512 x 260 for a 320x200 viewable area.
       (            0,            640,              0,            640,              0,            200,              0,            200,           1023,            259,         80,                640  + 106,       640 + 106 + 90,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 1  MZ80K/C/1200/A machines with an adapted monochrome 60Hz display with scan of 1024 x 260 for a 640x200 viewable area.			
-      (            0,            320,              0,            320,              0,            200,              0,            200,            511,            259,         40,                320  + 43,        320 + 43  + 45,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 2  MZ80K/C/1200/A machines with MZ700 style colour @ 60Hz display with scan of 512 x 260 for a 320x200 viewable area.			
-      (            0,            640,              0,            640,              0,            200,              0,            200,           1023,            259,         80,                640  + 106,       640 + 106 + 90,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 3  MZ80K/C/1200/A machines with MZ700 style colour @ 60Hz display with scan of 1024 x 260 for a 640x200 viewable area.			
+    --(            0,            320,              0,            320,              0,            200,              0,            200,            567,            311,         40,                320  + 80,        320 + 80  + 40,           200 + 50,      200 + 50 + 3,              0,               0,                0,               0),      -- 2  MZ80K/C/1200/A machines with MZ700 style colour @ 50Hz display with scan of 568 x 312 for a 320x200 viewable area.			
+    --(            0,            640,              0,            640,              0,            200,              0,            200,           1135,            311,         80,                640  + 160,       640 + 160 + 80,           200 + 50,      200 + 50 + 3,              0,               0,                0,               0),      -- 3  MZ80K/C/1200/A machines with MZ700 style colour @ 50Hz display with scan of 1136 x 312 for a 640x200 viewable area.			
+      (            0,            320,              0,            320,              0,            200,              0,            200,            567,            259,         40,                320  + 80,        320 + 80  + 40,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 2  MZ80K/C/1200/A machines with MZ700 style colour @ 60Hz display with scan of 512 x 260 for a 320x200 viewable area.			
+      (            0,            640,              0,            640,              0,            200,              0,            200,           1135,            259,         80,                640  + 160,       640 + 160 + 80,           200 + 19,      200 + 19 + 4,              0,               0,                0,               0),      -- 3  MZ80K/C/1200/A machines with MZ700 style colour @ 60Hz display with scan of 1024 x 260 for a 640x200 viewable area.			
 
-      (            0,            640,              0,            640,              0,            480,              0,            400,            799,            524,         40,                640  + 16,        640 + 16  + 96,           480 + 10,      480 + 10 + 2,              0,               0,                1,               1),      -- 4  Mode 0 upscaled as 640x480 @ 60Hz timings for 40Char mode monochrome. 			
-      (            0,            640,              0,            640,              0,            480,              0,            400,            799,            524,         80,                640  + 16,        640 + 16  + 96,           480 + 10,      480 + 10 + 2,              0,               0,                0,               1),      -- 5  Mode 1 upscaled as 640x480 @ 60Hz timings for 80Char mode monochrome.
-      (            0,            640,              0,            640,              0,            480,              0,            400,            799,            524,         40,                640  + 16,        640 + 16  + 96,           480 + 10,      480 + 10 + 2,              0,               0,                1,               1),      -- 6  Mode 2 upscaled as 640x480 @ 60Hz timings for 40Char mode colour. 			
-      (            0,            640,              0,            640,              0,            480,              0,            400,            799,            524,         80,                640  + 16,        640 + 16  + 96,           480 + 10,      480 + 10 + 2,              0,               0,                0,               1),      -- 7  Mode 3 upscaled as 640x480 @ 60Hz timings for 80Char mode colour.
+      (            0,            640,              0,            640,              0,            480,              48,           448,            799,            524,         40,                640  + 16,        640 + 16  + 96,           480 + 8,       480 + 8 + 2,              0,               0,                1,               1),      -- 4  Mode 0 upscaled as 640x480 @ 60Hz timings for 40Char mode monochrome. 			
+      (            0,            640,              0,            640,              0,            480,              48,           448,            799,            524,         80,                640  + 16,        640 + 16  + 96,           480 + 8,       480 + 8 + 2,              0,               0,                0,               1),      -- 5  Mode 1 upscaled as 640x480 @ 60Hz timings for 80Char mode monochrome.
+      (            0,            640,              0,            640,              0,            480,              48,           448,            799,            524,         40,                640  + 16,        640 + 16  + 96,           480 + 8,       480 + 8 + 2,              0,               0,                1,               1),      -- 6  Mode 2 upscaled as 640x480 @ 60Hz timings for 40Char mode colour. 			
+      (            0,            640,              0,            640,              0,            480,              48,           448,            799,            524,         80,                640  + 16,        640 + 16  + 96,           480 + 8,       480 + 8 + 2,              0,               0,                0,               1),      -- 7  Mode 3 upscaled as 640x480 @ 60Hz timings for 80Char mode colour.
 
-      (            0,           1024,              0,            960,              0,            768,              0,            600,           1343,            805,         40,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                2,               2),      -- 8  Mode 0 upscaled as 1024x768 @ 60Hz timings for 40Char mode monochrome. 			
+      (            0,           1024,              32,           992,              0,            768,              80,           680,           1343,            805,         40,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                2,               2),      -- 8  Mode 0 upscaled as 1024x768 @ 60Hz timings for 40Char mode monochrome. 			
       (            0,           1024,              0,            640,              0,            768,              0,            600,           1343,            805,         80,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                0,               2),      -- 9  Mode 1 upscaled as 1024x768 @ 60Hz timings for 80Char mode monochrome.
-      (            0,           1024,              0,            960,              0,            768,              0,            600,           1343,            805,         40,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                2,               2),      -- 10 Mode 2 upscaled as 1024x768 @ 60Hz timings for 40Char mode colour. 			
+      (            0,           1024,              32,           992,              0,            768,              80,           680,           1343,            805,         40,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                2,               2),      -- 10 Mode 2 upscaled as 1024x768 @ 60Hz timings for 40Char mode colour. 			
       (            0,           1024,              0,            640,              0,            768,              0,            600,           1343,            805,         80,               1024  + 24,       1024 + 24  + 136,          768 + 3,       768 +  3 + 6,              0,               0,                0,               2),      -- 11 Mode 3 upscaled as 1024x768 @ 60Hz timings for 80Char mode colour.
 
-      (            0,            800,              0,            640,              0,            600,              0,            600,           1055,            627,         40,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                1,               2),      -- 12 Mode 0 upscaled as 800x600 @ 60Hz timings for 40Char mode monochrome. 			
+      (            0,            800,              80,           720,              0,            600,              0,            600,           1055,            627,         40,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                1,               2),      -- 12 Mode 0 upscaled as 800x600 @ 60Hz timings for 40Char mode monochrome. 			
       (            0,            800,              0,            640,              0,            600,              0,            600,           1055,            627,         80,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                0,               2),      -- 13 Mode 1 upscaled as 800x600 @ 60Hz timings for 80Char mode monochrome.
-      (            0,            800,              0,            640,              0,            600,              0,            600,           1055,            627,         40,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                1,               2),      -- 14 Mode 2 upscaled as 800x600 @ 60Hz timings for 40Char mode colour. 			
+      (            0,            800,              80,           720,              0,            600,              0,            600,           1055,            627,         40,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                1,               2),      -- 14 Mode 2 upscaled as 800x600 @ 60Hz timings for 40Char mode colour. 			
       (            0,            800,              0,            640,              0,            600,              0,            600,           1055,            627,         80,                800  + 40,        800 + 40  + 128,          600 + 1,       600 + 1 + 4,               1,               1,                0,               2)       -- 15 Mode 3 upscaled as 800x600 @ 60Hz timings for 80Char mode colour.
     );
 
@@ -178,8 +182,18 @@ architecture rtl of VideoController is
     --
     -- Registers
     --
-    signal VIDEOMODE             :     integer range 0 to 20;
-    signal VIDEOMODE_RESET_TIMER :     unsigned(15 downto 0);                -- Video mode changed timer, when not 0 the mode is being changed.
+    signal VIDEOMODE             :     integer range 0 to 20;                -- Active video mode, used to index the VIDEOLUT array to select required parameters.
+    signal VIDEOMODE_NEXT        :     integer range 0 to 20;                -- Next video mode set when video mode is being changed.
+    signal VIDEOMODE_SWITCH      :     std_logic;                            -- Video mode change detected, waiting for current display to complete before change.
+    signal VIDEOMODE_RESET_TIMER :     unsigned(7 downto 0);                 -- Video mode changed timer, when not 0 the mode is being changed.
+    signal VIDCLK_8MHZ_Q         :     std_logic;                            -- D-Type flip flop Q output used to enable a clock, active state is '0'.
+    signal VIDCLK_16MHZ_Q        :     std_logic;
+    signal VIDCLK_8_86719MHZ_Q   :     std_logic;
+    signal VIDCLK_17_7344MHZ_Q   :     std_logic;
+    signal VIDCLK_25_175MHZ_Q    :     std_logic;
+    signal VIDCLK_40MHZ_Q        :     std_logic;
+    signal VIDCLK_65MHZ_Q        :     std_logic;
+    signal VIDCLK_DIV            :     std_logic;                            -- Video clock divisor, video clock runs at 2x frequency of display.
     signal MAX_COLUMN            :     unsigned(7 downto 0);
     signal FB_ADDR               :     std_logic_vector(13 downto 0);        -- Frame buffer actual address
     signal OFFSET_ADDR           :     std_logic_vector(7 downto 0);         -- Display Offset - for MZ1200/80A machines with 2K VRAM
@@ -293,6 +307,7 @@ architecture rtl of VideoController is
     signal GRAM_PAGE_ENABLE      :     std_logic;                            -- Graphics mode page enable.
     signal VIDEO_MODE_REG        :     std_logic_vector(7 downto 0);         -- Programmable mode register to control video mode.
     signal PAGE_MODE_REG         :     std_logic_vector(7 downto 0);         -- Current value of the Page register.
+    signal BORDER_REG            :     std_logic_vector(7 downto 0);         -- VGA Border attribute register to apply to the VGA unused border area.
     signal PALETTE_REG           :     std_logic_vector(7 downto 0);         -- Palette register to apply mapping to the digital RGB output.
     signal GPU_PARAMS            :     std_logic_vector(127 downto 0);       -- GPU parameter register.
     signal GPU_COMMAND           :     std_logic_vector(7 downto 0);         -- GPU command register.
@@ -303,6 +318,7 @@ architecture rtl of VideoController is
     signal CS_SCROLLn            :     std_logic;                            -- Chip Select to perform a hardware scroll.
     signal CS_GRAM_OPTn          :     std_logic;                            -- Chip Select to write the graphics options for MZ80B/MZ2000.
     signal CS_CPLD_CFGn          :     std_logic;                            -- Chip Select to write to the CPLD configuration register at 0x6E.
+    signal CS_FB_BORDERn         :     std_logic;                            -- Chip Select for setting the VGA border attributes.
     signal CS_FB_PALETTEn        :     std_logic;                            -- Chip Select for setting the active pallette.
     signal CS_FB_PARAMSn         :     std_logic;                            -- Chip Select for storing GPU parameters in a FILO stack.
     signal CS_FB_GPUn            :     std_logic;                            -- Chip Select for GPU command register.
@@ -440,7 +456,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK,       
+        clock_a              => VID_CLK,       
         clocken_a            => '1',
         address_a            => PALETTE_PARAM_SEL,
         data_a               => VDATA(4 downto 0),   
@@ -448,7 +464,7 @@ begin
         q_a                  => PALETTE_DO_R,
     
         -- Port B used for Palette output map.
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => PALETTE_REG & SR_R_DATA(7),
         data_b               => (others => '0'),
@@ -466,7 +482,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK,       
+        clock_a              => VID_CLK,       
         clocken_a            => '1',
         address_a            => PALETTE_PARAM_SEL,
         data_a               => VDATA(4 downto 0),   
@@ -474,7 +490,7 @@ begin
         q_a                  => PALETTE_DO_G,
     
         -- Port B used for Palette output map.
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => PALETTE_REG & SR_G_DATA(7),
         data_b               => (others => '0'),
@@ -492,7 +508,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK,       
+        clock_a              => VID_CLK,       
         clocken_a            => '1',
         address_a            => PALETTE_PARAM_SEL,
         data_a               => VDATA(4 downto 0),   
@@ -500,7 +516,7 @@ begin
         q_a                  => PALETTE_DO_B,
     
         -- Port B used for Palette output map.
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => PALETTE_REG & SR_B_DATA(7),
         data_b               => (others => '0'),
@@ -531,7 +547,7 @@ begin
         q_a                  => VRAM_DO,
     
         -- Port B used for VRAM -> DISPLAY BUFFER transfer (SOURCE).
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => XFER_VRAM_ADDR,
         data_b               => (others => '0'),
@@ -553,7 +569,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK,
+        clock_a              => SYS_CLK,
         clocken_a            => '1',
         address_a            => GRAM_ADDR(13 downto 0),
         data_a               => GRAM_DI_R,
@@ -561,7 +577,7 @@ begin
         q_a                  => GRAM_DO_GI,
     
         -- Port B used for VRAM -> Frame Buffer transfer (DESTINATION) for Red.
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => XFER_SRC_ADDR(13 downto 0),            -- FB Destination address is used as GRAM is on a 1:1 mapping with FB.
         data_b               => XFER_MAPPED_DATA(7 downto 0),
@@ -583,7 +599,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK, 
+        clock_a              => SYS_CLK, 
         clocken_a            => '1',
         address_a            => GRAM_ADDR(13 downto 0),
         data_a               => GRAM_DI_B,
@@ -591,7 +607,7 @@ begin
         q_a                  => GRAM_DO_GII,
     
         -- Port B used for VRAM -> Frame Buffer transfer (DESTINATION) for Green.
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => XFER_SRC_ADDR(13 downto 0),           -- FB Destination address is used as GRAM is on a 1:1 mapping with FB.
         data_b               => XFER_MAPPED_DATA(15 downto 8),
@@ -614,7 +630,7 @@ begin
     )
     PORT MAP (
         -- Port A used for CPU access.
-        clock_a              => not SYS_CLK,
+        clock_a              => SYS_CLK,
         clocken_a            => '1',
         address_a            => GRAM_ADDR(13 downto 0),
         data_a               => GRAM_DI_G,
@@ -622,7 +638,7 @@ begin
         q_a                  => GRAM_DO_GIII,
     
         -- Port B used for VRAM -> Frame Buffer transfer (DESTINATION) for Blue and for GRAM I+II -> Frame buffer (DESTINATION).
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '1',
         address_b            => XFER_SRC_ADDR(13 downto 0),           -- FB Destination address is used as GRAM is on a 1:1 mapping with FB.
         data_b               => XFER_MAPPED_DATA(23 downto 16),
@@ -669,25 +685,118 @@ begin
         width_b              => 8
     ) 
     PORT MAP (
-        clock_a              => SYS_CLK,
+        clock_a              => VID_CLK,
         clocken_a            => '1',
         address_a            => CG_ADDR(11 downto 0),
         data_a               => CGRAM_DI,
         wren_a               => CGRAM_WREN,
         q_a                  => CGRAM_DO,
     
-        clock_b              => SYS_CLK,
+        clock_b              => VID_CLK,
         clocken_b            => '0',
         address_b            => (others => '0'),
         data_b               => (others => '0'),
         wren_b               => '0',
         q_b                  => open
     );
+
+    -- D type Flip Flops used for the Video frequency switching circuit. The changeover of frequencies occurs on the high level to prevent glitches and lockups.
+    FFCLK1: process( VIDCLK_8MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_8MHZ_Q                <= '0';
+
+        -- If the system clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_8MHZ) ) then
+            if (VIDEOMODE = 0 and (VIDCLK_8_86719MHZ_Q = '1' and VIDCLK_16MHZ_Q = '1' and VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_8MHZ_Q            <= '0';
+            else
+                VIDCLK_8MHZ_Q            <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK2: process( VIDCLK_8_86719MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_8_86719MHZ_Q          <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_8_86719MHZ) ) then
+            if (VIDEOMODE = 2 and VIDCLK_8MHZ_Q = '1' and VIDCLK_16MHZ_Q = '1' and (VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_8_86719MHZ_Q      <= '0';
+            else
+                VIDCLK_8_86719MHZ_Q      <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK3: process( VIDCLK_16MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_16MHZ_Q               <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_16MHZ) ) then
+            if (VIDEOMODE = 1 and VIDCLK_8MHZ_Q = '1' and VIDCLK_8_86719MHZ_Q = '1' and (VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_16MHZ_Q           <= '0';
+            else
+                VIDCLK_16MHZ_Q           <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK4: process( VIDCLK_17_7344MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_17_7344MHZ_Q          <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_17_7344MHZ) ) then
+            if (VIDEOMODE = 3 and VIDCLK_8MHZ_Q = '1' and VIDCLK_8_86719MHZ_Q = '1' and (VIDCLK_16MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_17_7344MHZ_Q      <= '0';
+            else
+                VIDCLK_17_7344MHZ_Q      <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK5: process( VIDCLK_25_175MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_25_175MHZ_Q           <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_25_175MHZ) ) then
+            if ((VIDEOMODE = 4 or VIDEOMODE = 5 or VIDEOMODE = 6 or VIDEOMODE = 7) and (VIDCLK_8MHZ_Q = '1' and VIDCLK_8_86719MHZ_Q = '1' and VIDCLK_16MHZ_Q = '1' and VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_25_175MHZ_Q       <= '0';
+            else
+                VIDCLK_25_175MHZ_Q       <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK6: process( VIDCLK_40MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_40MHZ_Q               <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_40MHZ) ) then
+            if ((VIDEOMODE = 12 or VIDEOMODE = 13 or VIDEOMODE = 14 or VIDEOMODE = 15) and (VIDCLK_8MHZ_Q = '1' and VIDCLK_8_86719MHZ_Q = '1' and VIDCLK_16MHZ_Q = '1' and VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_65MHZ_Q = '1')) then
+                VIDCLK_40MHZ_Q           <= '0';
+            else
+                VIDCLK_40MHZ_Q           <= '1';
+            end if;
+        end if;
+    end process;
+    FFCLK7: process( VIDCLK_65MHZ, VRESETn ) begin
+        if VRESETn = '0' then
+            VIDCLK_65MHZ_Q               <= '1';
+
+        -- If the control clock goes active high, process the inputs and set the D-type output.
+        elsif( rising_edge(VIDCLK_65MHZ) ) then
+            if ((VIDEOMODE = 8 or VIDEOMODE = 9 or VIDEOMODE = 10 or VIDEOMODE = 11) and (VIDCLK_8MHZ_Q = '1' and VIDCLK_8_86719MHZ_Q = '1' and VIDCLK_16MHZ_Q = '1' and VIDCLK_17_7344MHZ_Q = '1' and VIDCLK_25_175MHZ_Q = '1' and VIDCLK_40MHZ_Q = '1')) then
+                VIDCLK_65MHZ_Q           <= '0';
+            else
+                VIDCLK_65MHZ_Q           <= '1';
+            end if;
+        end if;
+    end process;
     
     -- Clock at maximum system speed to minimise transfer time.
     -- Rasterisation and blending into the display framebuffer is made during the Vertical Blanking period.
     --
-    RENDERFRAMES: process( VRESETn, SYS_CLK, XFER_DST_ADDR, FB_ADDR, VIDEOMODE_RESET_TIMER )
+    RENDERFRAMES: process( VRESETn, VID_CLK, XFER_DST_ADDR, FB_ADDR, VIDEOMODE_RESET_TIMER )
         variable XFER_CYCLE     : integer range 0 to 10;
         variable XFER_ENABLED   : std_logic;                            -- Enable transfer of VRAM/GRAM to framebuffer.
         variable XFER_PAUSE     : std_logic;                            -- Pause transfer of VRAM/GRAM to framebuffer during data display period.
@@ -711,11 +820,12 @@ begin
     
         -- Copy at end of Display based on the highest clock to minimise time,
         --
-        elsif rising_edge(SYS_CLK) then
+        elsif rising_edge(VID_CLK) then
 
             -- A video mode change is similar to a RESET, the process halts and all the control variables are reset.
             --
             if VIDEOMODE_RESET_TIMER /= 0 then
+
                 XFER_VRAM_ADDR      <= (others => '0');
                 XFER_DST_ADDR       <= (others => '0');
                 XFER_CGROM_ADDR     <= (others => '0');
@@ -742,18 +852,23 @@ begin
         
                 -- During the actual data display, we pause rendering until the start of a horizontal or vertical blanking period.
                 --
-                --if V_BLANKi = '0' then --XFER_CYCLE = 0 and XFER_R_WEN = '0' and XFER_G_WEN = '0' and XFER_B_WEN = '0' and V_BLANKi = '0' then 
-                if (V_COUNT < V_DSP_WND_END and (H_COUNT < H_DSP_WND_END or H_COUNT > H_LINE_END - 3 or XFER_DST_ADDR >= FB_ADDR-std_logic_vector(MAX_COLUMN)))
-                   and XFER_R_WEN = '0' and XFER_G_WEN = '0' and XFER_B_WEN = '0'
+                if XFER_ENABLED = '1' and 
+                  -- Horizontal blanking period, allow upto line end - 3 to allow 3 extra cycles if the FSM is actively writing to the Frame buffer.
+                  ((H_COUNT > H_DSP_WND_END and H_COUNT < H_LINE_END-8 and FB_ADDR > XFER_DST_ADDR+std_logic_vector(MAX_COLUMN)) or 
+                   -- Vertical blanking period, allow full use of this period for copying.
+                   (V_COUNT > V_DSP_WND_END and V_COUNT < V_LINE_END) or
+                   -- Active write to Framebuffer taking place, override other conditions in this state.
+                   (XFER_R_WEN = '1' or XFER_G_WEN = '1' or XFER_B_WEN = '1')
+                  )
                 then   
-                    XFER_PAUSE      := '1';
-                else
                     XFER_PAUSE      := '0';
+                else
+                    XFER_PAUSE      := '1';
                 end if;
         
                 -- If we are in the active transfer window, start transfer.
                 --
-                if XFER_ENABLED = '1' and XFER_PAUSE = '0' then
+                if XFER_PAUSE = '0' then
         
                     -- Once we reach the end of the framebuffer, disable the copying until next frame.
                     --
@@ -1060,10 +1175,10 @@ begin
         -- framebuffer then we use the XFER_DST_ADDR, all other times we use the Framebuffer address FB_ADDR which is used to extract data
         -- for display.
         --
-        if XFER_ENABLED = '1' and XFER_PAUSE = '0' then
-            XFER_SRC_ADDR   <= XFER_DST_ADDR;
+        if XFER_PAUSE = '0' then
+            XFER_SRC_ADDR                <= XFER_DST_ADDR;
         else
-            XFER_SRC_ADDR   <= FB_ADDR;
+            XFER_SRC_ADDR                <= FB_ADDR;
         end if;
     end process;
 
@@ -1077,42 +1192,59 @@ begin
         -- then load up the required parameter set and generate the video signal.
         --
         if VRESETn = '0' then
-                H_DSP_START                  <= (others => '0');
-                H_DSP_END                    <= (others => '0');
-                H_DSP_WND_START              <= (others => '0');
-                H_DSP_WND_END                <= (others => '0');
-                V_DSP_START                  <= (others => '0');
-                V_DSP_END                    <= (others => '0');
-                V_DSP_WND_START              <= (others => '0');
-                V_DSP_WND_END                <= (others => '0');
-                MAX_COLUMN                   <= (others => '0');
-                H_LINE_END                   <= (others => '0');
-                V_LINE_END                   <= (others => '0');
-                H_SYNC_START                 <= (others => '0');
-                H_SYNC_END                   <= (others => '0');
-                V_SYNC_START                 <= (others => '0');
-                V_SYNC_END                   <= (others => '0');
-                H_POLARITY                   <= (others => '0');
-                V_POLARITY                   <= (others => '0');
-                H_PX                         <= (others => '0');
-                V_PX                         <= (others => '0');
-                H_COUNT                      <= (others => '0');
-                V_COUNT                      <= (others => '0');
-                H_BLANKi                     <= '1';
-                V_BLANKi                     <= '1';
-                H_SYNCni                     <= '1';
-                V_SYNCni                     <= '1';
-                H_PX_CNT                     <= 0;
-                V_PX_CNT                     <= 0;
-                H_SHIFT_CNT                  <= 0;
-                FB_ADDR                      <= (others => '0');
+                H_DSP_START                      <= (others => '0');
+                H_DSP_END                        <= (others => '0');
+                H_DSP_WND_START                  <= (others => '0');
+                H_DSP_WND_END                    <= (others => '0');
+                V_DSP_START                      <= (others => '0');
+                V_DSP_END                        <= (others => '0');
+                V_DSP_WND_START                  <= (others => '0');
+                V_DSP_WND_END                    <= (others => '0');
+                MAX_COLUMN                       <= (others => '0');
+                H_LINE_END                       <= (others => '0');
+                V_LINE_END                       <= (others => '0');
+                H_SYNC_START                     <= (others => '0');
+                H_SYNC_END                       <= (others => '0');
+                V_SYNC_START                     <= (others => '0');
+                V_SYNC_END                       <= (others => '0');
+                H_POLARITY                       <= (others => '0');
+                V_POLARITY                       <= (others => '0');
+                H_PX                             <= (others => '0');
+                V_PX                             <= (others => '0');
+                H_COUNT                          <= (others => '0');
+                V_COUNT                          <= (others => '0');
+                H_BLANKi                         <= '1';
+                V_BLANKi                         <= '1';
+                H_SYNCni                         <= '1';
+                V_SYNCni                         <= '1';
+                H_PX_CNT                         <= 0;
+                V_PX_CNT                         <= 0;
+                H_SHIFT_CNT                      <= 0;
+                FB_ADDR                          <= (others => '0');
+                VIDEOMODE_SWITCH                 <= '0';
+                VIDEOMODE                        <= 0;
+                VIDEOMODE_RESET_TIMER            <= (others => '1');
+                VIDCLK_DIV                       <= '0';
 
         elsif rising_edge(VID_CLK) then
 
+            -- The video clock is running at twice the display frequency to provide additional edges for rendering the display during the blanking periods.
+            -- We therefore divide the clock by two and only act on the second edge in 2 edges.
+            VIDCLK_DIV                           <= not VIDCLK_DIV;
+
+            -- If the video mode changes, we wait until the current frame has been displayed then commence switching to the new video mode.
+            if VIDEOMODE /= VIDEOMODE_NEXT then
+                VIDEOMODE_SWITCH                 <= '1';
+            end if;
+
             -- If the video mode changes, reset the variables to the initial state. This occurs
-            -- at the end of a frame to minimise the monitor syncing incorrectly.
+            -- at the end of a frame to minimise the monitor syncing incorrectly. Max columns is used as a parameter
+            -- to cater for reset conditions in order to initialise the variables.
             --
-            if VIDEOMODE_RESET_TIMER /= 0 then
+            if (VIDEOMODE_SWITCH = '1' and V_COUNT = to_unsigned(FB_PARAMS(VIDEOMODE, 9), 16)) or MAX_COLUMN = 0
+            then
+                VIDEOMODE                        <= VIDEOMODE_NEXT;
+                VIDEOMODE_SWITCH                 <= '0';
 
                 -- Iniitialise control registers.
                 --
@@ -1120,37 +1252,52 @@ begin
     
                 -- Load up configuration from the look up table based on video mode.
                 --
-                H_DSP_START                      <= to_unsigned(FB_PARAMS(VIDEOMODE, 0), 16);      -- IO 0
-                H_DSP_END                        <= to_unsigned(FB_PARAMS(VIDEOMODE, 1), 16);      -- IO 2
-                H_DSP_WND_START                  <= to_unsigned(FB_PARAMS(VIDEOMODE, 2), 16);      -- IO 4
-                H_DSP_WND_END                    <= to_unsigned(FB_PARAMS(VIDEOMODE, 3), 16);      -- IO 6
-                V_DSP_START                      <= to_unsigned(FB_PARAMS(VIDEOMODE, 4), 16);      -- IO 8
-                V_DSP_END                        <= to_unsigned(FB_PARAMS(VIDEOMODE, 5), 16);      -- IO 10
-                V_DSP_WND_START                  <= to_unsigned(FB_PARAMS(VIDEOMODE, 6), 16);      -- IO 12
-                V_DSP_WND_END                    <= to_unsigned(FB_PARAMS(VIDEOMODE, 7), 16);      -- IO 14
-                H_LINE_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 8), 16);      -- IO 16
-                V_LINE_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 9), 16);      -- IO 18
-                MAX_COLUMN                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 10), 8);      -- IO 20
-                H_SYNC_START                     <= to_unsigned(FB_PARAMS(VIDEOMODE, 11), 16);     -- IO 22
-                H_SYNC_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 12), 16);     -- IO 24
-                V_SYNC_START                     <= to_unsigned(FB_PARAMS(VIDEOMODE, 13), 16);     -- IO 26
-                V_SYNC_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 14), 16);     -- IO 28
-                H_POLARITY                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 15), 1);      --
-                V_POLARITY                       <= to_unsigned(FB_PARAMS(VIDEOMODE, 16), 1);      --
-                H_PX                             <= to_unsigned(FB_PARAMS(VIDEOMODE, 17), 8);      -- IO 30
-                V_PX                             <= to_unsigned(FB_PARAMS(VIDEOMODE, 18), 8);      -- IO 31
+                H_DSP_START                      <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 0), 16);      -- IO 0
+                H_DSP_END                        <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 1), 16);      -- IO 2
+                H_DSP_WND_START                  <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 2), 16);      -- IO 4
+                H_DSP_WND_END                    <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 3), 16);      -- IO 6
+                V_DSP_START                      <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 4), 16);      -- IO 8
+                V_DSP_END                        <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 5), 16);      -- IO 10
+                V_DSP_WND_START                  <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 6), 16);      -- IO 12
+                V_DSP_WND_END                    <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 7), 16);      -- IO 14
+                H_LINE_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 8), 16);      -- IO 16
+                V_LINE_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 9), 16);      -- IO 18
+                MAX_COLUMN                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 10), 8);      -- IO 20
+                H_SYNC_START                     <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 11), 16);     -- IO 22
+                H_SYNC_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 12), 16);     -- IO 24
+                V_SYNC_START                     <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 13), 16);     -- IO 26
+                V_SYNC_END                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 14), 16);     -- IO 28
+                H_POLARITY                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 15), 1);      --
+                V_POLARITY                       <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 16), 1);      --
+                H_PX                             <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 17), 8);      -- IO 30
+                V_PX                             <= to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 18), 8);      -- IO 31
                 --
                 H_COUNT                          <= (others => '0');
                 V_COUNT                          <= (others => '0');
                 H_BLANKi                         <= '1';
                 V_BLANKi                         <= '1';
-                H_SYNCni                         <= not std_logic_vector(to_unsigned(FB_PARAMS(VIDEOMODE, 15), 1))(0);
-                V_SYNCni                         <= not std_logic_vector(to_unsigned(FB_PARAMS(VIDEOMODE, 16), 1))(0);
+                H_SYNCni                         <= not std_logic_vector(to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 15), 1))(0);
+                V_SYNCni                         <= not std_logic_vector(to_unsigned(FB_PARAMS(VIDEOMODE_NEXT, 16), 1))(0);
                 H_PX_CNT                         <= 0;
                 V_PX_CNT                         <= 0;
                 H_SHIFT_CNT                      <= 0;
+                --
+                -- On display start or change we need to give a small period between one set of frequencies/display settings and the next.
+                -- This is necessary as I've noticed on one of my displays that changing modes too quickly results in lock up - probably a bug
+                -- of my monitor but this ensures other monitors arent affected either.
+                VIDEOMODE_RESET_TIMER            <= (others => '1');
+                --
+                VIDCLK_DIV                       <= '0';
 
-            else
+            -- During reset periods, just count down, no active display signals will be generated.
+            elsif VIDEOMODE_RESET_TIMER /= 0 then
+                VIDEOMODE_RESET_TIMER            <= VIDEOMODE_RESET_TIMER - 1;
+                --
+                VIDCLK_DIV                       <= '0';
+
+            -- Only process the display output on the second of each video clock edges as the video clock is running at 2x frequency.
+            --
+            elsif VIDCLK_DIV = '1' then
 
                 -- Ability to adjust the video parameter registers to tune or override the default values from the lookup table. This can be useful in debugging,
                 -- adjusting to a new monitor etc.
@@ -1256,7 +1403,7 @@ begin
                 --
                 if H_COUNT >= H_DSP_START and H_COUNT < H_DSP_END and V_COUNT >= V_DSP_START and V_COUNT < V_DSP_END then
     
-                    if (V_COUNT >= V_DSP_WND_START and V_COUNT < V_DSP_WND_END-V_PX) and (H_COUNT >= H_DSP_WND_START and H_COUNT < H_DSP_WND_END) then
+                    if (V_COUNT >= V_DSP_WND_START and V_COUNT <= V_DSP_WND_END) and (H_COUNT >= H_DSP_WND_START and H_COUNT < H_DSP_WND_END) then
 
                         -- Update Horizontal Pixel multiplier.
                         --
@@ -1277,7 +1424,7 @@ begin
                                 SR_G_DATA        <= DISPLAY_DATA(23 downto 16);
                                 FB_ADDR          <= FB_ADDR + 1;
 
-                            else -- H_SHIFT_CNT /= 0 then --and H_COUNT >= H_DSP_START and H_COUNT < H_DSP_END and V_COUNT >= V_DSP_START and V_COUNT < V_DSP_END then
+                            else
                                 -- During the active display area, if the shift counter is not 0 and the horizontal multiplier is equal to the setting,
                                 -- shift the data in the shift register to display the next pixel.
                                 --
@@ -1292,11 +1439,11 @@ begin
                     else
                         -- Blank.
                         --
-                        SR_R_DATA                <= (others => '0');
-                        SR_B_DATA                <= (others => '0');
-                        SR_G_DATA                <= (others => '0');
-                        H_PX_CNT                 <= 0; --to_integer(H_PX);
-                        H_SHIFT_CNT              <= 0; --1;
+                        SR_R_DATA                <= (others => BORDER_REG(2));
+                        SR_B_DATA                <= (others => BORDER_REG(1));
+                        SR_G_DATA                <= (others => BORDER_REG(0));
+                        H_PX_CNT                 <= 0;
+                        H_SHIFT_CNT              <= 0;
                     end if;
     
                 else
@@ -1737,10 +1884,10 @@ begin
             GRAM_PAGE_ENABLE      <= '0';
             CGROM_PAGE            <= '0';
             DISPLAY_VGATE         <= '0';
-            VIDEOMODE_RESET_TIMER <= to_unsigned(2, VIDEOMODE_RESET_TIMER'length); --(others => '0') & '1';
             CGRAM_ADDR            <= (others=>'0');
             PCG_DATA              <= (others=>'0');
             CPLD_CFG_DATA         <= "00000100";
+            BORDER_REG            <= (others => '0');
             PALETTE_REG           <= (others => '0');
             PALETTE_PARAM_SEL     <= (others => '0');
             CGRAM_WEn             <= '1';
@@ -1780,6 +1927,12 @@ begin
                 else
                     OFFSET_ADDR   <= VADDR(7 downto 0);
                 end if;
+            end if;
+
+            -- Setup the VGA border attributes. The VGA modes have areas not used by the graphics output, this register allows this area to be set to a specific colour (when colour mode enabled).
+            --        Bits [2:0] define the border colour, 2 = R, 1 = G, 0 = B
+            if CS_FB_BORDERn = '0' and VZ80_WRn = '0' and VZ80_WR_LASTn = '1' then
+                BORDER_REG        <= VDATA;
             end if;
 
             -- Setup the palette register to given value.
@@ -1823,7 +1976,8 @@ begin
             end if;
 
             -- Read out the rightmost byte of the GPU parameters and shift right, this allows reading or manipulating the parameters.
-            if CS_FB_PARAMSn = '0' and VZ80_RDn = '0' and VZ80_RD_LASTn = '1' then
+            -- The shift is made at the end of the read cycle so that valid data is seen by the CPU.
+            if CS_FB_PARAMSn = '0' and VZ80_RDn = '1' and VZ80_RD_LASTn = '0' then
                 GPU_PARAMS(119 downto 0) <= GPU_PARAMS(127 downto 8);
             end if;
 
@@ -1954,8 +2108,6 @@ begin
                 -- The VGA Mode is used to change the type of VGA output frequency and resolution made to the external monitor.
                 VGAMODE                   <= VDATA(7 downto 6);
 
-                -- Flag the video mode change so new settings can be loaded.
-                VIDEOMODE_RESET_TIMER     <= (others => '1');
             end if;
 
             -- Framebuffer control register.
@@ -2126,11 +2278,6 @@ begin
             else
                 MODE_CPLD_SWITCH      <= '0';
             end if;
-
-            -- If video mode has changed then the reset timer is started, decrement it if it hasnt expired on each clock cycle.
-            if VIDEOMODE_RESET_TIMER /= 0 then 
-                VIDEOMODE_RESET_TIMER <= VIDEOMODE_RESET_TIMER - 1;
-            end if;
         end if;
 
         -- Non-registered signal vectors for readback.
@@ -2195,6 +2342,11 @@ begin
     CS_80B_PITn           <= '0'                                             when CS_IO_EXXn = '0'  and VADDR(3 downto 2) = "01" and MODE_VIDEO_MZ80B = '1'
                              else '1';
     CS_80B_PIOn           <= '0'                                             when CS_IO_EXXn = '0'  and VADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
+                             else '1';
+
+    -- 0xF3 set the VGA border colour. The VGA modes have areas not used by the graphics output, this register allows this area to be set to a specific colour (when colour mode enabled).
+    --                       Bits [2:0] define the border colour, 2 = R, 1 = G, 0 = B
+    CS_FB_BORDERn         <= '0'                                             when CS_IO_FXXn = '0'  and VADDR(3 downto 0) = "0011"
                              else '1';
 
     -- 0xF4 set the MZ80B video in/out mode.
@@ -2350,6 +2502,8 @@ begin
                              else
                              std_logic_vector(V_PX(7 downto 0))              when VZ80_RDn = '0'    and CS_IO_DXXn = '0' and VADDR(3 downto 0) = "0010" and DSP_PARAM_SEL = "1111"
                              else
+                             BORDER_REG                                      when VZ80_RDn = '0'    and CS_FB_BORDERn = '0'
+                             else
                              PALETTE_REG                                     when VZ80_RDn = '0'    and CS_FB_PALETTEn = '0'
                              else
                              "000" & PALETTE_DO_R                            when VZ80_RDn = '0'    and CS_IO_DXXn = '0' and VADDR(3 downto 0) = "0101"
@@ -2485,7 +2639,7 @@ begin
     -- 10 Mode 2 upscaled as 640x480  @ 72Hz timings for 40Char mode colour. 			
     -- 11 Mode 3 upscaled as 640x480  @ 72Hz timings for 80Char mode colour.
     --
-    VIDEOMODE             <= 0                                               when VIDEO_DEBUG = '1'
+    VIDEOMODE_NEXT        <= 0                                               when VIDEO_DEBUG = '1'
                              else
                              0                                               when VGAMODE = "00" and (MODE_VIDEO_MZ80A = '1' or MODE_VIDEO_MZ80K = '1' or MODE_VIDEO_MZ80C = '1' or MODE_VIDEO_MZ1200 = '1' or MODE_VIDEO_MZ80B = '1')                           and MODE_VIDEO_MONO   = '1'
                              else
@@ -2521,80 +2675,26 @@ begin
                              else
                              0;
 
-    -- Select the video clock based on the mode.
+    -- Select the video clock based on the video mode. The video mode selects an active clock when the old and previous clocks go to the high level.
     --
     --
-    VID_CLK               <= VIDCLK_8MHZ                                     when (VIDEOMODE = 0 or VIDEOMODE = 2)
-                             else
-                             VIDCLK_16MHZ                                    when (VIDEOMODE = 1 or VIDEOMODE = 3)
-                             else
-                             VIDCLK_25_175MHZ                                when (VIDEOMODE = 4 or VIDEOMODE = 5 or VIDEOMODE = 6 or VIDEOMODE = 7)
-                             else
-                             VIDCLK_65MHZ                                    when (VIDEOMODE = 8 or VIDEOMODE = 9 or VIDEOMODE = 10 or VIDEOMODE = 11)
-                             else
-                             VIDCLK_40MHZ                                    when (VIDEOMODE = 12 or VIDEOMODE = 13 or VIDEOMODE = 14 or VIDEOMODE = 15)
-                             else
-                             VIDCLK_8MHZ;
+    VID_CLK               <= (VIDCLK_8MHZ or VIDCLK_8MHZ_Q)             and
+                             (VIDCLK_8_86719MHZ or VIDCLK_8_86719MHZ_Q) and
+                             (VIDCLK_16MHZ or VIDCLK_16MHZ_Q)           and
+                             (VIDCLK_17_7344MHZ or VIDCLK_17_7344MHZ_Q) and
+                             (VIDCLK_25_175MHZ or VIDCLK_25_175MHZ_Q)   and
+                             (VIDCLK_65MHZ or VIDCLK_65MHZ_Q)           and
+                             (VIDCLK_40MHZ or VIDCLK_40MHZ_Q);
 
-    -- Output the VGA signals on the main clock edge, helps a bit with jitter.
+
+
+    -- Process to output signals on clock edges, to clean them up as needed.
     --
---    process(SYS_CLK)
---    begin
---        if rising_edge(SYS_CLK) then
---            if H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0') then
---                VGA_R             <= (others => SR_R_DATA(7));
---                VGA_G             <= (others => SR_G_DATA(7));
---                VGA_B             <= (others => SR_B_DATA(7));
---            else
---                VGA_R             <= (others => '0');
---                VGA_G             <= (others => '0');
---                VGA_B             <= (others => '0');
---            end if;
---            if H_POLARITY(0) = '0' then
---                VGA_HS            <= H_SYNCni;
---            else
---                VGA_HS            <= not H_SYNCni;
---            end if;
---            if V_POLARITY(0) = '0'  then
---                VGA_VS            <= V_SYNCni;
---            else
---                VGA_VS            <= not V_SYNCni;
---            end if;
---        end if;
---    end process;
---
     process(SYS_CLK)
     begin
         if rising_edge(SYS_CLK) then
             if MODE_CPLD_MB_VIDEOn = '1' then
---                if H_BLANKi='0' and V_BLANKi = '0' and ((DISPLAY_VGATE = '0' and MODE_VIDEO_MZ80B = '1') or MODE_VIDEO_MZ80B = '0') then
---                    VGA_R(3 downto 0)     <= FB_PALETTE_R(3 downto 0);
---                    VGA_G(3 downto 0)     <= FB_PALETTE_G(3 downto 0);
---                    VGA_B(3 downto 0)     <= FB_PALETTE_B(3 downto 0);
---                else
---                    VGA_R(3 downto 0)     <= (others => '0');
---                    VGA_G(3 downto 0)     <= (others => '0');
---                    VGA_B(3 downto 0)     <= (others => '0');
---                end if;
---
---                if FB_PALETTE_R(4) = '0' then
---                    VGA_R_COMPOSITE       <= '0';
---                else
---                    VGA_R_COMPOSITE       <= 'Z';
---                end if;
---
---                if FB_PALETTE_G(4) = '0' then
---                    VGA_G_COMPOSITE       <= '0';
---                else
---                    VGA_G_COMPOSITE       <= 'Z';
---                end if;
---
---                if FB_PALETTE_B(4) = '0' then
---                    VGA_B_COMPOSITE       <= '0';
---                else
---                    VGA_B_COMPOSITE       <= 'Z';
---                end if;
---
+
                 if H_POLARITY(0) = '0' then
                     HSYNC_OUTn            <= H_SYNCni;
                 else
@@ -2608,17 +2708,10 @@ begin
                 end if;
 
             elsif MODE_CPLD_MB_VIDEOn = '0' then
---                VGA_R_COMPOSITE       <= V_R;
---                VGA_G_COMPOSITE       <= V_G;
---                VGA_B_COMPOSITE       <= V_B;
---                VGA_R                 <= (others => V_R);
---                VGA_G                 <= (others => V_G);
---                VGA_B                 <= (others => V_B);
                 HSYNC_OUTn            <= V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
                 VSYNC_OUTn            <= V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
             end if;
         end if;
-
     end process;
 
 
@@ -2678,16 +2771,6 @@ begin
                              else
                              '0'                                             when MODE_CPLD_MB_VIDEOn = '1' and H_BLANKi='0' and V_BLANKi = '0' and (MODE_VIDEO_COLOUR = '1' or MODE_VIDEO_COLOUR80 = '1') and FB_PALETTE_B(4) = '0'
                              else 'Z';
---    HSYNC_OUTn            <= H_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '0'
---                             else
---                             not H_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and H_POLARITY(0) = '1'
---                             else
---                             V_HSYNCn;                                                   -- Horizontal sync (negative) from mainboard.
---    VSYNC_OUTn            <= V_SYNCni                                        when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '0'
---                             else
---                             not V_SYNCni                                    when MODE_CPLD_MB_VIDEOn = '1' and V_POLARITY(0) = '1'
---                             else
---                             V_VSYNCn;                                                   -- Vertical sync (negative) from mainboard.
 
     -- Composite video signal output. Composite video is formed in external hardware by the combination of VGA R/G/B signals.
     CSYNC_OUTn            <= not V_CSYNC                                     when MODE_CPLD_MB_VIDEOn = '0'
@@ -2697,6 +2780,8 @@ begin
                              else
                              H_SYNCni xor not V_SYNCni;
     COLR_OUT              <= V_COLR                                          when MODE_CPLD_MB_VIDEOn = '0'      -- Composite and RF base frequency from mainboard.
+                             else
+                             VIDCLK_17_7344MHZ                               when (VIDEOMODE = 2)
                              else
                              V_COLR;
 

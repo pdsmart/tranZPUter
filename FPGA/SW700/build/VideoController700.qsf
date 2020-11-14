@@ -142,14 +142,14 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VDATA[3]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VDATA[2]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VDATA[1]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VDATA[0]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[7]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[6]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[5]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[4]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[3]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[2]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[1]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VDATA[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[7]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[6]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[5]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[4]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[1]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VDATA[0]
 
 # Video control signals.
 # ======================
@@ -178,13 +178,6 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to V_G
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to V_B
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to V_R
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to V_COLR
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_CSYNC
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_HSYNCn
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_VSYNCn
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_G
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_B
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_R
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to V_COLR
 
 # VGA/RGB/Composite video signals output.
 # =======================================
@@ -233,21 +226,21 @@ set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CSYNC_O
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to CSYNC_OUT
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VSYNC_OUTn
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to HSYNC_OUTn
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_R[0]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_R[1]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_R[2]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_R[3]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_R_COMPOSITE
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_G[0]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_G[1]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_G[2]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_G[3]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_G_COMPOSITE
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_B[0]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_B[1]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_B[2]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_B[3]
-set_instance_assignment -name CURRENT_STRENGTH_NEW "MINIMUM CURRENT" -to VGA_B_COMPOSITE
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_R[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_R[1]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_R[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_R[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_R_COMPOSITE
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_G[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_G[1]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_G[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_G[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_G_COMPOSITE
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_B[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_B[1]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_B[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_B[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to VGA_B_COMPOSITE
 
 # Reserved.
 # =========
@@ -279,11 +272,15 @@ set_global_assignment -name VHDL_FILE ../VideoController700_Toplevel.vhd
 set_global_assignment -name QIP_FILE SFL.qip
 set_global_assignment -name QIP_FILE Video_Clock.qip
 set_global_assignment -name QIP_FILE Video_Clock_II.qip
+set_global_assignment -name QIP_FILE Video_Clock_III.qip
 set_global_assignment -name QIP_FILE vbuffer.qip
 set_global_assignment -name VHDL_FILE ../VideoController700_pkg.vhd
 set_global_assignment -name VHDL_FILE ../VideoController700.vhd
 set_global_assignment -name VHDL_FILE ../devices/RAM/dpram.vhd
 set_global_assignment -name SDC_FILE VideoController700_constraints.sdc
+
+
+
 
 
 

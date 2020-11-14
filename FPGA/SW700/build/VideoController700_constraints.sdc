@@ -100,7 +100,7 @@ set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VG
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VGA_G_COMPOSITE}]
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VGA_R_COMPOSITE}]
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_CSYNC}]
-set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_CVIDEO}]
+#set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_CVIDEO}]
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_HSYNCn}]
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_VSYNCn}]
 set_input_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V_COLR}]
@@ -126,6 +126,7 @@ set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {V
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VDATA[5]}]
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VDATA[6]}]
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VDATA[7]}]
+set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VWAITn}]
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VGA_B[0]}]
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VGA_B[1]}]
 set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {VGA_B[2]}]
@@ -162,7 +163,15 @@ set_output_delay -add_delay  -clock [get_clocks {CLOCK_50}]  1.000 [get_ports {a
 #**************************************************************
 # Set False Path
 #**************************************************************
-
+set_false_path  -from  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[1]}]  -to  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[1]}]  -to  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[1]}]
+set_false_path  -from  [get_clocks {VZ80_CLK}]  -to  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VZ80_CLK}]  -to  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {VZ80_CLK}]  -to  [get_clocks {VCPLL3|altpll_component|auto_generated|pll1|clk[1]}]
+set_false_path  -from  [get_clocks {VZ80_CLK}]  -to  [get_clocks {VCPLL2|altpll_component|auto_generated|pll1|clk[1]}]
 
 
 #**************************************************************

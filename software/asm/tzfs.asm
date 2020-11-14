@@ -99,6 +99,7 @@ BANKTOBANK_:JMPTOBNK
 ?INITMEMX:  CALLBNK INITMEMX,    TZMM_TZFS3
 ?SETVMODE:  CALLBNK SETVMODE,    TZMM_TZFS2
 ?SETVGAMODE:CALLBNK SETVGAMODE,  TZMM_TZFS2
+?SETVBORDER:CALLBNK SETVBORDER,  TZMM_TZFS2
 ?SETFREQ:   CALLBNK SETFREQ,     TZMM_TZFS2
             ;-----------------------------------------
 
@@ -355,6 +356,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DB      000H | 000H | 000H | 001H
             DB      'T'                                                  ; Timer test.
             DW      TIMERTST
+            DB      000H | 000H | 000H | 007H
+            DB      "VBORDER"                                            ; Set VGA border colour.
+            DW      ?SETVBORDER
             DB      000H | 000H | 000H | 005H
             DB      "VMODE"                                              ; Set VGA mode.
             DW      ?SETVMODE

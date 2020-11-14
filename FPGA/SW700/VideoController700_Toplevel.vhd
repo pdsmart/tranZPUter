@@ -93,8 +93,11 @@ architecture rtl of VideoController700 is
     signal VIDCLK_25_175MHZ       :       std_logic;
     signal VIDCLK_40MHZ           :       std_logic;
     signal VIDCLK_65MHZ           :       std_logic;
+    signal VIDCLK_8_86719MHZ      :       std_logic;
+    signal VIDCLK_17_7344MHZ      :       std_logic;
     signal PLL_LOCKED             :       std_logic;
     signal PLL_LOCKED2            :       std_logic;
+    signal PLL_LOCKED3            :       std_logic;
     signal RESETn                 :       std_logic := '0';
     signal RESET_COUNTER          :       unsigned(3 downto 0) := (others => '1');
 begin
@@ -124,6 +127,17 @@ begin
          locked                  => PLL_LOCKED2
     );
 
+    -- Instantiate a 3rd PLL to generate clock for pseudo monochrome generation on internal monitor.
+    VCPLL3 : entity work.Video_Clock_III
+    port map
+    (
+         inclk0                  => CLOCK_50,
+         areset                  => '0',
+         c0                      => VIDCLK_8_86719MHZ,
+         c1                      => VIDCLK_17_7344MHZ,
+         locked                  => PLL_LOCKED3
+    );
+
     -- Add the Serial Flash Loader megafunction to enable in-situ programming of the EPCS16 configuration memory.
     --
     SFL : entity work.sfl
@@ -141,11 +155,13 @@ begin
         -- Primary and video clocks.
         SYS_CLK                  => SYS_CLK,                                             -- 120MHz main FPGA clock.
         IF_CLK                   => VZ80_CLK,                                            -- Z80 runtime clock (product of SYSCLK and CTLCLK - variable frequency).
-        VIDCLK_8MHZ              => VIDCLK_8MHZ,                                         -- 8MHz base clock for video timing and gate clocking.
-        VIDCLK_16MHZ             => VIDCLK_16MHZ,                                        -- 16MHz base clock for video timing and gate clocking.
-        VIDCLK_65MHZ             => VIDCLK_65MHZ,                                        -- 65MHz base clock for video timing and gate clocking.
-        VIDCLK_25_175MHZ         => VIDCLK_25_175MHZ,                                    -- 25.175MHz base clock for video timing and gate clocking.
-        VIDCLK_40MHZ             => VIDCLK_40MHZ,                                        -- 40MHz base clock for video timing and gate clocking.
+        VIDCLK_8MHZ              => VIDCLK_8MHZ,                                         -- 2x 8MHz base clock for video timing and gate clocking.
+        VIDCLK_16MHZ             => VIDCLK_16MHZ,                                        -- 2x 16MHz base clock for video timing and gate clocking.
+        VIDCLK_65MHZ             => VIDCLK_65MHZ,                                        -- 2x 65MHz base clock for video timing and gate clocking.
+        VIDCLK_25_175MHZ         => VIDCLK_25_175MHZ,                                    -- 2x 25.175MHz base clock for video timing and gate clocking.
+        VIDCLK_40MHZ             => VIDCLK_40MHZ,                                        -- 2x 40MHz base clock for video timing and gate clocking.
+        VIDCLK_8_86719MHZ        => VIDCLK_8_86719MHZ,                                   -- 2x original MZ700 video clock.
+        VIDCLK_17_7344MHZ        => VIDCLK_17_7344MHZ,                                   -- 2x original MZ700 colour modulator clock.
 
         -- V[name] = Voltage translated signals which mirror the mainboard signals but at a lower voltage.
         -- Address Bus
@@ -189,13 +205,13 @@ begin
     -- Process to reset the FPGA based on the external RESET trigger, PLL's being locked
     -- and a counter to set minimum width.
     --
-    FPGARESET: process(CLOCK_50, PLL_LOCKED, PLL_LOCKED2)
+    FPGARESET: process(CLOCK_50, PLL_LOCKED, PLL_LOCKED2, PLL_LOCKED3)
     begin
-       if PLL_LOCKED = '0' or PLL_LOCKED2 = '0' then
+       if PLL_LOCKED = '0' or PLL_LOCKED2 = '0' or PLL_LOCKED3 = '0' then
             RESET_COUNTER        <= (others => '1');
             RESETn               <= '0';
 
-       elsif PLL_LOCKED = '1' and PLL_LOCKED2 = '1' then
+       elsif PLL_LOCKED = '1' and PLL_LOCKED2 = '1' and PLL_LOCKED3 = '1' then
             if rising_edge(CLOCK_50) then
                 if RESET_COUNTER /= 0 then
                     RESET_COUNTER <= RESET_COUNTER - 1;
