@@ -43,10 +43,10 @@ UROMBSTBL               EQU     UROMADDR + 020H                          ; Entry
 TZFSJMPTABLE            EQU     UROMADDR + 00080H                        ; Start of jump table.
 BANKRAMADDR             EQU     0F000H                                   ; Start address of the banked RAM used for TZFS functionality.
 FDCROMADDR              EQU     0F000H
-FDCJMP1BLK              EQU     0F3C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
 FDCJMP1                 EQU     0F3FEH                                   ; ROM paged vector 1.
-FDCJMP2BLK              EQU     0F7C0H                                   ; The memory mapping FlashRAM only has 64byte granularity so we need to block 64 bytes per FDC vector.
 FDCJMP2                 EQU     0F7FEH                                   ; ROM paged vector 2.
+FDCJMP3                 EQU     0F7FEH                                   ; ROM paged vector 3.
+FDCJMP4                 EQU     0F7FEH                                   ; ROM paged vector 4.
 
 ;-----------------------------------------------
 ; Common character definitions.
@@ -191,6 +191,9 @@ SETXMHZ                 EQU     062H                                     ; Selec
 SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
 CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
 SVCREQ                  EQU     068H                                     ; I/O Processor service request.
+CPUCFG                  EQU     06CH                                     ; Version 2.2 CPU configuration register.
+CPUSTATUS               EQU     06CH                                     ; Version 2.2 CPU runtime status register.
+CPUINFO                 EQU     06DH                                     ; Version 2.2 CPU information register.
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
@@ -232,6 +235,28 @@ MODE_MZ800              EQU     5                                        ; Set t
 MODE_MZ80B              EQU     6                                        ; Set to MZ-80B mode.
 MODE_MZ2000             EQU     7                                        ; Set to MZ-2000 mode.
 MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
+
+;-----------------------------------------------
+; FPGA CPU enhancement control bits.
+;-----------------------------------------------
+CPUMODE_SET_Z80         EQU     000H                                     ; Set the CPU to the hard Z80.
+CPUMODE_SET_T80         EQU     001H                                     ; Set the CPU to the soft T80.
+CPUMODE_SET_ZPU_EVO     EQU     002H                                     ; Set the CPU to the soft ZPU Evolution.
+CPUMODE_SET_AAA         EQU     004H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_BBB         EQU     008H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_CCC         EQU     010H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_DDD         EQU     020H                                     ; Place holder for a future soft CPU.
+CPUMODE_IS_Z80          EQU     000H                                     ; Status value to indicate if the hard Z80 available.
+CPUMODE_IS_T80          EQU     001H                                     ; Status value to indicate if the soft T80 available.
+CPUMODE_IS_ZPU_EVO      EQU     002H                                     ; Status value to indicate if the soft ZPU Evolution available.
+CPUMODE_IS_AAA          EQU     004H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_BBB          EQU     008H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_CCC          EQU     010H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_DDD          EQU     020H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_RESET_CPU       EQU     080H                                     ; Reset the soft CPU. Active high, when high the CPU is held in RESET, when low the CPU runs.
+CPUMODE_IS_SOFT_AVAIL   EQU     040H                                     ; Marker to indicate if the underlying FPGA can support soft CPU's.
+CPUMODE_IS_SOFT_MASK    EQU     0C0H                                     ; Mask to filter out the Soft CPU availability flags.
+CPUMODE_IS_CPU_MASK     EQU     03FH                                     ; Mask to filter out which soft CPU's are available.
 
 ;-----------------------------------------------
 ; Video Module control bits.
@@ -481,6 +506,9 @@ TZSVC_CMD_WRITESDDRIVE  EQU     33H                                      ; Servi
 TZSVC_CMD_CPU_BASEFREQ  EQU     40H                                      ; Service command to switch to the mainboard frequency.
 TZSVC_CMD_CPU_ALTFREQ   EQU     41H                                      ; Service command to switch to the alternate frequency provided by the K64F.
 TZSVC_CMD_CPU_CHGFREQ   EQU     42H                                      ; Service command to set the alternate frequency in hertz.
+TZSVC_CMD_CPU_SETZ80    EQU     50H                                      ; Service command to switch to the external Z80 hard cpu.
+TZSVC_CMD_CPU_SETT80    EQU     51H                                      ; Service command to switch to the internal T80 soft cpu.
+TZSVC_CMD_CPU_SETZPUEVO EQU     52H                                      ; Service command to switch to the internal ZPU Evolution soft cpu.
 TZSVC_CMD_EXIT          EQU     07FH                                     ; Service command to terminate TZFS and restart the machine in original mode.
 TZSVC_STATUS_OK         EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
 TZSVC_STATUS_REQUEST    EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.

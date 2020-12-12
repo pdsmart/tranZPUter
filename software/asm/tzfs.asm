@@ -17,6 +17,8 @@
 ;-                              hardware v1.1 version, thus differentiating between v1.0 board and v1.1.
 ;-                  July 2020 - Updates to accomodate the v2.1 hardware. Additional commands and fixed a 
 ;-                              few bugs like the load from card by name!
+;-                  Dec 2020  - Updates to accommodate v1.3 of the tranZPUter SW-700 board where soft
+;-                              CPU's now become possible.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -97,10 +99,13 @@ BANKTOBANK_:JMPTOBNK
 ?DUMPX:     CALLBNK DUMPX,       TZMM_TZFS3
 ?DUMP:      CALLBNK DUMP,        TZMM_TZFS3
 ?INITMEMX:  CALLBNK INITMEMX,    TZMM_TZFS3
-?SETVMODE:  CALLBNK SETVMODE,    TZMM_TZFS2
-?SETVGAMODE:CALLBNK SETVGAMODE,  TZMM_TZFS2
-?SETVBORDER:CALLBNK SETVBORDER,  TZMM_TZFS2
-?SETFREQ:   CALLBNK SETFREQ,     TZMM_TZFS2
+?SETVMODE:  CALLBNK SETVMODE,    TZMM_TZFS4
+?SETVGAMODE:CALLBNK SETVGAMODE,  TZMM_TZFS4
+?SETVBORDER:CALLBNK SETVBORDER,  TZMM_TZFS4
+?SETFREQ:   CALLBNK SETFREQ,     TZMM_TZFS4
+?SETT80:    CALLBNK SETT80,      TZMM_TZFS4
+?SETZ80:    CALLBNK SETZ80,      TZMM_TZFS4
+?SETZPUEVO: CALLBNK SETZPUEVO,   TZMM_TZFS4
             ;-----------------------------------------
 
 
@@ -194,6 +199,17 @@ SIGNON1:    CALL    DPCT
             DEC     E
             JR      NZ,SIGNON1
             LD      DE,MSGSON                                            ; Sign on message,
+            CALL    ?PRINTMSG
+            IN      A,(CPUINFO)                                          ; Check to see if soft CPU's are available.
+            AND     CPUMODE_IS_SOFT_MASK
+            CP      CPUMODE_IS_SOFT_AVAIL
+            JR      NZ,SIGNON2
+            IN      A,(CPUSTATUS)                                        ; Check to see if the T80 is running.
+            AND     CPUMODE_IS_T80                                       ; T80 running?
+            JR      Z,SIGNON2
+            LD      DE,MSGSONT80
+            CALL    ?PRINTMSG
+SIGNON2:    LD      DE,MSGSONEND
             CALL    ?PRINTMSG
 
             ; Command processor, table based.
@@ -353,6 +369,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DB      000H | 000H | 000H | 004H
             DB      "T2SD"                                               ; Copy Tape to SD Card.
             DW      TAPE2SD
+            DB      000H | 000H | 000H | 003H
+            DB      "T80"                                                ; Switch to soft T80 CPU.
+            DW      ?SETT80
             DB      000H | 000H | 000H | 001H
             DB      'T'                                                  ; Timer test.
             DW      TIMERTST
@@ -368,6 +387,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DB      000H | 000H | 000H | 001H
             DB      'V'                                                  ; Verify CMT Save.
             DW      VRFYX
+            DB      000H | 000H | 000H | 003H
+            DB      "Z80"                                                ; Switch to soft Z80 CPU.
+            DW      ?SETZ80
+            DB      000H | 000H | 000H | 003H
+            DB      "ZPU"                                                ; Switch to soft ZPU Evolution CPU.
+            DW      ?SETZPUEVO
             DB      000H | 000H | 000H | 001H
 
 
@@ -1097,9 +1122,7 @@ SLPT:       DB      01H                                                  ; TEXT 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
             ; causes a jump in the code dependent on the signal status. It gets around the 2MHz
             ; Z80 not being quick enough to process the signal by polling.
-            ;------------ 0xF3C0 -----------------------------------------------------------
-            ALIGN_NOPS FDCJMP1BLK
-            ORG        FDCJMP1BLK
+            ;------------ 0xF3CE -----------------------------------------------------------
             ALIGN_NOPS FDCJMP1
             ORG        FDCJMP1
 FDCJMPL:    JP       (IX)    
@@ -1756,8 +1779,6 @@ LOADSDERR:  LD      DE,MSGSDRERR
             ; causes a jump in the code dependent on the signal status. It gets around the 2MHz
             ; Z80 not being quick enough to process the signal by polling.
             ;------------ 0xF7C0 -----------------------------------------------------------
-            ALIGN_NOPS FDCJMP2BLK
-            ORG        FDCJMP2BLK
             ALIGN_NOPS FDCJMP2
             ORG        FDCJMP2
 FDCJMPH:    JP       (IY)    

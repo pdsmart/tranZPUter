@@ -4,7 +4,7 @@
 -- MODULE: altpll 
 
 -- ============================================================
--- File Name: Video_Clock_II.vhd
+-- File Name: Video_Clock_III.vhd
 -- Megafunction Name(s):
 -- 			altpll
 --
@@ -39,7 +39,7 @@ USE ieee.std_logic_1164.all;
 LIBRARY altera_mf;
 USE altera_mf.all;
 
-ENTITY Video_Clock_II IS
+ENTITY Video_Clock_III IS
 	PORT
 	(
 		areset		: IN STD_LOGIC  := '0';
@@ -48,10 +48,10 @@ ENTITY Video_Clock_II IS
 		c1		: OUT STD_LOGIC ;
 		locked		: OUT STD_LOGIC 
 	);
-END Video_Clock_II;
+END Video_Clock_III;
 
 
-ARCHITECTURE SYN OF video_clock_ii IS
+ARCHITECTURE SYN OF video_clock_iii IS
 
 	SIGNAL sub_wire0	: STD_LOGIC_VECTOR (4 DOWNTO 0);
 	SIGNAL sub_wire1	: STD_LOGIC ;
@@ -75,6 +75,7 @@ ARCHITECTURE SYN OF video_clock_ii IS
 		clk1_duty_cycle		: NATURAL;
 		clk1_multiply_by		: NATURAL;
 		clk1_phase_shift		: STRING;
+		compensate_clock		: STRING;
 		inclk0_input_frequency		: NATURAL;
 		intended_device_family		: STRING;
 		lpm_hint		: STRING;
@@ -147,19 +148,20 @@ BEGIN
 	altpll_component : altpll
 	GENERIC MAP (
 		bandwidth_type => "LOW",
-		clk0_divide_by => 12,
+		clk0_divide_by => 15625,
 		clk0_duty_cycle => 50,
-		clk0_multiply_by => 13,
+		clk0_multiply_by => 5542,
 		clk0_phase_shift => "0",
-		clk1_divide_by => 240,
+		clk1_divide_by => 15625,
 		clk1_duty_cycle => 50,
-		clk1_multiply_by => 101,
+		clk1_multiply_by => 11084,
 		clk1_phase_shift => "0",
-		inclk0_input_frequency => 8333,
+		compensate_clock => "CLK0",
+		inclk0_input_frequency => 20000,
 		intended_device_family => "Cyclone III",
-		lpm_hint => "CBX_MODULE_PREFIX=Video_Clock_II",
+		lpm_hint => "CBX_MODULE_PREFIX=Video_Clock_III",
 		lpm_type => "altpll",
-		operation_mode => "NO_COMPENSATION",
+		operation_mode => "NORMAL",
 		pll_type => "AUTO",
 		port_activeclock => "PORT_UNUSED",
 		port_areset => "PORT_USED",
@@ -229,7 +231,7 @@ END SYN;
 -- Retrieval info: PRIVATE: CLKBAD_SWITCHOVER_CHECK STRING "0"
 -- Retrieval info: PRIVATE: CLKLOSS_CHECK STRING "0"
 -- Retrieval info: PRIVATE: CLKSWITCH_CHECK STRING "0"
--- Retrieval info: PRIVATE: CNX_NO_COMPENSATE_RADIO STRING "1"
+-- Retrieval info: PRIVATE: CNX_NO_COMPENSATE_RADIO STRING "0"
 -- Retrieval info: PRIVATE: CREATE_CLKBAD_CHECK STRING "0"
 -- Retrieval info: PRIVATE: CREATE_INCLK1_CHECK STRING "0"
 -- Retrieval info: PRIVATE: CUR_DEDICATED_CLK STRING "c0"
@@ -239,8 +241,8 @@ END SYN;
 -- Retrieval info: PRIVATE: DIV_FACTOR1 NUMERIC "1"
 -- Retrieval info: PRIVATE: DUTY_CYCLE0 STRING "50.00000000"
 -- Retrieval info: PRIVATE: DUTY_CYCLE1 STRING "50.00000000"
--- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "130.000000"
--- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE1 STRING "50.500000"
+-- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE0 STRING "17.734400"
+-- Retrieval info: PRIVATE: EFF_OUTPUT_FREQ_VALUE1 STRING "35.468800"
 -- Retrieval info: PRIVATE: EXPLICIT_SWITCHOVER_COUNTER STRING "0"
 -- Retrieval info: PRIVATE: EXT_FEEDBACK_RADIO STRING "0"
 -- Retrieval info: PRIVATE: GLOCKED_COUNTER_EDIT_CHANGED STRING "1"
@@ -248,7 +250,7 @@ END SYN;
 -- Retrieval info: PRIVATE: GLOCKED_MODE_CHECK STRING "0"
 -- Retrieval info: PRIVATE: GLOCK_COUNTER_EDIT NUMERIC "1048575"
 -- Retrieval info: PRIVATE: HAS_MANUAL_SWITCHOVER STRING "1"
--- Retrieval info: PRIVATE: INCLK0_FREQ_EDIT STRING "120.000"
+-- Retrieval info: PRIVATE: INCLK0_FREQ_EDIT STRING "50.000"
 -- Retrieval info: PRIVATE: INCLK0_FREQ_UNIT_COMBO STRING "MHz"
 -- Retrieval info: PRIVATE: INCLK1_FREQ_EDIT STRING "100.000"
 -- Retrieval info: PRIVATE: INCLK1_FREQ_EDIT_CHANGED STRING "1"
@@ -267,9 +269,9 @@ END SYN;
 -- Retrieval info: PRIVATE: MIRROR_CLK1 STRING "0"
 -- Retrieval info: PRIVATE: MULT_FACTOR0 NUMERIC "1"
 -- Retrieval info: PRIVATE: MULT_FACTOR1 NUMERIC "1"
--- Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "0"
--- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "130.00000000"
--- Retrieval info: PRIVATE: OUTPUT_FREQ1 STRING "50.50000000"
+-- Retrieval info: PRIVATE: NORMAL_MODE_RADIO STRING "1"
+-- Retrieval info: PRIVATE: OUTPUT_FREQ0 STRING "17.73440000"
+-- Retrieval info: PRIVATE: OUTPUT_FREQ1 STRING "35.46880000"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE0 STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_MODE1 STRING "1"
 -- Retrieval info: PRIVATE: OUTPUT_FREQ_UNIT0 STRING "MHz"
@@ -315,18 +317,19 @@ END SYN;
 -- Retrieval info: PRIVATE: ZERO_DELAY_RADIO STRING "0"
 -- Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
 -- Retrieval info: CONSTANT: BANDWIDTH_TYPE STRING "LOW"
--- Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "12"
+-- Retrieval info: CONSTANT: CLK0_DIVIDE_BY NUMERIC "15625"
 -- Retrieval info: CONSTANT: CLK0_DUTY_CYCLE NUMERIC "50"
--- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "13"
+-- Retrieval info: CONSTANT: CLK0_MULTIPLY_BY NUMERIC "5542"
 -- Retrieval info: CONSTANT: CLK0_PHASE_SHIFT STRING "0"
--- Retrieval info: CONSTANT: CLK1_DIVIDE_BY NUMERIC "240"
+-- Retrieval info: CONSTANT: CLK1_DIVIDE_BY NUMERIC "15625"
 -- Retrieval info: CONSTANT: CLK1_DUTY_CYCLE NUMERIC "50"
--- Retrieval info: CONSTANT: CLK1_MULTIPLY_BY NUMERIC "101"
+-- Retrieval info: CONSTANT: CLK1_MULTIPLY_BY NUMERIC "11084"
 -- Retrieval info: CONSTANT: CLK1_PHASE_SHIFT STRING "0"
--- Retrieval info: CONSTANT: INCLK0_INPUT_FREQUENCY NUMERIC "8333"
+-- Retrieval info: CONSTANT: COMPENSATE_CLOCK STRING "CLK0"
+-- Retrieval info: CONSTANT: INCLK0_INPUT_FREQUENCY NUMERIC "20000"
 -- Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone III"
 -- Retrieval info: CONSTANT: LPM_TYPE STRING "altpll"
--- Retrieval info: CONSTANT: OPERATION_MODE STRING "NO_COMPENSATION"
+-- Retrieval info: CONSTANT: OPERATION_MODE STRING "NORMAL"
 -- Retrieval info: CONSTANT: PLL_TYPE STRING "AUTO"
 -- Retrieval info: CONSTANT: PORT_ACTIVECLOCK STRING "PORT_UNUSED"
 -- Retrieval info: CONSTANT: PORT_ARESET STRING "PORT_USED"
@@ -384,11 +387,11 @@ END SYN;
 -- Retrieval info: CONNECT: c0 0 0 0 0 @clk 0 0 1 0
 -- Retrieval info: CONNECT: c1 0 0 0 0 @clk 0 0 1 1
 -- Retrieval info: CONNECT: locked 0 0 0 0 @locked 0 0 0 0
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II.vhd TRUE
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II.ppf TRUE
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II.inc FALSE
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II.cmp TRUE
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II.bsf FALSE
--- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_II_inst.vhd TRUE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III.vhd TRUE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III.ppf TRUE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III.inc FALSE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III.cmp TRUE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III.bsf FALSE
+-- Retrieval info: GEN_FILE: TYPE_NORMAL Video_Clock_III_inst.vhd TRUE
 -- Retrieval info: LIB_FILE: altera_mf
 -- Retrieval info: CBX_MODULE_PREFIX: ON

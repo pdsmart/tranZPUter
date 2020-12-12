@@ -175,6 +175,7 @@ DUMP9:      LD      (DUMPADDR),HL                                        ; Store
             CALL    NL
             RET
 
+
             ; Cmd tool to clear memory.
             ; Read cmd line for an init byte, if one not present, use 00H
             ;
@@ -196,6 +197,21 @@ CLEAR1:     LD      A,D
             JP      NZ,CLEAR1
             RET
 
+
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP1
+            ORG      FDCJMP1
+FDCJMPL3:   JP       (IX)      
+
+
+            ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
+            ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
+            ; enough to process the signal by polling.
+            ALIGN_NOPS FDCJMP2
+            ORG      FDCJMP2               
+FDCJMPH3:   JP       (IY)
 
             ; Ensure we fill the entire 4K by padding with FF's.
             ;

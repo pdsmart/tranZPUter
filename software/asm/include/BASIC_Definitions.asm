@@ -224,6 +224,9 @@ SETXMHZ                 EQU     062H                                     ; Selec
 SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
 CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
 SVCREQ                  EQU     068H                                     ; I/O Processor service request.
+CPUCFG                  EQU     06CH                                     ; Version 2.2 CPU configuration register.
+CPUSTATUS               EQU     06CH                                     ; Version 2.2 CPU runtime status register.
+CPUINFO                 EQU     06DH                                     ; Version 2.2 CPU information register.
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
@@ -373,6 +376,8 @@ TZSVC_CMD_WRITESDDRIVE: EQU     33H                                      ; Servi
 TZSVC_CMD_CPU_BASEFREQ  EQU     40H                                      ; Service command to switch to the mainboard frequency.
 TZSVC_CMD_CPU_ALTFREQ   EQU     41H                                      ; Service command to switch to the alternate frequency provided by the K64F.
 TZSVC_CMD_CPU_CHGFREQ   EQU     42H                                      ; Service command to set the alternate frequency in hertz.
+TZSVC_CMD_CPU_SETZ80    EQU     50H                                      ; Service command to switch to the external Z80 hard cpu.
+TZSVC_CMD_CPU_SETT80    EQU     51H                                      ; Service command to switch to the internal T80 soft cpu.
 TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
 TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
 TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.

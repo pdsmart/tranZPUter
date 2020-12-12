@@ -120,7 +120,7 @@ begin
     VCPLL2 : entity work.Video_Clock_II
     port map
     (
-         inclk0                  => SYS_CLK,
+         inclk0                  => CLOCK_50,
          areset                  => '0',
          c0                      => VIDCLK_65MHZ,
          c1                      => VIDCLK_25_175MHZ,

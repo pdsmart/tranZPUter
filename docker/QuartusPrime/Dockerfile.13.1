@@ -1,0 +1,168 @@
+#########################################################################################################
+##
+## Name:            Dockerfile.13.1.1
+## Created:         June 2020
+## Author(s):       Philip Smart
+## Description:     A Docker build script to create an Ubuntu 16.04 OS with Quartus Prime 13.1
+##
+## Credits:         
+## Copyright:       (c) 2019 Philip Smart <philip.smart@net2net.org>
+##
+## History:         August 2019   - Initial module written.
+##                  June 2020     - Need to use a CPLD MAX series device which is only supported in 
+##                                  Quartus 13.
+##
+#########################################################################################################
+## This source file is free software: you can redistribute it and#or modify
+## it under the terms of the GNU General Public License as published
+## by the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This source file is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#########################################################################################################
+
+# Ubuntu 16.04 as the base.
+FROM ubuntu:xenial
+
+# Maintainer!
+MAINTAINER Philip Smart <philip.smart@net2net.org>
+
+# Set build time environment variables.
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set constants for the build, more simpler to adjust these than the script if you want to change Quartus version.
+# Uncomment one of the QUARTUS= arguments below depending on wether your using the LITE or STANDARD version of Quartus.
+ARG TARGET_DOWNLOAD_DIR=/tmp/
+ARG INSTALLATION_DIR=/opt/altera
+ARG ALTERA_DOWNLOAD_SITE=http://download.altera.com/akdlm/software/acdsinst
+ARG QUARTUS_VERSION_INSTALLER=/13.1/162/ib_installers/
+ARG QUARTUS_VERSION_UPDATE=/13.1.0/162/update/
+ARG QUARTUS=QuartusSetup-13.1.0.162.run
+#ARG QUARTUS=QuartusLiteSetup-13.1.0.162.run
+ARG QUARTUS_UPDATE=QuartusSetup-13.1.0.162.run
+ARG QUARTUS_PROGRAMMER=QuartusProgrammerSetup-13.1.0.162.run
+ARG QUARTUS_HELP=QuartusHelpSetup-13.1.0.162.run
+ARG QUARTUS_DEVICE_FILES="arria-13.1.0.162 arriav-13.1.0.162 arriavgz-13.1.0.162 arria_web-13.1.0.162 cyclone-13.1.0.162 cyclonev-13.1.0.162 cyclone_web-13.1.0.162 max-13.1.0.162 max-17.1.0.590 max_web-13.1.0.162 stratixv-13.1.0.162"
+
+
+# Base Ubuntu install, add necessary packages for Quartus, command line editting and web-browser.
+RUN dpkg --add-architecture i386
+RUN apt-get update 
+RUN apt-get install --no-install-recommends -y \
+                ca-certificates \
+                libstdc++6:i386 \
+                libc6:i386 \
+                libx11-dev:i386 \
+                libxext-dev:i386 \
+                libxau-dev:i386 \
+                libxdmcp-dev:i386 \
+                libfreetype6:i386 \
+                libxtst6:i386 \
+                libxi6:i386 \
+                fontconfig:i386 \
+                expat:i386 \
+                lib32ncurses5-dev \
+                libc6:i386 \
+                libcrypto++9v5 \
+                libfontconfig1 \
+                libglib2.0-0 \
+                libncurses5:i386 \
+                libsm6 \
+                libsm6:i386 \
+                libssl-dev \
+                libstdc++6:i386 \
+                libxext6:i386 \
+                libxft2:i386 \
+                libxrender1 \
+                libzmq3-dev \
+                libxext6:i386 \
+                libxrender-dev:i386 \
+                locales \
+                make \
+                openjdk-8-jdk \
+                pkg-config \
+                unixodbc-dev \
+                wget \
+                xauth \
+                xvfb \
+		net-tools \
+                x11-apps \
+                aptitude \
+                vim \
+                sudo \
+                firefox
+
+# Setup environment defaults.
+RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+ENV EXEC_DIR ${INSTALLATION_DIR}
+
+#
+# UNCOMMENT PRODUCTION OR DEVELOPMENT ACCORDING TO REQUIREMENTS. 
+#
+
+# PRODUCTION CYCLE, fetch files from Altera as needed.
+RUN echo "Fetching ${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS}"
+RUN wget -q --directory-prefix=${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS}
+#RUN echo "Fetching ${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS_UPDATE}"
+#RUN wget -q --directory-prefix=${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_UPDATE}/${QUARTUS_UPDATE}
+RUN echo "Fetching ${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS_PROGRAMMER}"
+RUN wget -q --directory-prefix=${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS_PROGRAMMER}
+RUN echo "Fetching ${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS_HELP}"
+RUN wget -q --directory-prefix=${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${QUARTUS_HELP}
+RUN for DEVICE_FILE in ${QUARTUS_DEVICE_FILES}; \
+		do \
+		    echo "Fetching ${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${DEVICE_FILE}"; \
+		    wget -q --directory-prefix=${TARGET_DOWNLOAD_DIR} ${ALTERA_DOWNLOAD_SITE}/${QUARTUS_VERSION_INSTALLER}/${DEVICE_FILE}; \
+		done
+
+# DEVELOPMENT CYCLE, quartus files cached locally.
+#COPY ./files/13.1/*.qdz ${TARGET_DOWNLOAD_DIR}
+#COPY ./files/13.1/*.run ${TARGET_DOWNLOAD_DIR}
+
+# Install Quartus.
+RUN chmod +x ${TARGET_DOWNLOAD_DIR}${QUARTUS}
+#RUN chmod +x ${TARGET_DOWNLOAD_DIR}${QUARTUS_UPDATE}
+RUN chmod +x ${TARGET_DOWNLOAD_DIR}${QUARTUS_PROGRAMMER}
+RUN chmod +x ${TARGET_DOWNLOAD_DIR}${QUARTUS_HELP}
+RUN ${TARGET_DOWNLOAD_DIR}${QUARTUS}            --mode unattended --installdir ${INSTALLATION_DIR}/ #--accept_eula 1
+#RUN ${TARGET_DOWNLOAD_DIR}${QUARTUS_UPDATE}     --mode unattended --installdir ${INSTALLATION_DIR}/ #--accept_eula 1
+RUN ${TARGET_DOWNLOAD_DIR}${QUARTUS_PROGRAMMER} --mode unattended --installdir ${INSTALLATION_DIR}/ #--accept_eula 1
+RUN ${TARGET_DOWNLOAD_DIR}${QUARTUS_HELP}       --mode unattended --installdir ${INSTALLATION_DIR}/ #--accept_eula 1
+
+# Copy the license file, this would be a dummy for the Lite version or a genuine one for the Standard version coded to the host
+# MAC Address.
+COPY ./files/license.dat                ${INSTALLATION_DIR}/
+
+# Copy quartus config files to enable the license.
+COPY ./files/quartus2.*                 /root/.altera.quartus/
+COPY ./files/quartus_web_rules_file.txt /root/.altera.quartus/
+
+# Copy the Arrow USB Blaster and setup the udev rules to detect and mount USB-Blaster I and II devices.
+COPY ./files/libjtag_hw_arrow.so        ${INSTALLATION_DIR}/quartus/linux64/
+COPY ./files/70-usb.rules               /etc/udev/rules.d/
+
+# Setup necessary environment variables.
+RUN echo "export PATH=\$PATH:${INSTALLATION_DIR}/quartus/bin:${INSTALLATION_DIR}/qprogrammer/bin" >> /root/.bashrc
+RUN echo "export LM_LICENSE_FILE=${INSTALLATION_DIR}/license.dat" >> /root/.bashrc
+
+# Clean up, removing unnecessary installation files.
+RUN rm -rf ${TARGET_DOWNLOAD_DIR}/* ${INSTALLATION_DIR}/uninstall ${INSTALLATION_DIR}/logs/*
+
+# Add the current user into the image.
+ARG user_uid
+ARG user_gid
+ARG user_name
+RUN groupadd -g $user_uid $user_name
+RUN adduser --uid $user_uid --gid $user_gid --disabled-password --gecos $user_name --home /home/$user_name $user_name
+
+# Start Quartus
+CMD ${EXEC_DIR}/quartus/bin/quartus --64bit
