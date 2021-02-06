@@ -56,6 +56,11 @@ set_global_assignment -name MAX7000_DEVICE_IO_STANDARD LVTTL
 
 # Z80 Address Bus
 # ===============
+set_location_assignment PIN_41 -to Z80_HI_ADDR[23]
+set_location_assignment PIN_42 -to Z80_HI_ADDR[22]
+set_location_assignment PIN_43 -to Z80_HI_ADDR[21]
+set_location_assignment PIN_44 -to Z80_HI_ADDR[20]
+set_location_assignment PIN_45 -to Z80_HI_ADDR[19]
 set_location_assignment PIN_107 -to Z80_HI_ADDR[18]
 set_location_assignment PIN_102 -to Z80_HI_ADDR[17]
 set_location_assignment PIN_108 -to Z80_HI_ADDR[16]
@@ -130,13 +135,13 @@ set_location_assignment PIN_26 -to VZ80_MREQn
 
 # FPGA Video and Control signals.
 # ===============================
-set_location_assignment PIN_10 -to VWAITn_V_CSYNC
-set_location_assignment PIN_12 -to VZ80_RFSHn_V_HSYNC
-set_location_assignment PIN_14 -to VZ80_HALTn_V_VSYNC
+set_location_assignment PIN_10 -to VWAITn_A21_V_CSYNC
+set_location_assignment PIN_12 -to VZ80_A20_RFSHn_V_HSYNC
+set_location_assignment PIN_14 -to VZ80_A19_HALTn_V_VSYNC
 set_location_assignment PIN_15 -to VZ80_BUSRQn_V_G
-set_location_assignment PIN_16 -to VZ80_WAITn_V_B
-set_location_assignment PIN_18 -to VZ80_INTn_V_R
-set_location_assignment PIN_19 -to VZ80_NMIn_V_COLR
+set_location_assignment PIN_16 -to VZ80_A16_WAITn_V_B
+set_location_assignment PIN_18 -to VZ80_A18_INTn_V_R
+set_location_assignment PIN_19 -to VZ80_A17_NMIn_V_COLR
 
 # RAM control
 # ===========
@@ -158,11 +163,6 @@ set_location_assignment PIN_128 -to CTLCLK
 set_location_assignment PIN_47 -to CTL_M1n
 set_location_assignment PIN_54 -to CTL_MBSEL
 set_location_assignment PIN_55 -to CTL_BUSRQn
-set_location_assignment PIN_41 -to Z80_MEM[4]
-set_location_assignment PIN_42 -to Z80_MEM[3]
-set_location_assignment PIN_43 -to Z80_MEM[2]
-set_location_assignment PIN_44 -to Z80_MEM[1]
-set_location_assignment PIN_45 -to Z80_MEM[0]
 
 # Z80 Control signals.
 # ====================

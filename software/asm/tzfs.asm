@@ -19,6 +19,7 @@
 ;-                              few bugs like the load from card by name!
 ;-                  Dec 2020  - Updates to accommodate v1.3 of the tranZPUter SW-700 board where soft
 ;-                              CPU's now become possible.
+;-                  Jan 2020  - Additional changes to accommodate soft CPU's.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify

@@ -1,0 +1,15 @@
+set_global_assignment -name IP_TOOL_NAME "Soft ZPU Processor"
+set_global_assignment -name IP_TOOL_VERSION "17.1"
+set_global_assignment -name IP_GENERATED_DEVICE_FAMILY "{Cyclone IV E}"
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/softZPU.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/softZPU_pkg.vhd]
+set_global_assignment -name SDC_FILE     [file join $::quartus(qip_path) softZPU/softZPU_constraints.sdc]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/ZPU/zpu_core_evo.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/ZPU/zpu_core_evo_L2.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/ZPU/zpu_uart_debug.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) softZPU/ZPU/zpu_pkg.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) devices/sysbus/intr/interrupt_controller.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) devices/sysbus/timer/timer_controller.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) devices/sysbus/BRAM/TZSW_DualPortBootBRAM.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) devices/sysbus/BRAM/TZSW_SinglePortBRAM.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) devices/sysbus/BRAM/TZSW_SinglePortBootBRAM.vhd]

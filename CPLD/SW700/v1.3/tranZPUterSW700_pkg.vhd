@@ -102,9 +102,9 @@ package tranZPUterSW700_pkg is
     constant CPLD_HAS_FPGA_VIDEO      : std_logic := '1';
 
     -- Version of hdl.
-    constant CPLD_VERSION             : integer   := 1;
+    constant CPLD_VERSION             : integer   := 2;
 
-    -- Clock source for the secondary clock. If a K64F is installed the enable it otherwise use the onboard oscillator.
+    -- Clock source for the secondary clock. If a K64F is installed then enable it otherwise use the onboard oscillator.
     --
     constant USE_K64F_CTL_CLOCK       : integer   := 1;
 

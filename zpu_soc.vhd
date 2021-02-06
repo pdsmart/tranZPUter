@@ -275,6 +275,7 @@ signal dataWord : std_logic_vector(31 downto 0);
     signal MEM_WRITE_BYTE_ENABLE  :       std_logic; 
     signal MEM_WRITE_HWORD_ENABLE :       std_logic; 
     signal MEM_READ_ENABLE        :       std_logic;
+    signal MEM_READ_ENABLE_LAST   :       std_logic;
     signal MEM_DATA_READ_INSN     :       std_logic_vector(WORD_32BIT_RANGE);
     signal MEM_ADDR_INSN          :       std_logic_vector(ADDR_BIT_RANGE);
     signal MEM_READ_ENABLE_INSN   :       std_logic;
@@ -756,8 +757,7 @@ begin
 
             -- Enable write to RAM when selected and CPU in write state.
             RAM_WREN                 <= '1' when RAM_SELECT = '1' and MEM_WRITE_ENABLE = '1'
-                                        else
-                                        '0';
+                                        else '0';
     end generate;
 
     -- SDRAM over System bus.
@@ -827,32 +827,32 @@ begin
                                     else '0';
 
         -- Enable write to RAM when selected and CPU in write state.
-        SDRAM_WREN               <= '1' when SDRAM_SELECT = '1' and MEM_WRITE_ENABLE = '1'
+        SDRAM_WREN               <= MEM_WRITE_ENABLE  when SDRAM_SELECT = '1'
                                      else '0';
-        SDRAM_RDEN               <= '1' when SDRAM_SELECT = '1' and MEM_READ_ENABLE = '1'
+        SDRAM_RDEN               <= MEM_READ_ENABLE ' when SDRAM_SELECT = '1'
                                      else '0';
     end generate;
 
     -- Force the CPU to wait when slower memory/IO is accessed and it cant deliver an immediate result.
-    MEM_BUSY                  <= '1'                  when (UART0_CS = '1' or UART1_CS = '1' or TIMER0_CS = '1') and MEM_READ_ENABLE = '1'
+    MEM_BUSY                  <= '1'                  when (UART0_CS = '1' or UART1_CS = '1' or TIMER0_CS = '1') and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1'
                                  else
-                                 '1'                  when SOC_IMPL_SDRAM = true   and (ZPU_EVO = 1 or ZPU_EVO_MINIMAL = 1)  and (BOARD_QMV = true or BOARD_CYC1000 = true) and SDRAM_MEM_BUSY = '1'
+                                 '1'                  when SOC_IMPL_SDRAM = true   and (ZPU_EVO = 1 or ZPU_EVO_MINIMAL = 1 or ZPU_MEDIUM = 1)  and SDRAM_MEM_BUSY = '1' and (BOARD_QMV = true or BOARD_CYC1000 = true)
                                  else
                            --    '1'                  when BRAM_SELECT = '1'       and  (ZPU_EVO = 1 or ZPU_EVO_MINIMAL = 1) and (MEM_READ_ENABLE = '1')
                            --    else
                            --    '1'                  when IO_SELECT = '1'         and  (ZPU_EVO = 1 or ZPU_EVO_MINIMAL = 1) and (MEM_READ_ENABLE = '1')
                            --    else
-                                 '1'                  when SOC_IMPL_SD = true      and SD_CS = '1'     and MEM_READ_ENABLE = '1'
+                                 '1'                  when SOC_IMPL_SD = true      and SD_CS = '1'     and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1'
                                  else
-                           --    '1'                  when SOC_IMPL_SPI = true     and SPI_CS = '1'    and MEM_READ_ENABLE = '1' and IO_WAIT_SPI = '1'
+                           --    '1'                  when SOC_IMPL_SPI = true     and SPI_CS = '1'    and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_SPI = '1'
                            --    else
-                           --    '1'                  when SOC_IMPL_PS2 = true     and PS2_CS = '1'    and MEM_READ_ENABLE = '1' and IO_WAIT_PS2 = '1'
+                           --    '1'                  when SOC_IMPL_PS2 = true     and PS2_CS = '1'    and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_PS2 = '1'
                            --    else
-                                 '1'                  when SOC_IMPL_INTRCTL = true and INTR0_CS = '1'  and MEM_READ_ENABLE = '1' and IO_WAIT_INTR = '1'
+                                 '1'                  when SOC_IMPL_INTRCTL = true and INTR0_CS = '1'  and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_INTR = '1'
                                  else
-                                 '1'                  when SOC_IMPL_TIMER1 = true  and TIMER1_CS = '1' and MEM_READ_ENABLE = '1' and IO_WAIT_TIMER1 = '1'
+                                 '1'                  when SOC_IMPL_TIMER1 = true  and TIMER1_CS = '1' and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_TIMER1 = '1'
                                  else
-                                 '1'                  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1' and MEM_READ_ENABLE = '1'
+                                 '1'                  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1' and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1'
                                  else
                            --    '1'                  when SOC_IMPL_TCPU = true    and TCPU_CS = '1'
                                  '0';
@@ -862,7 +862,7 @@ begin
                                  else
                                  RAM_DATA_READ        when SOC_IMPL_RAM = true     and RAM_SELECT = '1'
                                  else
-                                 SDRAM_DATA_READ      when SOC_IMPL_SDRAM = true   and (BOARD_QMV = true or BOARD_CYC1000 = true) and SDRAM_SELECT = '1'
+                                 SDRAM_DATA_READ      when SOC_IMPL_SDRAM = true   and SDRAM_SELECT = '1' and (BOARD_QMV = true or BOARD_CYC1000 = true)
                                  else
                                  IO_DATA_READ_SD      when SOC_IMPL_SD = true      and SD_CS = '1'
                                  else
@@ -2029,6 +2029,10 @@ begin
         -- RISING CLOCK EDGE --
         -----------------------                
         elsif rising_edge(SYSCLK) then
+
+            -- Edge detection for read signal. Most I/O operations need a read signal longer than 1 clock so BUSY needs to be asserted in order to prolong the read cycle. 
+            -- 
+            MEM_READ_ENABLE_LAST                                    <= MEM_READ_ENABLE;
 
             -- If the RX receives a break signal, count down to ensure it is held low for correct period, when the count reaches
             -- zero, start a reset.

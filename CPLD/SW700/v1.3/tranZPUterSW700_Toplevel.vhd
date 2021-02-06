@@ -45,7 +45,7 @@ use altera.altera_syn_attributes.all;
 entity tranZPUterSW700 is
     port (
         -- Z80 Address and Data.
-        Z80_HI_ADDR               : inout std_logic_vector(18 downto 16);                -- Hi address. These are the upper bank bits allowing 512K of address space. They are directly set by the K64F when accessing RAM or FPGA and set by the FPGA according to memory mode.
+        Z80_HI_ADDR               : inout std_logic_vector(23 downto 16);                -- Hi address. These are the upper bank bits allowing 512K of address space. They are directly set by the K64F when accessing RAM or FPGA and set by the FPGA according to memory mode.
         Z80_RA_ADDR               : out   std_logic_vector(15 downto 12);                -- Row address - RAM is subdivided into 4K blocks which can be remapped as needed. This is required for the MZ80B emulation where memory changes location according to mode.
         Z80_ADDR                  : inout std_logic_vector(15 downto 0);
         Z80_DATA                  : inout std_logic_vector(7 downto 0);
@@ -75,7 +75,6 @@ entity tranZPUterSW700 is
         CTL_RFSHn                 : out   std_logic;
         CTL_WAITn                 : in    std_logic;
         SVCREQn                   : out   std_logic;
-        Z80_MEM                   : out   std_logic_vector(4 downto 0);
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
         SYS_BUSACKn               : out   std_logic;
@@ -101,13 +100,13 @@ entity tranZPUterSW700 is
         VIDEO_WRn                 : out   std_logic;
 
         -- FPGA control signals muxed with Graphics signals from the mainboard.
-        VWAITn_V_CSYNC            : inout std_logic;                                     -- Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
-        VZ80_RFSHn_V_HSYNC        : inout std_logic;                                     -- Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
-        VZ80_HALTn_V_VSYNC        : inout std_logic;                                     -- Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
+        VWAITn_A21_V_CSYNC        : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
+        VZ80_A20_RFSHn_V_HSYNC    : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
+        VZ80_A19_HALTn_V_VSYNC    : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
         VZ80_BUSRQn_V_G           : out   std_logic;                                     -- Voltage translated Z80 BUSRQ / Mainboard Video Green signal.
-        VZ80_WAITn_V_B            : out   std_logic;                                     -- Voltage translated Z80 WAIT / Mainboard Video Blue signal.
-        VZ80_INTn_V_R             : out   std_logic;                                     -- Voltage translated Z80 INT / Mainboard Video Red signal.
-        VZ80_NMIn_V_COLR          : out   std_logic;                                     -- Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
+        VZ80_A16_WAITn_V_B        : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 WAIT / Mainboard Video Blue signal.
+        VZ80_A18_INTn_V_R         : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 INT / Mainboard Video Red signal.
+        VZ80_A17_NMIn_V_COLR      : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
         CSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Composite Sync.
         HSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Horizontal Sync.
         VSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Vertical Sync.
@@ -162,7 +161,6 @@ begin
         CTL_RFSHn                 => CTL_RFSHn,
         CTL_WAITn                 => CTL_WAITn,
         SVCREQn                   => SVCREQn,
-        Z80_MEM                   => Z80_MEM,
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
         SYS_BUSACKn               => SYS_BUSACKn,
@@ -188,13 +186,13 @@ begin
         VIDEO_WRn                 => VIDEO_WRn,                              
 
         -- FPGA control signals muxed with Graphics signals from the mainboard.
-        VWAITn_V_CSYNC            => VWAITn_V_CSYNC,                              -- Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
-        VZ80_RFSHn_V_HSYNC        => VZ80_RFSHn_V_HSYNC,                          -- Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
-        VZ80_HALTn_V_VSYNC        => VZ80_HALTn_V_VSYNC,                          -- Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
+        VWAITn_A21_V_CSYNC        => VWAITn_A21_V_CSYNC,                          -- Upper address bit for access to FPGA resources / Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
+        VZ80_A20_RFSHn_V_HSYNC    => VZ80_A20_RFSHn_V_HSYNC,                      -- Upper address bit for access to FPGA resources / Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
+        VZ80_A19_HALTn_V_VSYNC    => VZ80_A19_HALTn_V_VSYNC,                      -- Upper address bit for access to FPGA resources / Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
         VZ80_BUSRQn_V_G           => VZ80_BUSRQn_V_G,                             -- Voltage translated Z80 BUSRQ / Mainboard Video Green signal.
-        VZ80_WAITn_V_B            => VZ80_WAITn_V_B,                              -- Voltage translated Z80 WAIT / Mainboard Video Blue signal.
-        VZ80_INTn_V_R             => VZ80_INTn_V_R,                               -- Voltage translated Z80 INT / Mainboard Video Red signal.
-        VZ80_NMIn_V_COLR          => VZ80_NMIn_V_COLR,                            -- Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
+        VZ80_A16_WAITn_V_B        => VZ80_A16_WAITn_V_B,                          -- Upper address bit for access to FPGA resources / Voltage translated Z80 WAIT / Mainboard Video Blue signal.
+        VZ80_A18_INTn_V_R         => VZ80_A18_INTn_V_R,                           -- Upper address bit for access to FPGA resources / Voltage translated Z80 INT / Mainboard Video Red signal.
+        VZ80_A17_NMIn_V_COLR      => VZ80_A17_NMIn_V_COLR,                        -- Upper address bit for access to FPGA resources / Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
         CSYNC_IN                  => CSYNC_IN,                                    -- Mainboard Video Composite Sync.
         HSYNC_IN                  => HSYNC_IN,                                    -- Mainboard Video Horizontal Sync.
         VSYNC_IN                  => VSYNC_IN,                                    -- Mainboard Video Vertical Sync.

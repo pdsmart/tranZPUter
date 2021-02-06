@@ -214,4 +214,25 @@ FPGA/SW700/v1.2/build/output_files/
 FPGA/SW700/v1.3/XX
 FPGA/SW700/v1.3/build/output_files/
 FPGA/SW700/v1.3/devices.old/
+CPLD/SW700/v1.3.bak/
+FPGA/SW700/v1.3.bak/
+FPGA/SW700/v1.3/PLL/Video_Clock.BAK.vhd
+FPGA/SW700/v1.3/PLL/Video_Clock_II.BAK.vhd
+FPGA/SW700/v1.3/PLL/Video_Clock_III.BAK.vhd
+FPGA/SW700/v1.3/PLL/Video_Clock_IV.BAK.vhd
+FPGA/SW700/v1.3/VideoController.vhd.prechangegputobram
+FPGA/SW700/v1.3/build/VideoController_constraints.sdc
+FPGA/SW700/v1.3/build/coreMZ_E115_description.txt
+FPGA/SW700/v1.3/coreMZ_constraints.sdc.old
+FPGA/SW700/v1.3/prechange.vhd
+FPGA/SW700/v1.3/prechange2.vhd
+FPGA/SW700/v1.3/softT80/constraints_t80_ok
+FPGA/a-z80/
+FPGA/a-z80_latest.tar.gz
+FPGA/nextz80/
+FPGA/nextz80_latest.tar.gz
+FPGA/SW700/v1.3/VideoController/VideoController_constraints.sdc.orig
+SD/
+devices/sysbus/BRAM/TZSW_DualPort32-64BootBRAM.vhd
+devices/sysbus/BRAM/TZSW_DualPort3264BootBRAM.vhd
 

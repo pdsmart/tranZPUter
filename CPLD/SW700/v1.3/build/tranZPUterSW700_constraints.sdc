@@ -72,7 +72,7 @@ create_clock -name {CTLCLK} -period 50.000 -waveform { 0.000 25.000 }   [ get_po
 # Set Input Delay
 #**************************************************************
 
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_MBSELn}]
+set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_MBSEL}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_BUSRQn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {CTL_WAITn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  1.000 [get_ports {SYS_BUSRQn}]
@@ -108,9 +108,9 @@ set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_INTn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_NMIn}]
 set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_WAITn}]
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VWAITn_V_CSYNC}]
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_RFSHn_V_HSYNC}]
-set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_HALTn_V_VSYNC}]
+set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VWAITn_A21_V_CSYNC}]
+set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A20_RFSHn_V_HSYNC}]
+set_input_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A19_HALTn_V_VSYNC}]
 
 #**************************************************************
 # Set Output Delay
@@ -130,7 +130,6 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_ADDR[*]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HI_ADDR[*]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_RA_ADDR[*]}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_MEM[*]}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_WAITn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_MREQn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_CLK}]
@@ -144,13 +143,15 @@ set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ8
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_M1n}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VIDEO_RDn}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VIDEO_WRn}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_INTn_V_R}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A18_INTn_V_R}]
 set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_BUSRQn_V_G}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_WAITn_V_B}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_NMIn_V_COLR}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VWAITn_V_CSYNC}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_RFSHn_V_HSYNC}]
-set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_HALTn_V_VSYNC}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A16_WAITn_V_B}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A17_NMIn_V_COLR}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VWAITn_A21_V_CSYNC}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A20_RFSHn_V_HSYNC}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {VZ80_A19_HALTn_V_VSYNC}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_HALTn}]
+set_output_delay -add_delay  -clock [get_clocks {SYSCLK}]  5.000 [get_ports {Z80_RFSHn}]
 
 # For K64F
 set_output_delay -add_delay  -clock [get_clocks {CTLCLK}]  5.000 [get_ports {Z80_CLK}]
@@ -167,39 +168,46 @@ set_max_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_M1n}   
 set_max_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_RDn}   30.000
 set_max_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_WRn}   30.000
 set_max_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_RFSHn} 30.000
-set_max_delay -from [get_ports {VZ80_HALTn_V_VSYNC}]            -to {Z80_HALTn} 30.000
+set_max_delay -from [get_ports {VZ80_A19_HALTn_V_VSYNC}]        -to {Z80_HALTn} 30.000
 set_max_delay -from [get_ports {VZ80_IORQn}]                    -to {Z80_IORQn} 30.000
+set_max_delay -from [get_ports {VZ80_MREQn}]                    -to {Z80_IORQn} 30.000
 set_max_delay -from [get_ports {VZ80_M1n}]                      -to {Z80_M1n}   30.000
 set_max_delay -from [get_ports {VZ80_RDn}]                      -to {Z80_RDn}   30.000
 set_max_delay -from [get_ports {VZ80_WRn}]                      -to {Z80_WRn}   30.000
-set_max_delay -from [get_ports {VZ80_RFSHn_V_HSYNC}]            -to {Z80_RFSHn} 30.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_HALTn} 40.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_RFSHn} 40.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_IORQn} 40.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_M1n}   30.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_RDn}   30.000
+set_max_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_WRn}   30.000
+set_max_delay -from [get_ports {VZ80_A20_RFSHn_V_HSYNC}]        -to {Z80_RFSHn} 30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_HALTn} 30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_IORQn} 30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_M1n}   30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_RDn}   30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_WRn}   30.000
 set_max_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_RFSHn} 30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_HALTn}] 30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_IORQn}] 30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_M1n}]   30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_RDn}]   30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_RFSHn}] 30.000
-set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_WRn}]   30.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_HALTn}] 40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_IORQn}] 40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_M1n}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_RDn}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_WRn}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_RFSHn}] 40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_HALTn}] 40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_IORQn}] 40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_M1n}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_RDn}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_WRn}]   40.000
-set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_RFSHn}] 40.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_HALTn}]   45.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_IORQn}]   30.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_M1n}]     30.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_RDn}]     30.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_RFSHn}]   45.000
+set_max_delay -from {Z80_BUSACKn}                               -to [get_ports {Z80_WRn}]     30.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_HALTn}]   45.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_IORQn}]   50.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_M1n}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_RDn}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_WRn}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]} -to [get_ports {Z80_RFSHn}]   45.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_HALTn}]   60.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_IORQn}]   45.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_M1n}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_RDn}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_WRn}]     40.000
+set_max_delay -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}  -to [get_ports {Z80_RFSHn}]   60.000
 
 #**************************************************************
-# Set Max Delay
+# Set Min Delay
 #**************************************************************
 set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_HALTn} 1.000
 set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_IORQn} 1.000
@@ -207,12 +215,19 @@ set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_M1n}   
 set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_RDn}   1.000
 set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_WRn}   1.000
 set_min_delay -from [get_ports {CTL_BUSRQn}]                    -to {Z80_RFSHn} 1.000
-set_min_delay -from [get_ports {VZ80_HALTn_V_VSYNC}]            -to {Z80_HALTn} 1.000
+set_min_delay -from [get_ports {VZ80_A19_HALTn_V_VSYNC}]        -to {Z80_HALTn} 1.000
 set_min_delay -from [get_ports {VZ80_IORQn}]                    -to {Z80_IORQn} 1.000
+set_min_delay -from [get_ports {VZ80_MREQn}]                    -to {Z80_IORQn} 1.000
 set_min_delay -from [get_ports {VZ80_M1n}]                      -to {Z80_M1n}   1.000
 set_min_delay -from [get_ports {VZ80_RDn}]                      -to {Z80_RDn}   1.000
 set_min_delay -from [get_ports {VZ80_WRn}]                      -to {Z80_WRn}   1.000
-set_min_delay -from [get_ports {VZ80_RFSHn_V_HSYNC}]            -to {Z80_RFSHn} 1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_HALTn} 1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_RFSHn} 1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_IORQn} 1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_M1n}   1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_RDn}   1.000
+set_min_delay -from [get_ports {VZ80_BUSACKn}]                  -to {Z80_WRn}   1.000
+set_min_delay -from [get_ports {VZ80_A20_RFSHn_V_HSYNC}]        -to {Z80_RFSHn} 1.000
 set_min_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_HALTn} 1.000
 set_min_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_IORQn} 1.000
 set_min_delay -from [get_ports {Z80_BUSACKn}]                   -to {Z80_M1n}   1.000
@@ -273,7 +288,7 @@ set_false_path -from {cpld512:cpldl512Toplevel|GRAM_PAGE_ENABLE}   -to {cpld512:
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
-
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CTL_BUSRQni} -to {cpld512:cpldl512Toplevel|CTLCLK_Q} -setup -end 2
 
 #**************************************************************
 # Set Maximum Delay

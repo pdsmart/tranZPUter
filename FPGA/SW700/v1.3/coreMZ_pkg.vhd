@@ -1,12 +1,12 @@
 ---------------------------------------------------------------------------------------------------------
 --
--- Name:            VideoController700_pkg.vhd
+-- Name:            coreMZ_pkg.vhd
 -- Created:         June 2020
 -- Author(s):       Philip Smart
--- Description:     Sharp MZ700 Video Module v1.0 FPGA configuration file.
+-- Description:     Share MZ series FPGA core logic.
 --                                                     
---                  This module contains parameters for the Sharp MZ700 Video Module found on the
---                  tranZPUter700 card.
+--                  This module contains parameters for the Sharp MZ series core logic found on the
+--                  Cyclone IV FPGA in the tranZPUter700 card.
 --
 -- Credits:         
 -- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
@@ -54,31 +54,17 @@ package coreMZ_pkg is
     constant ZERO                     : std_logic := '0';
     constant HIZ                      : std_logic := 'Z';
 
-    -- Target hardware modes.
-    constant MODE_MZ80K               : integer   := 0;
-    constant MODE_MZ80C               : integer   := 1;
-    constant MODE_MZ1200              : integer   := 2;
-    constant MODE_MZ80A               : integer   := 3;
-    constant MODE_MZ700               : integer   := 4;
-    constant MODE_MZ800               : integer   := 5;
-    constant MODE_MZ80B               : integer   := 6;
-    constant MODE_MZ2000              : integer   := 7;
-
     ------------------------------------------------------------ 
     -- Configurable parameters.
     ------------------------------------------------------------ 
-    -- Target hardware.
-    constant CPLD_HOST_HW             : integer  := MODE_MZ700;
 
-    -- Target video hardware.
-    constant CPLD_HAS_FPGA_VIDEO      : std_logic := '1';
+    -- Add the Serial Flash Loader megafunction to enable programming of the EPCS64 NV FPGA Boot ROM.
+    constant IMPL_SFL                 : boolean   := true;
 
-    -- Version of hdl.
-    constant CPLD_VERSION             : integer   := 2;
-
-    -- Clock source for the secondary clock. If a K64F is installed the enable it otherwise use the onboard oscillator.
+    -- Soft CPU's to embed in the core.
     --
-    constant USE_K64F_CTL_CLOCK       : integer   := 1;
+    constant IMPL_SOFTCPU_Z80         : boolean   := true;
+    constant IMPL_SOFTCPU_ZPUEVO      : boolean   := true;
 
     ------------------------------------------------------------ 
     -- Function prototypes

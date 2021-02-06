@@ -39,6 +39,10 @@
 --                              The keyboard mapping has been removed as more complex signal switching is
 --                              needed and this logic will be placed in the FPGA. The CPLD still remains
 --                              the central memory management for both hard and soft CPU's.
+--                  Jan 2021 -  Better control of the external Asyn BUSRQ/BUSACK was needed, bringing in 
+--                              the async K64F CTL_BUSRQ into the Z80 clocked domain and adjustment of
+--                              mux lines. Adjustment of timing to better support processors running 
+--                              inside the FPGA.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -66,7 +70,7 @@ entity cpld512 is
     --);
     port (    
         -- Z80 Address and Data.
-        Z80_HI_ADDR               : inout std_logic_vector(18 downto 16);                -- Hi address. These are the upper bank bits allowing 512K of address space. They are directly set by the K64F when accessing RAM or FPGA and set by the FPGA according to memory mode.
+        Z80_HI_ADDR               : inout std_logic_vector(23 downto 16);                -- Hi address. These are the upper bank bits allowing 512K of address space. They are directly set by the K64F when accessing RAM or FPGA and set by the FPGA according to memory mode.
         Z80_RA_ADDR               : out   std_logic_vector(15 downto 12);                -- Row address - RAM is subdivided into 4K blocks which can be remapped as needed. This is required for the MZ80B emulation where memory changes location according to mode.
         Z80_ADDR                  : inout std_logic_vector(15 downto 0);
         Z80_DATA                  : inout std_logic_vector( 7 downto 0);
@@ -96,7 +100,6 @@ entity cpld512 is
         CTL_RFSHn                 : out   std_logic;
         CTL_WAITn                 : in    std_logic;
         SVCREQn                   : out   std_logic;
-        Z80_MEM                   : out   std_logic_vector(4 downto 0);
 
         -- Mainboard signals which are blended with K64F signals to activate corresponding Z80 functionality.
         SYS_BUSACKn               : out   std_logic;
@@ -122,13 +125,13 @@ entity cpld512 is
         VIDEO_WRn                 : out   std_logic;
 
         -- FPGA control signals muxed with Graphics signals from the mainboard.
-        VWAITn_V_CSYNC            : inout std_logic;                                     -- Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
-        VZ80_RFSHn_V_HSYNC        : inout std_logic;                                     -- Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
-        VZ80_HALTn_V_VSYNC        : inout std_logic;                                     -- Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
+        VWAITn_A21_V_CSYNC        : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Wait signal from asserted when Video RAM is busy / Mainboard Video Composite Sync.
+        VZ80_A20_RFSHn_V_HSYNC    : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 RFSH / Mainboard Video Horizontal Sync.
+        VZ80_A19_HALTn_V_VSYNC    : inout std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 HALT / Mainboard Video Vertical Sync.
         VZ80_BUSRQn_V_G           : out   std_logic;                                     -- Voltage translated Z80 BUSRQ / Mainboard Video Green signal.
-        VZ80_WAITn_V_B            : out   std_logic;                                     -- Voltage translated Z80 WAIT / Mainboard Video Blue signal.
-        VZ80_INTn_V_R             : out   std_logic;                                     -- Voltage translated Z80 INT / Mainboard Video Red signal.
-        VZ80_NMIn_V_COLR          : out   std_logic;                                     -- Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
+        VZ80_A16_WAITn_V_B        : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 WAIT / Mainboard Video Blue signal.
+        VZ80_A18_INTn_V_R         : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 INT / Mainboard Video Red signal.
+        VZ80_A17_NMIn_V_COLR      : out   std_logic;                                     -- Upper address bit for access to FPGA resources / Voltage translated Z80 NMI / Mainboard Video Colour Modulation Frequency.
         CSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Composite Sync.
         HSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Horizontal Sync.
         VSYNC_IN                  : in    std_logic;                                     -- Mainboard Video Vertical Sync.
@@ -222,7 +225,8 @@ architecture rtl of cpld512 is
     signal VZ80_A18_INTn          :       std_logic;                                     -- Multi-function, normally INTn to the soft CPU but VZ80_A18 during K64F access.
     signal VZ80_A17_NMIn          :       std_logic;                                     -- Multi-function, normally NMIn to the soft CPU but VZ80_A17 during K64F access.
     signal VZ80_A16_WAITn         :       std_logic;                                     -- Multi-function, normally WAITn to the soft CPU but VZ80_A16 during K64F access.
-    signal CPLD_HI_ADDR           :       std_logic_vector(18 downto 16);                -- Tri-state ability on upper address bits.
+    signal VZ80_HI_ADDR           :       std_logic_vector(23 downto 16);                -- Upper address bits on FPGA side.
+    signal CPLD_HI_ADDR           :       std_logic_vector(23 downto 16);                -- Tri-state ability on upper address bits.
     signal CPLD_RA_ADDR           :       std_logic_vector(15 downto 12);                -- Address lines 15:12 to the RAM are reconfigurable to allow different memory organisation.
     signal CPLD_ADDR              :       std_logic_vector(15 downto 0);                 --  
     signal CPLD_DATA_IN           :       std_logic_vector(7 downto 0);                  --  
@@ -234,7 +238,9 @@ architecture rtl of cpld512 is
     signal CPLD_M1n               :       std_logic;                                     --  
     signal CPLD_RFSHn             :       std_logic;                                     --  
     signal CPLD_HALTn             :       std_logic;                                     --  
+    signal CTL_BUSRQni            :       std_logic;                                     --  
     signal CTL_BUSACKni           :       std_logic;                                     --  
+    signal CTL_BUSGRANTn          :       std_logic;                                     --  
 
     -- RAM select and write signals.
     signal RAM_OEni               :       std_logic;
@@ -286,14 +292,16 @@ begin
     -- [4]   - R/W - Enable WAIT state during frame display period. 1 = Enable, 0 = Disable (default). The flag enables Z80 WAIT assertion during the frame display period. Most video modes
     --                                 use double buffering so this isnt needed, but use of direct writes to the frame buffer in 8 colour mode (ie. 640x200 or 320x200 8 colour) there
     --                                 is not enough memory to double buffer so potentially there could be tear or snow, hence this optional wait generator.
+    -- [7]   - R/W - Preserve configuration over reset (=1) or set to default on reset (=0).
     --
-    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_ADDR, CPLD_DATA_IN )
+    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_ADDR, CPLD_DATA_IN, CPLD_CFG_DATA, CPU_CFG_DATA )
     begin
 
         if(Z80_RESETn = '0') then
             MODE_CPLD_SWITCH          <= '0';
-            CPLD_CFG_DATA             <= "00000100";                             -- Default to Sharp MZ700, mainboard video enabled, wait state off.
-            CPU_CFG_DATA(7 downto 6)  <= "00";                                   -- Dont reset soft CPU selection flag on a reset.
+            if CPLD_CFG_DATA(7) = '0' or CPU_CFG_DATA(5 downto 0) = "000000" then
+                CPLD_CFG_DATA             <= "10000100";                             -- Default to Sharp MZ700, mainboard video enabled, wait state off.
+            end if;
 
         elsif(rising_edge(Z80_CLKi)) then
 
@@ -303,7 +311,7 @@ begin
                 -- Store the new value into the register, used for read operations.
                 CPU_CFG_DATA          <= CPLD_DATA_IN;
 
-                -- Check to ensure only one CPU selected, if more than one default to hard CPU. Also check to ensure only instantiated CPU's selected, otherwise default to hard CPU.
+                -- Check to ensure only one CPU selected, if more than one default to hard CPU.
                 --
                 if (unsigned(CPLD_DATA_IN(5 downto 0)) and (unsigned(CPLD_DATA_IN(5 downto 0))-1)) /= 0 or (CPLD_DATA_IN(5 downto 2) and "1111") /= "0000" then
                     CPU_CFG_DATA(5 downto 0) <= (others => '0');
@@ -327,7 +335,7 @@ begin
 
     -- Memory mode latch. This latch stores the current memory mode (or Bank Paging Scheme) according to the running software.
     --
-    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, CS_MEM_CFGn, VZ80_MREQn, VZ80_IORQn, VZ80_BUSACKn, CPLD_IORQn, CPLD_WRn, CPLD_ADDR, CPLD_DATA_IN, CPU_CFG_DATA, MODE_CPU_SOFT )
+    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, CS_MEM_CFGn, MODE_CPU_SOFT, VZ80_IORQn, VZ80_MREQn, VZ80_M1n, CTL_BUSACKni, CPLD_IORQn, CPLD_WRn, CPLD_ADDR, CPLD_DATA_IN, CPU_CFG_DATA )
         variable mz700_LOWER_RAM      : std_logic;
         variable mz700_UPPER_RAM      : std_logic;
         variable mz700_INHIBIT        : std_logic;
@@ -336,18 +344,28 @@ begin
         if(Z80_RESETn = '0') then
             -- Initialise memory mode if running on hard cpu, soft cpu remains on current selection.
             MEM_MODE_LATCH            <= "00000";
+
+            -- If a soft CPU is running, force the reset memory mode to TZMM_TZFS - this is to accommodate the Z80 which runs original software. For alternate processors it is still
+            -- important they can access the 512K RAM in case they boot out of it but there coding should change the memory mode to one more suited for its requirements.
+            if MODE_CPU_SOFT = '1' then
+                MEM_MODE_LATCH(1)     <= '1';
+            end if;
             mz700_LOWER_RAM           := '0';
             mz700_UPPER_RAM           := '0';
             mz700_INHIBIT             := '0';
 
-        -- Special case for soft CPU's wanting to address the entire 512k RAM or the 64K address space of the mainboard. The MREQn and IORQn are held low and data[7] and data[2:0] indicate required memory access.
-        -- data[7] = 1 - Access 64K address space of mainboard. data[7] = 0 - Access 512K RAM with high address bits stored in data[2:0]. These bits are mapped into a memory mode 
-        -- and the memory management logic handles any future requests accordingly.
-        elsif (VZ80_MREQn = '0' and VZ80_IORQn = '0' and MODE_CPU_SOFT = '1' and VZ80_BUSACKn = '1') then
+        -- Special case for soft CPU's wanting to address the entire 16M address space (currently 512 RAM) or the 64K address space of the mainboard. 
+        -- Using the IORQ, HMREQ and M1 signals out of the FPGA when in FPGA video mode (including soft cpu mode) in various non standard combinations we latch the upper address
+        -- or the fixed mainboard access modes.
+        -- IORQ = '0', MREQ = '0', M1 = '1' latch data to memory mode, [7] = 1 - Access 64K address space of mainboard. [7] = 0 
+        -- IORQ = '0', MREQ = '0', M1 = '0' latch the upper address bits [23:16]. This allows access to the full 16M address space, currently only 512K is populated.
+        elsif (MODE_CPU_SOFT = '1' and VZ80_IORQn = '0' and VZ80_MREQn = '0' and VZ80_M1n = '0' and CTL_BUSACKni = '1') then
+            VZ80_HI_ADDR              <= CPLD_DATA_IN;
+            MEM_MODE_LATCH            <= std_logic_vector(to_unsigned(TZMM_TZPU, 5));
+
+        elsif (MODE_CPU_SOFT = '1' and VZ80_IORQn = '0' and VZ80_MREQn = '0' and VZ80_M1n = '1' and CTL_BUSACKni = '1') then
             if CPLD_DATA_IN(7) = '1' then
-                MEM_MODE_LATCH            <= std_logic_vector(to_unsigned(TZMM_TZPUM, 5));
-            else
-                MEM_MODE_LATCH            <= "11" & CPLD_DATA_IN(2 downto 0);
+                MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_TZPUM, 5));
             end if;
 
         -- A direct write to the memory latch stores the required memory mode into the latch.
@@ -603,7 +621,7 @@ begin
     --                  12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     --                  13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
     --                  14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
-    --                  21 - Access the FPGA memory by passing through the full 19bit Z80 address, typically from the K64F.
+    --                  21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
     --                  22 - Access to the host mainboard 64K address space only.
     --                  23 - Access all memory and IO on the tranZPUter board with the K64F addressing the full 512K RAM.
     --                  24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
@@ -614,7 +632,7 @@ begin
     --                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
-    MEMORYMGMT: process(CPLD_ADDR, CPLD_WRn, CPLD_RDn, CPLD_IORQn, CPLD_MREQn, CPLD_M1n, Z80_HI_ADDR, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPU_CFGn, CS_CPU_INFOn, MODE_CPLD_MB_VIDEOn)
+    MEMORYMGMT: process(CPLD_ADDR, CPLD_WRn, CPLD_RDn, CPLD_IORQn, CPLD_MREQn, CPLD_M1n, Z80_HI_ADDR, VZ80_HI_ADDR, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPU_CFGn, CS_CPU_INFOn, MODE_CPLD_MB_VIDEOn)
     begin
 
         -- Memory action according to the configured memory mode. Not synchronous as we need to detect and act on address or signals long before a rising edge.
@@ -624,7 +642,7 @@ begin
             -- Set 0 - default, no tranZPUter RAM access so hold the DISABLE_BUS signal inactive to ensure the CPU has continuous access to the
             -- mainboard resources, especially for Refresh of DRAM.
             when TZMM_ORIG => 
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
@@ -641,7 +659,7 @@ begin
             when TZMM_BOOT => 
                 RAM_CSni            <= '0';
                 CS_VIDEO_MEMn       <= '1';
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
@@ -670,7 +688,7 @@ begin
             when TZMM_TZFS => 
                 RAM_CSni            <= '0';
                 CS_VIDEO_MEMn       <= '1';
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
 
                 if CS_VIDEOn = '0' then
@@ -702,7 +720,7 @@ begin
 
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -710,7 +728,7 @@ begin
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000") or (unsigned(CPLD_ADDR(15 downto 0)) >= X"E800" and unsigned(CPLD_ADDR(15 downto 0)) < X"F000"))) then 
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     if unsigned(CPLD_ADDR(15 downto 0)) = X"E800" then
@@ -721,14 +739,14 @@ begin
 
                 elsif (unsigned(CPLD_ADDR(15 downto 0)) >= X"F000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF" and not std_match(CPLD_ADDR(15 downto 1), "11110-111111111")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "001";
+                    CPLD_HI_ADDR    <= "00000001";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -742,7 +760,7 @@ begin
 
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -750,7 +768,7 @@ begin
 
                 elsif( ((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000") or (unsigned(CPLD_ADDR(15 downto 0)) >= X"E800" and unsigned(CPLD_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     if unsigned(CPLD_ADDR(15 downto 0)) = X"E800" then
@@ -761,14 +779,14 @@ begin
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"F000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "010";
+                    CPLD_HI_ADDR    <= "00000010";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -782,7 +800,7 @@ begin
 
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -790,7 +808,7 @@ begin
 
                 elsif( ((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000") or (unsigned(CPLD_ADDR(15 downto 0)) >= X"E800" and unsigned(CPLD_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     if unsigned(CPLD_ADDR(15 downto 0)) = X"E800" then
@@ -801,14 +819,14 @@ begin
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"F000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "011";
+                    CPLD_HI_ADDR    <= "00000011";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -822,14 +840,14 @@ begin
 
                 if (unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF" and not std_match(CPLD_ADDR(15 downto 1), "11110-111111111")) then 
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "100";
+                    CPLD_HI_ADDR    <= "00000100";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -844,7 +862,7 @@ begin
 
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -852,21 +870,21 @@ begin
 
                 elsif ((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"0100") or (unsigned(CPLD_ADDR(15 downto 0)) >= X"F000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF" and not std_match(CPLD_ADDR(15 downto 1), "11110-111111111"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "100";
+                    CPLD_HI_ADDR    <= "00000100";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0100" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000") or (unsigned(CPLD_ADDR(15 downto 0)) >= X"E800" and unsigned(CPLD_ADDR(15 downto 0)) < X"F000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "101";
+                    CPLD_HI_ADDR    <= "00000101";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -877,7 +895,7 @@ begin
             when TZMM_COMPAT => 
                 RAM_CSni            <= '0';
                 CS_VIDEO_MEMn       <= '1';
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
 
                 if CS_VIDEOn = '0' then
@@ -904,7 +922,7 @@ begin
 
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -912,21 +930,21 @@ begin
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "110";
+                    CPLD_HI_ADDR    <= "00000110";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"1000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -939,28 +957,28 @@ begin
 
                 if(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"1000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"D000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "110";
+                    CPLD_HI_ADDR    <= "00000110";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -973,28 +991,28 @@ begin
 
                 if(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "110";
+                    CPLD_HI_ADDR    <= "00000110";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"1000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"D000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "110";
+                    CPLD_HI_ADDR    <= "00000110";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -1007,28 +1025,28 @@ begin
 
                 if(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"1000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"D000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
@@ -1041,46 +1059,45 @@ begin
 
                 if(((unsigned(CPLD_ADDR(15 downto 0)) >= X"0000" and unsigned(CPLD_ADDR(15 downto 0)) < X"1000"))) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "110";
+                    CPLD_HI_ADDR    <= "00000110";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif((unsigned(CPLD_ADDR(15 downto 0)) >= X"1000" and unsigned(CPLD_ADDR(15 downto 0)) < X"D000")) then
                     DISABLE_BUSn    <= '0';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_OEni        <= CPLD_RDn;
                     RAM_WEni        <= CPLD_WRn;
 
                 elsif(((unsigned(CPLD_ADDR(15 downto 0)) >= X"D000" and unsigned(CPLD_ADDR(15 downto 0)) <= X"FFFF"))) then
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
 
                 else
                     DISABLE_BUSn    <= '1';
-                    CPLD_HI_ADDR    <= "000";
+                    CPLD_HI_ADDR    <= "00000000";
                     CPLD_RA_ADDR    <= CPLD_ADDR(15 downto 12);
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
 
-            -- Set 21 - Access the FPGA memory by passing through the full 19bit Z80 address, typically from the K64F.
+            -- Set 21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
             when TZMM_FPGA =>
-                CPLD_HI_ADDR        <= "000";  -- Hi bits directly driven by external source, ie. K64F in this mode.
+                DISABLE_BUSn        <= '0';
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
                 RAM_OEni            <= '1';
                 CS_VIDEO_MEMn       <= '1';
-                DISABLE_BUSn        <= '0';
 
             -- Set 22 - Access to the host mainboard 64K address space.
             when TZMM_TZPUM => 
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
@@ -1091,7 +1108,7 @@ begin
             -- Set 23 - Access all memory and IO on the tranZPUter board with the K64F addressing the full 512K RAM.
             when TZMM_TZPU =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "000";  -- Hi bits directly driven by external source, ie. K64F in this mode.
+                CPLD_HI_ADDR        <= VZ80_HI_ADDR;                                     -- Hi bits directly driven by external source, ie. FPGA soft cpu in this mode.
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1101,7 +1118,7 @@ begin
             -- Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
             when TZMM_TZPU0 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1111,7 +1128,7 @@ begin
             -- Set 25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
             when TZMM_TZPU1 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "001";
+                CPLD_HI_ADDR        <= "00000001";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1121,7 +1138,7 @@ begin
             -- Set 26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
             when TZMM_TZPU2 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "010";
+                CPLD_HI_ADDR        <= "00000010";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1131,7 +1148,7 @@ begin
             -- Set 27 - All memory and IO are on the tranZPUter board, 64K block 3 selected.
             when TZMM_TZPU3 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "011";
+                CPLD_HI_ADDR        <= "00000011";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1141,7 +1158,7 @@ begin
             -- Set 28 - All memory and IO are on the tranZPUter board, 64K block 4 selected.
             when TZMM_TZPU4 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "100";
+                CPLD_HI_ADDR        <= "00000100";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1151,7 +1168,7 @@ begin
             -- Set 29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.                
             when TZMM_TZPU5 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "101";
+                CPLD_HI_ADDR        <= "00000101";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1161,7 +1178,7 @@ begin
             -- Set 30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
             when TZMM_TZPU6 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "110";
+                CPLD_HI_ADDR        <= "00000110";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1171,7 +1188,7 @@ begin
             -- Set 31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
             when TZMM_TZPU7 =>
                 DISABLE_BUSn        <= '0';
-                CPLD_HI_ADDR        <= "111";
+                CPLD_HI_ADDR        <= "00000111";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '0';
                 RAM_OEni            <= CPLD_RDn;
@@ -1180,7 +1197,7 @@ begin
 
             -- Uncoded modes default to the original machine settings.
             when others =>
-                CPLD_HI_ADDR        <= "000";
+                CPLD_HI_ADDR        <= "00000000";
                 CPLD_RA_ADDR        <= CPLD_ADDR(15 downto 12);
                 RAM_CSni            <= '1';
                 RAM_WEni            <= '1';
@@ -1220,8 +1237,27 @@ begin
         end if;
     end process;
 
-    -- Latch output so the K64F can determine current status.
-    Z80_MEM               <= MEM_MODE_LATCH(4 downto 0);
+    -- A process to bring the external K64F control signals into this domain. The K64F can request the bus asynchronously so it is important the system state is known before
+    -- passing the request onto the internal processes and FPGA.
+    --
+    SIGNALSYNC: process( Z80_CLKi, Z80_RESETn, CTL_BUSRQn )
+    begin
+
+        if(Z80_RESETn = '0') then
+            CTL_BUSRQni               <= '1';
+
+        elsif rising_edge(Z80_CLKi) then
+            -- When a Bus request comes in, ensure that the state is idle before passing it on as this signal is used to enable/disable or mux control other signals.
+            if CTL_BUSRQn = '0'    and MODE_CPU_SOFT = '1' then
+                CTL_BUSRQni          <= '0';
+            elsif CTL_BUSRQn = '0' and MODE_CPU_SOFT = '0' then
+                CTL_BUSRQni          <= '0';
+            end if;
+            if CTL_BUSRQn = '1' then
+                CTL_BUSRQni          <= '1';
+            end if;
+        end if;
+    end process;
 
     -- Clock frequency switching. Depending on the state of the flip flops either the system (mainboard) clocks is selected (default and selected when accessing
     -- the mainboard) and the programmable frequency generated by the K64F timers.
@@ -1229,9 +1265,15 @@ begin
     Z80_CLK               <= Z80_CLKi;
 
     -- Wait states, added by the mainboard video circuitry, FPGA video circuitry or the K64F.
-    Z80_WAITn             <= '0'                         when MODE_CPU_SOFT = '0' and CTL_BUSRQn = '1' and (SYS_WAITn = '0' or CTL_WAITn = '0' or ((VWAITn = '0' and MODE_CPLD_MB_VIDEOn = '1') and MODE_CPLD_VIDEO_WAIT = '1'))
+    Z80_WAITn             <= '0'                         when MODE_CPU_SOFT = '0'     and (SYS_WAITn = '0'     and DISABLE_BUSn = '1')
                              else
-                             '1'                         when MODE_CPU_SOFT = '0' and CTL_BUSRQn = '1' and SYS_WAITn = '1' and CTL_WAITn = '1' and (VWAITn = '1' or MODE_CPLD_MB_VIDEOn = '0')
+                             '0'                         when MODE_CPU_SOFT = '0'     and CTL_BUSRQni = '1'    and ((VWAITn = '0' and MODE_CPLD_MB_VIDEOn = '1') and MODE_CPLD_VIDEO_WAIT = '1')
+                             else
+                             '0'                         when CTL_WAITn = '0'
+                             else
+                             '1'                         when MODE_CPU_SOFT = '0'     and (SYS_WAITn = '1'     and DISABLE_BUSn = '1')
+                             else
+                             '1'                         when MODE_CPU_SOFT = '0'     and CTL_BUSRQni = '1'    and (VWAITn = '1' or MODE_CPLD_MB_VIDEOn = '0')
                              else 'Z';
 
     -- Z80 signals passed to the mainboard, if the K64F has control of the bus then the Z80 signals are disabled as they are not tri-stated during a BUSRQ state.
@@ -1242,24 +1284,26 @@ begin
     CTL_HALTn             <= CPLD_HALTn                  when Z80_BUSACKn = '1'
                              else 'Z';
  
-    -- Bus control logic, SYS_BUSACKni directly controls the mainboard tri-state buffers, enabling will disable the mainboard..
+    -- Bus control logic, SYS_BUSACKni directly controls the mainboard tri-state buffers, enabling will disable the mainboard.
     SYS_BUSACKni          <= '0'                         when DISABLE_BUSn = '0'      or  (Z80_BUSACKn = '0'   and CTL_MBSEL = '0') 
                              else '1';
     SYS_BUSACKn           <= SYS_BUSACKni;
 
     -- Request hard Z80 bus. SYS_BUSRQ = mainboard requesting bus, CTL_BUSRQ = K64F requesting bus, MODE_CPU_SOFT = when set, soft CPU is running so hard CPU is permanently tri-stated.
-    Z80_BUSRQn            <= '0'                         when MODE_CPU_SOFT = '1'     or  SYS_BUSRQn = '0'     or  CTL_BUSRQn = '0' 
+    Z80_BUSRQn            <= '0'                         when MODE_CPU_SOFT = '1'     or  SYS_BUSRQn = '0'     or  CTL_BUSRQni = '0' 
                              else '1';
     -- Soft CPU bus request, ie, disable the Soft CPU, whenever enabled and the K64F requests the bus.
-    VZ80_BUSRQn           <= '0'                         when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '0'
+    VZ80_BUSRQn           <= '0'                         when MODE_CPLD_MB_VIDEOn='1' and CTL_BUSRQni = '0'
                              else '1';
     -- Acknowlegde to the K64F, if soft CPU is running then the soft CPU must acknowledge otherwise base on the hard Z80 acknowledge.
-    CTL_BUSACKni          <= '0'                         when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '0'     and Z80_BUSACKn = '0'    and VZ80_BUSACKn = '0'
+    CTL_BUSACKni          <= '0'                         when MODE_CPU_SOFT = '1'     and CTL_BUSRQni = '0'    and Z80_BUSACKn = '0'    and VZ80_BUSACKn = '0'
                              else
-                             '0'                         when MODE_CPU_SOFT = '0'     and CTL_BUSRQn = '0'     and Z80_BUSACKn = '0'
+                             '0'                         when MODE_CPU_SOFT = '0'     and CTL_BUSRQni = '0'    and Z80_BUSACKn = '0'
                              else
                              '1';
     CTL_BUSACKn           <= CTL_BUSACKni;
+    CTL_BUSGRANTn         <= '0'                         when CTL_BUSRQni = '0'       and VZ80_BUSACKn = '0'
+                             else '1';
 
     -- Register read values.
     CLK_STATUS_DATA       <= "0000000" & SYSCLK_Q;
@@ -1284,126 +1328,142 @@ begin
     -- Data Bus Multiplexing, plex the output devices onto the correct Z80 (external or internal) data bus.
     --
     -- FPGA/CPLD -> External
-    Z80_DATA              <= CPLD_CFG_DATA               when CS_CPLD_CFGn = '0'      and Z80_RDn = '0'                                  -- Read current CPLD register settings.
+    Z80_DATA              <= CPLD_CFG_DATA               when CS_CPLD_CFGn = '0'      and Z80_RDn = '0'                                      -- Read current CPLD register settings.
                              else
-                             CPLD_INFO_DATA              when CS_CPLD_INFOn = '0'     and Z80_RDn = '0'                                  -- Read CPLD version & hw build information.
+                             CPLD_INFO_DATA              when CS_CPLD_INFOn = '0'     and Z80_RDn = '0'                                      -- Read CPLD version & hw build information.
                              else
-                             CLK_STATUS_DATA             when CS_SCK_RDn = '0'        and Z80_RDn = '0'                                  -- Read the clock select status.
+                             CLK_STATUS_DATA             when CS_SCK_RDn = '0'        and Z80_RDn = '0'                                      -- Read the clock select status.
                              else 
-                             MEM_MODE_DATA               when CS_MEM_CFGn = '0'       and Z80_RDn = '0'                                  -- Read the memory mode latch.
+                             MEM_MODE_DATA               when CS_MEM_CFGn = '0'       and Z80_RDn = '0'                                      -- Read the memory mode latch.
                              else
-                             VZ80_DATA                   when CS_VIDEO_RDn = '0'      and Z80_RDn = '0'                                  -- Read video memory inside FPGA when using FPGA based video.
+                             VZ80_DATA                   when CS_VIDEO_RDn = '0'      and Z80_RDn = '0'                                      -- Read video memory inside FPGA when using FPGA based video.
                              else
-                             VZ80_DATA                   when MODE_CPU_SOFT = '1'     and VZ80_WRn = '0'                                 -- Output T80 data to tranZPUter/mainboard when writing and T80 active.
+                             VZ80_DATA                   when CTL_BUSACKni = '0'      and Z80_RDn = '0'        and Z80_HI_ADDR(23 downto 19) /= "00000" -- Any memory address outside the first 512K page should be read from the FPGA bus.
                              else
-                             (others => 'Z');                                                                                            -- Default is to tristate the Z80 data bus output when not being used.
+                             VZ80_DATA                   when MODE_CPU_SOFT = '1'     and VZ80_WRn = '0'                                     -- Output T80 data to tranZPUter/mainboard when writing and T80 active.
+                             else
+                             (others => 'Z');                                                                                                -- Default is to tristate the Z80 data bus output when not being used.
     -- External/CPLD -> FPGA
-    VZ80_DATA             <= CPLD_CFG_DATA               when MODE_CPU_SOFT = '1'     and CS_CPLD_CFGn = '0'   and VZ80_RDn = '0'        -- Read current register settings.
+    VZ80_DATA             <= CPLD_CFG_DATA               when MODE_CPU_SOFT = '1'     and CS_CPLD_CFGn = '0'   and VZ80_RDn = '0'            -- Read current register settings.
                              else
-                             CPLD_INFO_DATA              when MODE_CPU_SOFT = '1'     and CS_CPLD_INFOn = '0'  and VZ80_RDn = '0'        -- Read version & hw build information.
+                             CPLD_INFO_DATA              when MODE_CPU_SOFT = '1'     and CS_CPLD_INFOn = '0'  and VZ80_RDn = '0'            -- Read version & hw build information.
                              else
-                             CLK_STATUS_DATA             when MODE_CPU_SOFT = '1'     and CS_SCK_RDn = '0'     and VZ80_RDn = '0'        -- Read the clock select status.
+                             CLK_STATUS_DATA             when MODE_CPU_SOFT = '1'     and CS_SCK_RDn = '0'     and VZ80_RDn = '0'            -- Read the clock select status.
                              else 
-                             MEM_MODE_DATA               when MODE_CPU_SOFT = '1'     and CS_MEM_CFGn = '0'    and VZ80_RDn = '0'        -- Read the memory mode latch.
+                             MEM_MODE_DATA               when MODE_CPU_SOFT = '1'     and CS_MEM_CFGn = '0'    and VZ80_RDn = '0'            -- Read the memory mode latch.
                              else
-                             Z80_DATA                    when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '1'     and VZ80_RDn = '0'        -- Copy the Z80 data if being read by the T80.
+                             Z80_DATA                    when MODE_CPU_SOFT = '1'     and CTL_BUSACKni = '1'   and VZ80_RDn = '0'            -- Copy the Z80 data if being read by the T80.
                              else
-                             Z80_DATA                    when MODE_CPU_SOFT = '0'     and Z80_WRn = '0'                                  -- Copy the Z80 data if being written by the Z80.
+                             Z80_DATA                    when MODE_CPU_SOFT = '0'     and Z80_WRn = '0'                                      -- Copy the Z80 data if being written by the Z80.
                              else
-                             Z80_DATA                    when CTL_BUSRQn = '0'        and VZ80_BUSACKn = '0'   and Z80_WRn = '0'         -- Copy the Z80 data if the K64F is writing on the bus.
+                             Z80_DATA                    when CTL_BUSRQni = '0'       and VZ80_BUSACKn = '0'   and Z80_WRn = '0'             -- Copy the Z80 data if the K64F is writing on the bus.
                              else
-                             (others => 'Z');                                                                                            -- Default is to tristate the VZ80 data bus output when not being used.
+                             (others => 'Z');                                                                                                -- Default is to tristate the VZ80 data bus output when not being used.
     -- External/FPGA -> CPLD
-    CPLD_DATA_IN          <= Z80_DATA                    when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_DATA_IN          <= Z80_DATA                    when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQni = '0'   and VZ80_BUSACKn = '0')
                              else
                              VZ80_DATA;
 
     --
     -- Core CPLD signals - depending on mode, the control signals are either taken from the hard CPU or soft CPU.
     --
-    CPLD_ADDR             <= Z80_ADDR                    when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_ADDR             <= Z80_ADDR                    when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_ADDR;
-    CPLD_RDn              <= Z80_RDn                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_RDn              <= Z80_RDn                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_RDn;
-    CPLD_WRn              <= Z80_WRn                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_WRn              <= Z80_WRn                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_WRn;
-    CPLD_MREQn            <= Z80_MREQn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_MREQn            <= Z80_MREQn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_MREQn;
-    CPLD_IORQn            <= Z80_IORQn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_IORQn            <= Z80_IORQn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_IORQn;
-    CPLD_M1n              <= Z80_M1n                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_M1n              <= Z80_M1n                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_M1n;
-    CPLD_RFSHn            <= Z80_RFSHn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_RFSHn            <= Z80_RFSHn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_RFSHn;
-    CPLD_HALTn            <= Z80_HALTn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    CPLD_HALTn            <= Z80_HALTn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else
                              VZ80_HALTn;
-    
+
     --
     -- Address Bus and Control Multiplexing on the hard CPU side.
     --
-    Z80_HI_ADDR           <= CPLD_HI_ADDR                when CTL_BUSACKni = '1'                                                             -- New addition, pass through the upper address bits directly. K64F directly drives A16-A18 to RAM and into CPLD.
+    Z80_HI_ADDR           <= CPLD_HI_ADDR                when CTL_BUSACKni = '1'                                                             -- New addition, pass through the upper address bits directly. K64F directly drives A16-A23 to RAM and into CPLD.
                              else (others => 'Z');
-    Z80_RA_ADDR           <= CPLD_RA_ADDR;
-    Z80_ADDR              <= VZ80_ADDR                   when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')         -- In soft cpu mode, if the K64F hasnt taken control of the bus, always output the soft CPU address.
+    Z80_RA_ADDR           <= CPLD_RA_ADDR;                                                                                                   -- Row address, to be used for bank remapping to accommodate machines such as the MZ80B where memory is remapped.
+    Z80_ADDR              <= VZ80_ADDR                   when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')        -- In soft cpu mode, if the K64F hasnt taken control of the bus, always output the soft CPU address.
                              else (others => 'Z');
 
-    Z80_WRn               <= VZ80_WRn                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_WRn               <= VZ80_WRn                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_RDn               <= VZ80_RDn                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_RDn               <= VZ80_RDn                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_MREQn             <= VZ80_MREQn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_MREQn             <= '1'                         when MODE_CPU_SOFT = '1'     and VZ80_IORQn = '0'                                   -- Block the IORQ/MREQ low combination going externally.
+                             else
+                             VZ80_MREQn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_IORQn             <= VZ80_IORQn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_IORQn             <= '1'                         when MODE_CPU_SOFT = '1'     and VZ80_MREQn = '0'                                   -- Block the IORQ/MREQ low combination going externally.
+                             else
+                             VZ80_IORQn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_RFSHn             <= VZ80_RFSHn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_RFSHn             <= VZ80_RFSHn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_M1n               <= VZ80_M1n                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_M1n               <= VZ80_M1n                    when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
-    Z80_HALTn             <= VZ80_HALTn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and CTL_BUSRQn = '1')
+    Z80_HALTn             <= VZ80_HALTn                  when MODE_CPU_SOFT = '1'     and (Z80_BUSACKn = '0'   and VZ80_BUSACKn = '1')
                              else 'Z';
 
     --
     -- Address Bus and Control Multiplexing on the soft CPU (FPGA) side.
     --
-    VZ80_ADDR             <= Z80_ADDR(15 downto 0)       when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_ADDR             <= Z80_ADDR(15 downto 0)       when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else (others => 'Z');
-    VZ80_MREQn            <= Z80_MREQn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_MREQn            <= Z80_MREQn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else 'Z';
-    VZ80_IORQn            <= Z80_IORQn                   when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_IORQn            <= Z80_IORQn                   when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else 'Z';
-    VZ80_RDn              <= Z80_RDn                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_RDn              <= Z80_RDn                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else 'Z';
-    VZ80_WRn              <= Z80_WRn                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_WRn              <= Z80_WRn                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else 'Z';
-    VZ80_M1n              <= Z80_M1n                     when MODE_CPU_SOFT = '0'     or  (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_M1n              <= Z80_M1n                     when MODE_CPU_SOFT = '0'     or  CTL_BUSGRANTn = '0'
                              else 'Z';
+    -- Z80 control signals, enabled when the FPGA video is enabled, the signals share the same physical wire as the mainboard video signals and 
+    -- when the FPGA video is used the mainboard video signals are not needed.
+    VWAITn                <= VWAITn_A21_V_CSYNC          when MODE_CPLD_MB_VIDEOn = '1' and CTL_BUSACKni = '1'                                                     -- VWAITn signal output by FPGA during access to memory during Framebuffer rendering.
+                             else '1';
+    VZ80_RFSHn            <= VZ80_A20_RFSHn_V_HSYNC      when MODE_CPLD_MB_VIDEOn = '1' and CTL_BUSACKni = '1'                                                     -- Z80 RFSH signal output by soft CPU.
+                             else '1';
+    VZ80_HALTn            <= VZ80_A19_HALTn_V_VSYNC      when MODE_CPLD_MB_VIDEOn = '1' and CTL_BUSACKni = '1'                                                     -- Z80 HALT signal output by soft CPU.
+                             else '1';
+
     -- Inputs, they share signal lines with the mainboard video and K64F addressing, so only route them if a soft CPU in the FPGA is enabled (which also implies FPGA video is in use).
-    VZ80_A16_WAITn        <= Z80_HI_ADDR(16)             when MODE_CPU_SOFT = '1'     and (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_A16_WAITn        <= Z80_WAITn                   when MODE_CPU_SOFT = '1'     and CTL_BUSACKni = '1'
                              else
-                             Z80_WAITn                   when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '1'
+                             Z80_HI_ADDR(16)             when CTL_BUSACKni = '0'
                              else '1';
-    VZ80_A17_NMIn         <= Z80_HI_ADDR(17)             when MODE_CPU_SOFT = '1'     and (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_A17_NMIn         <= Z80_NMIn                    when MODE_CPU_SOFT = '1'     and CTL_BUSACKni = '1'
                              else
-                             Z80_NMIn                    when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '1'
+                             Z80_HI_ADDR(17)             when CTL_BUSACKni = '0'
                              else '1';
-    VZ80_A18_INTn         <= Z80_HI_ADDR(18)             when MODE_CPU_SOFT = '1'     and (CTL_BUSRQn = '0'    and VZ80_BUSACKn = '0')
+    VZ80_A18_INTn         <= Z80_INTn                    when MODE_CPU_SOFT = '1'     and CTL_BUSACKni = '1'
                              else
-                             Z80_INTn                    when MODE_CPU_SOFT = '1'     and CTL_BUSRQn = '1'
+                             Z80_HI_ADDR(18)             when CTL_BUSACKni = '0'
                              else '1';
+
     -- Clock, route the clock which is composed of the hard CPU mainboard clock and the K64F secondary clock. The T80 will be clocked with this clock.
     VZ80_CLK              <= Z80_CLKi;
     -- Video Read/Write signals. Enabled whenever the video controller is selected. When both VIDEO RDn/WRn are low (an impossible state under normal conditions), a reset is triggered inside the FPGA.
@@ -1431,11 +1491,11 @@ begin
                              else '1';
 
     -- Read from memory and IO devices within the FPGA.
-    CS_VIDEO_RDn          <= '0'                         when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0')
+    CS_VIDEO_RDn          <= '0'                         when (CS_VIDEO_MEMn = '0'    or CS_VIDEO_IOn = '0')
                              else '1';
 
     -- Write to memory and IO devices within the FPGA. Duplicate the transaction to the FPGA for CPLD register writes 0x60:0x6F so that the FPGA can register current settings.
-    CS_VIDEO_WRn          <= '0'                         when (CS_VIDEO_MEMn = '0' or CS_VIDEO_IOn = '0' or CS_IO_EXXn = '0' or CS_IO_6XXn = '0')
+    CS_VIDEO_WRn          <= '0'                         when (CS_VIDEO_MEMn = '0'    or CS_VIDEO_IOn = '0' or CS_IO_EXXn = '0' or CS_IO_6XXn = '0')
                              else '1';
 
 
@@ -1445,23 +1505,23 @@ begin
     --
     CS_IO_6XXn            <= '0'                         when CPLD_IORQn = '0'  and CPLD_M1n = '1' and CPLD_ADDR(7 downto 4) = "0110"
                               else '1';
-    CS_MEM_CFGn           <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "000"                   -- IO 60
+    CS_MEM_CFGn           <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "000"                            -- IO 60
                               else '1';
-    CS_SCK_CTLCLKn        <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "001"                   -- IO 62
+    CS_SCK_CTLCLKn        <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "001"                            -- IO 62
                               else '1';
-    CS_SCK_SYSCLKn        <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "010"                   -- IO 64
+    CS_SCK_SYSCLKn        <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "010"                            -- IO 64
                               else '1';
-    CS_SCK_RDn            <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "011"                   -- IO 66
+    CS_SCK_RDn            <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "011"                            -- IO 66
                               else '1';
-    SVCREQn               <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "100"                   -- IO 68
+    SVCREQn               <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 1) = "100"   and CPLD_WRn = '0'       -- IO 68
                               else '1';
-    CS_CPU_CFGn           <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1100"                  -- IO 6C
+    CS_CPU_CFGn           <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1100"                           -- IO 6C
                               else '1';
-    CS_CPU_INFOn          <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1101"                  -- IO 6D
+    CS_CPU_INFOn          <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1101"                           -- IO 6D
                               else '1';
-    CS_CPLD_CFGn          <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1110"                  -- IO 6E
+    CS_CPLD_CFGn          <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1110"                           -- IO 6E
                               else '1';
-    CS_CPLD_INFOn         <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1111"                  -- IO 6F
+    CS_CPLD_INFOn         <= '0'                         when CS_IO_6XXn = '0'  and CPLD_ADDR(3 downto 0) = "1111"                           -- IO 6F
                               else '1';
 
     -- Assign the RAM select signals to their external pins.
@@ -1492,14 +1552,13 @@ begin
     CS_FB_PAGEn           <= '0'                         when CS_IO_FXXn = '0'  and CPLD_ADDR(3 downto 0) = "1101"
                               else '1';
 
-
+    -- Flag to indicate Soft CPU is running,
+    MODE_CPU_SOFT         <= '1'                         when CPU_CFG_DATA(5 downto 0) /= "000000"
+                             else '0';
     -- Set the video wait state generator, 0 = disabled, 1 = enabled.
     MODE_CPLD_VIDEO_WAIT  <= CPLD_CFG_DATA(4);
     -- Set the mainboard video state, 0 = enabled, 1 = disabled. Signal set to enabled if the soft cpu is enabled.
     MODE_CPLD_MB_VIDEOn   <= '1'                         when CPLD_CFG_DATA(3) = '1'  or CPU_CFG_DATA(5 downto 0) /= "000000"
-                             else '0';
-    -- Flag to indicate Soft CPU is running,
-    MODE_CPU_SOFT         <= '1'                         when CPU_CFG_DATA(5 downto 0) /= "000000"
                              else '0';
     -- Set CPLD mode flag according to value given in config 2:0 
     MODE_CPLD_MZ80K       <= '1'                         when to_integer(unsigned(CPLD_CFG_DATA(2 downto 0))) = MODE_MZ80K
@@ -1519,33 +1578,31 @@ begin
     MODE_CPLD_MZ2000      <= '1'                         when to_integer(unsigned(CPLD_CFG_DATA(2 downto 0))) = MODE_MZ2000
                              else '0';
 
-    -- Graphics signal out, enabled when the FPGA video is disabled.
-    VWAITn_V_CSYNC        <= CSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'            -- Composite sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else 'Z';
-    VZ80_RFSHn_V_HSYNC    <= HSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'            -- Horizontal sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else 'Z';
-    VZ80_HALTn_V_VSYNC    <= VSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'            -- Vertical sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else 'Z';
-    VZ80_BUSRQn_V_G       <= G_IN                        when MODE_CPLD_MB_VIDEOn = '0'            -- Green video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else
-                             VZ80_BUSRQn;                                                          -- Z80 BUSRQ generated by CPLD to tri-state the soft CPU.
-    VZ80_WAITn_V_B        <= B_IN                        when MODE_CPLD_MB_VIDEOn = '0'            -- Blue video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else
-                             VZ80_A16_WAITn;                                                       -- Z80 WAIT generated by system or CPLD to force the soft CPU to wait and VZ80_A16 from the K64F during memory access.
-    VZ80_NMIn_V_COLR      <= COLR_IN                     when MODE_CPLD_MB_VIDEOn = '0'            -- Colour modulation frequency for generation of external composite video and RF signals.
-                             else
-                             VZ80_A17_NMIn;                                                        -- Z80 NMI generated by external sources to interrupt the soft CPU and VZ80_A17 from the K64F during memory access.
-    VZ80_INTn_V_R         <= R_IN                        when MODE_CPLD_MB_VIDEOn = '0'            -- Red video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
-                             else
-                             VZ80_A18_INTn;                                                        -- Z80 INT generated by external sources to interrupt the soft CPU and VZ80_A18 from the K64F during memory access.
 
-    -- Z80 control signals, enabled when the FPGA video is enabled, the signals share the same physical wire as the mainboard video signals and 
-    -- when the FPGA video is used the mainboard video signals are not needed.
-    VWAITn                <= VWAITn_V_CSYNC              when MODE_CPLD_MB_VIDEOn = '1'            -- VWAITn signal output by FPGA during access to memory during Framebuffer rendering.
-                             else '1';
-    VZ80_RFSHn            <= VZ80_RFSHn_V_HSYNC          when MODE_CPLD_MB_VIDEOn = '1'            -- Z80 RFSH signal output by soft CPU.
-                             else '1';
-    VZ80_HALTn            <= VZ80_HALTn_V_VSYNC          when MODE_CPLD_MB_VIDEOn = '1'            -- Z80 HALT signal output by soft CPU.
-                             else '1';
+    -- Graphics signal out, enabled when the FPGA video is disabled.
+    VWAITn_A21_V_CSYNC    <= CSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Composite sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             Z80_HI_ADDR(21)             when CTL_BUSACKni = '0'
+                             else 'Z';
+    VZ80_A20_RFSHn_V_HSYNC<= HSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Horizontal sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             Z80_HI_ADDR(20)             when CTL_BUSACKni = '0'
+                             else 'Z';
+    VZ80_A19_HALTn_V_VSYNC<= VSYNC_IN                    when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Vertical sync from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             Z80_HI_ADDR(19)             when CTL_BUSACKni = '0'
+                             else 'Z';
+    VZ80_BUSRQn_V_G       <= G_IN                        when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Green video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             VZ80_BUSRQn;                                                                                                    -- Z80 BUSRQ generated by CPLD to tri-state the soft CPU.
+    VZ80_A16_WAITn_V_B    <= B_IN                        when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Blue video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             VZ80_A16_WAITn;                                                                                                 -- Z80 WAIT generated by system or CPLD to force the soft CPU to wait and VZ80_A16 from the K64F during memory access.
+    VZ80_A17_NMIn_V_COLR  <= COLR_IN                     when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Colour modulation frequency for generation of external composite video and RF signals.
+                             else
+                             VZ80_A17_NMIn;                                                                                                  -- Z80 NMI generated by external sources to interrupt the soft CPU and VZ80_A17 from the K64F during memory access.
+    VZ80_A18_INTn_V_R     <= R_IN                        when MODE_CPLD_MB_VIDEOn = '0'                                                      -- Red video from mainboard to the FPGA which then outputs to the external devices if FPGA video disabled.
+                             else
+                             VZ80_A18_INTn;                                                                                                  -- Z80 INT generated by external sources to interrupt the soft CPU and VZ80_A18 from the K64F during memory access.
 
 end architecture;

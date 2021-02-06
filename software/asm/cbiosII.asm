@@ -829,7 +829,7 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             ;-------------------------------------------------------------------------------
 
             ; Method to send a command to the I/O processor and verify it is being acted upon.
-            ; THe method, after sending the command, polls the service structure result to see if the I/O processor has updated it. If it doesnt update the result
+            ; The method, after sending the command, polls the service structure result to see if the I/O processor has updated it. If it doesnt update the result
             ; then after a period of time the command is resent. After a number of retries the command aborts with error. This is needed in case of the I/O processor crashing
             ; we dont want the host to lock up.
             ;

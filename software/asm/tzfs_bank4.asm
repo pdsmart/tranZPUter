@@ -118,12 +118,13 @@ SETVGAMODE: IN      A,(CPLDINFO)                                         ; Get c
             CP      4
             JP      NC,BADNUMERR
             ;
-            IN      A,(CPLDCFG) 
+            RRC     L
+            RRC     L                                                    ; Value to top 2 bits ready to be applied to VGA mode register.
+            ;
+SETVGAMODE1:IN      A,(CPLDCFG) 
             OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware to enable the FPGA video mode.
             OUT     (CPLDCFG),A                                 
             ;
-            RRC     L
-            RRC     L                                                    ; Value to top 2 bits.
             IN      A,(VMCTRL)                                           ; Get current setting.
             AND     03FH                                                 ; Clear VGA setting.
             OR      L                                                    ; Add in new setting.
@@ -187,10 +188,11 @@ SETT80:     IN      A,(CPUINFO)
             CP      CPUMODE_IS_SOFT_AVAIL
             JR      NZ,SOFTCPUERR
             LD      A,C
-            AND     CPUMODE_IS_CPU_MASK
-            CP      CPUMODE_IS_T80
+            AND     CPUMODE_IS_T80
             JR      Z,NOT80ERR 
-            LD      A, TZSVC_CMD_CPU_SETT80
+           ;LD      L,VMMODE_VGA_640x480                                  ; Enable VGA mode for a better display.
+           ;CALL    SETVGAMODE1
+            LD      A, TZSVC_CMD_CPU_SETT80                               ; We need to ask the K64F to switch to the T80 as it may involve loading of ROMS.
             CALL    SVC_CMD
             OR      A
             JR      NZ,SETT80ERR
@@ -202,6 +204,7 @@ SETZ80:     IN      A,(CPUINFO)
             AND     CPUMODE_IS_SOFT_MASK
             CP      CPUMODE_IS_SOFT_AVAIL
             JR      NZ,SOFTCPUERR
+            CALL    SETVMODE1                                            ; Turn off VGA mode, return to default MZ video.
             LD      A, TZSVC_CMD_CPU_SETZ80
             CALL    SVC_CMD
             OR      A
@@ -216,14 +219,15 @@ SETZPUEVO:  IN      A,(CPUINFO)
             CP      CPUMODE_IS_SOFT_AVAIL
             JR      NZ,SOFTCPUERR
             LD      A,C
-            AND     CPUMODE_IS_CPU_MASK
-            CP      CPUMODE_IS_ZPU_EVO
+            AND     CPUMODE_IS_ZPU_EVO
             JR      Z,NOZPUERR 
-            LD      A, TZSVC_CMD_CPU_SETZPUEVO
+            LD      L,VMMODE_VGA_640x480                                  ; Enable VGA mode for a better display.
+            CALL    SETVGAMODE1
+            LD      A, TZSVC_CMD_CPU_SETZPUEVO                            ; We need to ask the K64F to switch to the ZPU Evo as it may involve loading of ROMS.
             CALL    SVC_CMD
             OR      A
             JR      NZ,SETZPUERR
-            RET
+            HALT                                                         ; ZPU will take over so stop the Z80 from further processing.
 
             ; Simple routine to clear screen or attributes.
 CLR8:       LD      BC,00800H

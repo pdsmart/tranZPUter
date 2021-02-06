@@ -327,7 +327,7 @@ FDCJMPL2:   JP       (IX)
             ;-------------------------------------------------------------------------------
             ;        0                                       + <- 39
             ;        -----------------------------------------
-MSGSON:     DB      "+ TZFS v1.3 ",                                                       000H                     ; Version 1.0-> first split from RFS v2.0
+MSGSON:     DB      "+ TZFS v1.4 ",                                                       000H                     ; Version 1.0-> first split from RFS v2.0
 MSGSONEND:  DB      " **",                                                          00DH, 000H                     ; Signon banner termination.
 MSGSONT80:  DB      "(T80)",                                                              000H                     ; T80 CPU detected.
 MSGNOTFND:  DB      "Not Found",                                                    00DH, 000H
