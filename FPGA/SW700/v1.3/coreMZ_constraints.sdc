@@ -175,11 +175,6 @@ set_min_delay -from {VZ80_A19_HALTn_V_VSYNCn}                               -to 
 set_min_delay -from {VZ80_A18_INTn_V_R}                                     -to [get_ports {VZ80_DATA[*]}] 1.00
 set_min_delay -from {VZ80_A17_NMIn_V_COLR}                                  -to [get_ports {VZ80_DATA[*]}] 1.00
 set_min_delay -from {VZ80_A16_WAITn_V_B}                                    -to [get_ports {VZ80_DATA[*]}] 1.00
-#  
-set_false_path -from {softT80:\CPU0:T80CPU|T80_RESETn} -to {VideoController:vcCoreVideo|XFER_MAPPED_DATA[*]}
-set_false_path -from {softT80:\CPU0:T80CPU|T80se:\CPU0:T80CPU|T80:u0|BusAck} -to {VideoController:vcCoreVideo|XFER_MAPPED_DATA[*]}
-set_false_path -from [get_registers {softT80:\CPU0:T80CPU|*}] -to [get_registers {softZPU:\CPU1:ZPUCPU|zpu_core_evo:ZPU0|*}]
-set_false_path -from {VZ80_BUSRQn_V_G} -to [get_registers {softZPU:\CPU1:ZPUCPU|zpu_core_evo:ZPU0|*}]
 
 #**************************************************************
 # Set Input Transition

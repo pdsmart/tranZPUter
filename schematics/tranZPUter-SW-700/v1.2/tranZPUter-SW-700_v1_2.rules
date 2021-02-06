@@ -1,0 +1,141 @@
+
+(rules PCB tranZPUter-SW-700_v1_2
+  (snap_angle 
+    fortyfive_degree
+  )
+  (autoroute_settings
+    (fanout off)
+    (eu.mihosoft.freerouting.autoroute on)
+    (postroute on)
+    (vias on)
+    (via_costs 50)
+    (plane_via_costs 5)
+    (start_ripup_costs 100)
+    (start_pass_no 22402)
+    (layer_rule F.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 2.0)
+    )
+    (layer_rule B.Cu
+      (active on)
+      (preferred_direction vertical)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 2.0)
+    )
+  )
+  (rule
+    (width 152.4)
+    (clear 152.6)
+    (clear 76.2 (type smd_to_turn_gap))
+    (clear 38.2 (type smd_smd))
+  )
+  (padstack "Via[0-1]_600:300_um"
+    (shape
+      (circle F.Cu 600.0 0.0 0.0)
+    )
+    (shape
+      (circle B.Cu 600.0 0.0 0.0)
+    )
+    (attach off)
+  )
+  (padstack "Via[0-1]_800:400_um"
+    (shape
+      (circle F.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle B.Cu 800.0 0.0 0.0)
+    )
+    (attach off)
+  )
+  (via 
+    "Via[0-1]_600:300_um" "Via[0-1]_600:300_um" default
+  )
+  (via 
+    "Via[0-1]_800:400_um" "Via[0-1]_800:400_um" default
+  )
+  (via 
+    "Via[0-1]_600:300_um-kicad_default" "Via[0-1]_600:300_um" "kicad_default"
+  )
+  (via 
+    "Via[0-1]_800:400_um-kicad_default" "Via[0-1]_800:400_um" "kicad_default"
+  )
+  (via 
+    "Via[0-1]_600:300_um-Power" "Via[0-1]_600:300_um" Power
+  )
+  (via 
+    "Via[0-1]_800:400_um-Power" "Via[0-1]_800:400_um" Power
+  )
+  (via_rule
+    default "Via[0-1]_600:300_um"
+  )
+  (via_rule
+    "kicad_default" "Via[0-1]_600:300_um-kicad_default"
+  )
+  (via_rule
+    Power "Via[0-1]_800:400_um-Power"
+  )
+  (class default
+    (clearance_class default)
+    (via_rule default)
+    (rule
+      (width 152.4)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+  (class "kicad_default"
+    "~CTL_M1~" "~CTL_RFSH~" "~CTL_HALT~" "~CTL_BUSRQ~" "~CTL_BUSACK~" "Z80_A15" "Z80_D2" "Z80_A17"
+    "Z80_D1" "Z80_D0" "Z80_A13" "Z80_A0" "Z80_A8" "Z80_A1" "Z80_A9" "Z80_A2"
+    "Z80_A11" "Z80_A3" "Z80_A4" "Z80_A10" "Z80_A5" "Z80_A6" "Z80_D7" "Z80_A7"
+    "Z80_D6" "Z80_A12" "Z80_D5" "Z80_A14" "Z80_D4" "Z80_A16" "Z80_D3" "Z80_A18"
+    "~Z80_IORQ~" "~Z80_MREQ~" "~Z80_NMI~" "~Z80_INT~" "~Z80_RESET~" "~Z80_WAIT~" "~Z80_BUSACK~" "~Z80_WR~"
+    "~Z80_RD~" "CTL_CLKSLCT" "Z80_MEM4" "Z80_MEM3" "Z80_MEM2" "Z80_MEM1" "Z80_MEM0" "Net-(BT1-Pad1)"
+    SYSCLK ~SVCREQ~ "~CTL_WAIT~" CTLCLK "Net-(U4-Pad126)" "Net-(U6-Pad15)" "Net-(J3-Pad8)" "Net-(J3-Pad6)"
+    "/Z80 Upgrade/~Z80_BUSRQ~" "Net-(R9-Pad2)" "Net-(R10-Pad2)" "Net-(R11-Pad2)" "/Z80 Upgrade/Z80_RA15" "/Z80 Upgrade/~RAM_WE~" "/Z80 Upgrade/~RAM_OE~" "/Z80 Upgrade/~RAM_CS~"
+    "/Z80 Upgrade/~Z80_HALT~" "/Z80 Upgrade/~Z80_RFSH~" "/Z80 Upgrade/~Z80_M1~" "/Z80 Upgrade/Z80_CLK" "/Z80 Upgrade/~SYS_BUSRQ~" "/Z80 Upgrade/~SYS_WAIT~" "/Z80 Upgrade/~SYS_BUSACK~" "/Z80 Upgrade/VADDR6"
+    "/Z80 Upgrade/VADDR5" "/Z80 Upgrade/VADDR11" "/Z80 Upgrade/VADDR12" "/Z80 Upgrade/VADDR13" "/Z80 Upgrade/VADDR14" "/Z80 Upgrade/VADDR15" "/Z80 Upgrade/VDATA0" "/Z80 Upgrade/VDATA1"
+    "/Z80 Upgrade/VADDR8" "/Z80 Upgrade/VADDR7" "/Z80 Upgrade/VADDR0" "/Z80 Upgrade/~V_VSYNC~" "/Z80 Upgrade/V_G" "/Z80 Upgrade/~V_HSYNC~" "/Z80 Upgrade/V_CVIDEO" "/Z80 Upgrade/V_CSYNC"
+    "/Z80 Upgrade/~VZ80_IORQ~" "/Z80 Upgrade/V_R" "/Z80 Upgrade/V_B" "/Z80 Upgrade/~VZ80_MREQ~" "/Z80 Upgrade/~VZ80_WR~" "/Z80 Upgrade/~VZ80_RD~" "/Z80 Upgrade/VDATA7" "/Z80 Upgrade/VDATA6"
+    "/Z80 Upgrade/VDATA5" "/Z80 Upgrade/VDATA4" "/Z80 Upgrade/VDATA3" "/Z80 Upgrade/VDATA2" "/Z80 Upgrade/V_COLR" "/Z80 Upgrade/VADDR10" "/Z80 Upgrade/VADDR1" "/Z80 Upgrade/VADDR9"
+    "/Z80 Upgrade/VADDR4" "/Z80 Upgrade/VADDR3" "/Z80 Upgrade/VADDR2" "Net-(U5-Pad129)" "Net-(U5-Pad128)" "Net-(U5-Pad127)" "Net-(U5-Pad126)" "Net-(U5-Pad91)"
+    "Net-(U5-Pad90)" "Net-(U5-Pad89)" "Net-(U5-Pad88)" "Net-(U5-Pad55)" "Net-(U5-Pad54)" "Net-(U5-Pad53)" "Net-(U5-Pad52)" "Net-(U5-Pad30)"
+    "Net-(U5-Pad25)" "Net-(U5-Pad22)" "Net-(U5-Pad13)" "Net-(U5-Pad12)" "Net-(U5-Pad8)" "Net-(U5-Pad6)" "Net-(X1-Pad1)" "Net-(U5-Pad11)"
+    "Net-(C43-Pad2)" "Net-(C43-Pad1)" "Net-(C44-Pad1)" "Net-(C45-Pad1)" "Net-(C47-Pad2)" "Net-(J6-Pad4)" "Net-(J6-Pad3)" "Net-(J6-Pad2)"
+    "Net-(J6-Pad1)" "Net-(R14-Pad1)" "Net-(R15-Pad1)" "Net-(SW2-Pad1)" "Net-(U6-Pad5)" "Net-(U8-Pad38)" "Net-(U8-Pad29)" "Net-(U8-Pad28)"
+    "Net-(U8-Pad27)" "Net-(U8-Pad15)" "Net-(U8-Pad14)" "Net-(U6-Pad16)" "Net-(U6-Pad14)" "Net-(U6-Pad12)" "Net-(U6-Pad11)" "/NXP K64FX512/DAT2"
+    "/NXP K64FX512/DAT3" "/NXP K64FX512/CMD" "/NXP K64FX512/CLK" "/NXP K64FX512/DAT0" "/NXP K64FX512/DAT1" "Net-(U8-Pad51)" "Net-(U8-Pad50)" "Net-(U8-Pad32)"
+    "Net-(U8-Pad21)" "Net-(U8-Pad20)" "Net-(U8-Pad19)" "Net-(U8-Pad18)" "Net-(U8-Pad17)" "Net-(U8-Pad16)" "Net-(U8-Pad7)" "Net-(C17-Pad2)"
+    "JTAG_TMS" "JTAG_TCLK" "/NXP K64FX512/K64F_TMS" "Net-(JP2-Pad1)" "Net-(JP3-Pad1)" "/NXP K64FX512/K64F_TDI" "/NXP K64FX512/K64F_TCLK" "/CPLD and FPGA Programming/CPLD_TDO"
+    "FPGA_TDO_TO_K64F" "/NXP K64FX512/K64F_TDO" "K64F_TDO_TO_JTAG" "/CPLD and FPGA Programming/JTAG_TDI" "/CPLD and FPGA Programming/JTAG_TDO" "Net-(J5-Pad10)" "Net-(J5-Pad9)" "Net-(C53-Pad1)"
+    "~JTAG_RESET~" "COLR_OUT" "~VSYNC_OUT~" "~HSYNC_OUT~" "CSYNC_OUT" "COLR_IN" "R_IN" "B_IN"
+    "G_IN" "~VSYNC_IN~" "~HSYNC_IN~" "CVIDEO_IN" "CSYNC_IN" "Net-(JP1-Pad1)" "Net-(JP4-Pad1)" "~CSYNC_OUT~"
+    "Net-(JP6-Pad2)" "Net-(Q1-Pad2)" "Net-(Q1-Pad1)" "RGB_G3" "RGB_G2" "RGB_G1" "RGB_G0" "RGB_B3"
+    "RGB_B2" "RGB_B1" "RGB_B0" "RGB_R3" "RGB_R2" "RGB_R1" "RGB_R0" "/Z80 Upgrade/Z80_RA13"
+    "/Z80 Upgrade/Z80_RA12" "/Z80 Upgrade/Z80_RA14" "Net-(U4-Pad30)" "Net-(U4-Pad28)" "Net-(U4-Pad27)" "Net-(U4-Pad16)" "Net-(U6-Pad3)" "RGB_G4"
+    "RGB_B4" "RGB_R4" "Net-(U4-Pad35)" "Net-(J1-Pad10)" "Net-(J1-Pad9)" "Net-(J1-Pad8)" "Net-(J1-Pad5)" "Net-(J1-Pad4)"
+    "Net-(J1-Pad3)" "Net-(J1-Pad2)" "Net-(J2-Pad11)" "Net-(J2-Pad10)" "Net-(J2-Pad9)" "Net-(J2-Pad8)" "Net-(J2-Pad5)" "Net-(J2-Pad4)"
+    "Net-(J2-Pad3)" "Net-(J2-Pad2)" "Net-(U5-Pad39)" "Net-(U5-Pad10)" "Net-(U5-Pad28)" "Net-(U5-Pad4)" "Net-(U5-Pad7)"
+    (clearance_class "kicad_default")
+    (via_rule kicad_default)
+    (rule
+      (width 152.4)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+  (class Power
+    GNDPWR +5V +3V3 +2V5 +1V2
+    (clearance_class Power)
+    (via_rule Power)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+)

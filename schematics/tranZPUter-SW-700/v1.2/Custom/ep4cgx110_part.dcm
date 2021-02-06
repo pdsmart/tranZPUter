@@ -1,0 +1,15 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP IS61WV51232BLL-10BLI
+D 64M – (4M x 16 bit) Synchronous DRAM (SDRAM), TSOP II 54pin
+K SDRAM Synchronus DRAM PC166 PC143 64Mb 16Mbx4 MEMORY
+F https://www.alliancememory.com/wp-content/uploads/pdf/dram/64M-AS4C4M16SA-CI_v3.0_March%202015.pdf
+$ENDCMP
+#
+$CMP IS67WVE4M16EBLL-70BLA1
+D 64M – (4M x 16 bit) Synchronous DRAM (SDRAM), TSOP II 54pin
+K SDRAM Synchronus DRAM PC166 PC143 64Mb 16Mbx4 MEMORY
+F https://www.alliancememory.com/wp-content/uploads/pdf/dram/64M-AS4C4M16SA-CI_v3.0_March%202015.pdf
+$ENDCMP
+#
+#End Doc Library
