@@ -1,4 +1,0 @@
-if exist bdsc-src.zip del bdsc-src.zip
-zip bdsc-src *.asm *.sub *.txt *.com
-call dist bdsc-src
-

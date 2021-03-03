@@ -318,7 +318,17 @@ software/CPM/CPM_MC_F9
 software/CPM/CPM_RFS_1
 software/CPM/CPM_RFS_2
 software/CPM/PLM80
+software/CPM/tosort
 FPGA/SW700/v1.3/coreMZ.vhd.bak
 FPGA/SW700/v1.3/softZPU/softZPU.vhd.bak
 schematics/sep/
+software/MZB
+software/CPM/320K/DSK
+software/CPM/320K/RAW
+software/CPM/720K/DSK
+software/CPM/720K/RAW
+software/CPM/1M44/DSK
+software/CPM/1M44/RAW
+software/CPM/CPM_MULTICOMP_contents.txt
+software/disks
 
