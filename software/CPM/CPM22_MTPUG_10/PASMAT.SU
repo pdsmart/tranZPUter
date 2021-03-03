@@ -1,8 +1,0 @@
-mt+86 cpmname.src
-mt+86 pasmat.src
-mt+86 pminit.src
-mt+86 pmcoment.src
-mt+86 pmparse.src
-mt+86 pmfileio.src
-linkmt pasmat/f
-

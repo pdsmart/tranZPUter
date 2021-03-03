@@ -56,8 +56,13 @@ entity softZPU is
         SW_CPUEN                  : in    std_logic;                                     -- Software controlled CPU enable.
 
         -- Direct access to the video controller, bypassing the CPLD Memory management.
+        VIDEO_ADDR                : out   std_logic_vector(23 downto 0);                 -- Direct video controller addressing, bypass CPLD memory manager and operate at 32bits.
+        VIDEO_DATA_IN             : in    std_logic_vector(31 downto 0);                 -- Video controller to ZPU data in.
+        VIDEO_DATA_OUT            : out   std_logic_vector(31 downto 0);                 -- ZPU to Video controller data out.
         VIDEO_WRn                 : out   std_logic;                                     -- Direct video write.
         VIDEO_RDn                 : out   std_logic;                                     -- Direct video read.
+        VIDEO_WR_BYTE             : out   std_logic;                                     -- Signal to indicate a byte should be written not a 32bit word.
+        VIDEO_WR_HWORD            : out   std_logic;                                     -- Signal to indicate a 16bit half word should be written not a 32bit word.
 
         -- External access to internal BRAM memory.
         INT_MEM_DATA_IN           : in    std_logic_vector(WORD_32BIT_RANGE);            -- Internal RAM block data to write to RAM.
@@ -85,7 +90,6 @@ entity softZPU is
         ZPU80_HALTn               : out   std_logic;                                     -- HALTn signal indicates that the CPU has executed a "HALT" instruction.
         ZPU80_BUSACKn             : out   std_logic;                                     -- BUSACKn signal indicates that the CPU address bus, data bus, and control signals have entered their HI-Z states, and that the external circuitry can now control these lines.
         ZPU80_ADDR                : out   std_logic_vector(15 downto 0);                 -- 16 bit address lines.
-        ZPU80_HI_ADDR             : out   std_logic_vector(7 downto 0);                  -- Direct addressing of video memory (bypassing register configuration needed by Sharp MZ host to maintain compatibility or address space restrictions).
         ZPU80_DATA_IN             : in    std_logic_vector(7 downto 0);                  -- 8 bit data bus in.
         ZPU80_DATA_OUT            : out   std_logic_vector(7 downto 0);                  -- 8 bit data bus out.
 
@@ -139,15 +143,16 @@ architecture rtl of softZPU is
     signal IO_WAIT_INTR           :       std_logic;
     signal IO_WAIT_TIMER1         :       std_logic;
     signal IO_WAIT_Z80BUS         :       std_logic;
+    signal IO_WAIT_VIDEO          :       std_logic;
     signal MEM_DATA_READ          :       std_logic_vector(WORD_32BIT_RANGE);
     signal MEM_DATA_WRITE         :       std_logic_vector(WORD_32BIT_RANGE);
     signal MEM_ADDR               :       std_logic_vector(ADDR_BIT_RANGE);
     signal MEM_WRITE_ENABLE       :       std_logic; 
-    signal MEM_WRITE_ENABLE_LAST  :       std_logic; 
+    signal MEM_WRITE_ENABLE_LAST  :       std_logic_vector(2 downto 0); 
     signal MEM_WRITE_BYTE_ENABLE  :       std_logic; 
     signal MEM_WRITE_HWORD_ENABLE :       std_logic; 
     signal MEM_READ_ENABLE        :       std_logic;
-    signal MEM_READ_ENABLE_LAST   :       std_logic;
+    signal MEM_READ_ENABLE_LAST   :       std_logic_vector(2 downto 0);
     signal MEM_DATA_READ_INSN     :       std_logic_vector(WORD_64BIT_RANGE);
     signal MEM_ADDR_INSN          :       std_logic_vector(ADDR_BIT_RANGE);
     signal MEM_READ_ENABLE_INSN   :       std_logic;
@@ -194,6 +199,8 @@ architecture rtl of softZPU is
     signal IO_INTR_SELECT         :       std_logic;                                     -- Interrupt Range 0xFFFFFBxx
     signal IO_TIMER_SELECT        :       std_logic;                                     -- Timer Range 0xFFFFFCxx
     signal Z80BUS_CS              :       std_logic;                                     -- Z80 Bus select. The Z80 has a window within the ZPU system bus address space.
+    signal VIDEO_CS               :       std_logic;                                     -- Video controller select.
+    signal VIDEO_8BIT_CS          :       std_logic;                                     -- 8bit register region within the Video controller selection window is active.
     signal INTR0_CS               :       std_logic;                                     -- 0xB00-B0F
     signal TIMER0_CS              :       std_logic;                                     -- 0xC00-C0F Millisecond timer.
     signal TIMER1_CS              :       std_logic;                                     -- 0xC10-C1F
@@ -221,7 +228,8 @@ begin
         if SYS_RESETn = '0' then
             ZPU_RESET_COUNTER                 := (others => '1');
             ZPU_RESETn                        <= '0';
-            MEM_READ_ENABLE_LAST              <= '1';
+            MEM_READ_ENABLE_LAST              <= (others => '0');
+            MEM_WRITE_ENABLE_LAST             <= (others => '0');
 
         else
             if rising_edge(ZPU_CLK) then
@@ -246,8 +254,8 @@ begin
             if falling_edge(ZPU_CLK) then
                 -- Edge detection for read/write signals. Most I/O operations need a read signal longer than 1 clock so BUSY needs to be asserted in order to prolong the read cycle. 
                 -- 
-                MEM_READ_ENABLE_LAST          <= MEM_READ_ENABLE;
-                MEM_WRITE_ENABLE_LAST         <= MEM_WRITE_ENABLE;
+                MEM_READ_ENABLE_LAST          <= MEM_READ_ENABLE_LAST(1 downto 0) & MEM_READ_ENABLE;
+                MEM_WRITE_ENABLE_LAST         <= MEM_WRITE_ENABLE_LAST(1 downto 0) & MEM_WRITE_ENABLE;
             end if;
         end if;
     end process;
@@ -292,7 +300,7 @@ begin
     -- BRAM Range 0x00000000 - (2^SOC_MAX_ADDR_INSN_BRAM_BIT)-1
     BRAM_SELECT                  <= '1'                                       when (MEM_ADDR >= std_logic_vector(to_unsigned(SOC_ADDR_BRAM_START, MEM_ADDR'LENGTH)) and MEM_ADDR < std_logic_vector(to_unsigned(SOC_ADDR_BRAM_END, MEM_ADDR'LENGTH)))  and MEM_BUSACKi = '0'
                                     else
-                                    '1'                                       when INT_MEM_ADDR(23 downto 20)= "0001" and MEM_BUSACKi = '1'
+                                    '1'                                       when INT_MEM_ADDR(23 downto 17)= "0001000" and MEM_BUSACKi = '1'
                                     else '0';
 
     -- 24bit address bus, only a portion actually used for BRAM.
@@ -415,13 +423,15 @@ begin
     MEM_BUSACK                <= MEM_BUSACKi;
 
     -- Force the CPU to wait when slower memory/IO is accessed and it cant deliver an immediate result.
-    MEM_BUSY                  <= '1'                  when SOC_IMPL_Z80BUS = true  and ((Z80BUS_CS = '1' and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1') or IO_WAIT_Z80BUS = '1')
+    MEM_BUSY                  <= '1'                  when SOC_IMPL_Z80BUS = true  and IO_WAIT_Z80BUS = '1' -- ((Z80BUS_CS = '1' and MEM_READ_ENABLE_LAST(0) = '0' and MEM_READ_ENABLE = '1') or IO_WAIT_Z80BUS = '1')
                                  else
-                                 '1'                  when SOC_IMPL_INTRCTL = true and INTR0_CS = '1'    and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_INTR = '1'
+                                 '1'                  when SOC_IMPL_INTRCTL = true and IO_WAIT_INTR = '1'   -- INTR0_CS = '1'    and MEM_READ_ENABLE_LAST(0) = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_INTR = '1'
                                  else
-                                 '1'                  when SOC_IMPL_TIMER1 = true  and TIMER1_CS = '1'   and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_TIMER1 = '1'
+                                 '1'                  when SOC_IMPL_TIMER1 = true  and IO_WAIT_TIMER1 = '1'  -- TIMER1_CS = '1'   and MEM_READ_ENABLE_LAST(0) = '0' and MEM_READ_ENABLE = '1' and IO_WAIT_TIMER1 = '1'
                                  else
-                                 '1'                  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1'   and MEM_READ_ENABLE_LAST = '0' and MEM_READ_ENABLE = '1'
+                               --  '1'                  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1'   and MEM_READ_ENABLE_LAST(0) = '0' and MEM_READ_ENABLE = '1'
+                               --  else
+                                 '1'                  when                             IO_WAIT_VIDEO = '1' --                         (VIDEO_CS = '1'   and MEM_READ_ENABLE_LAST(0) = '0'  and MEM_READ_ENABLE = '1') --or IO_WAIT_VIDEO = '1' 
                                  else
                                  '0';
 
@@ -431,6 +441,8 @@ begin
                                  IO_DATA_READ_INTRCTL when SOC_IMPL_INTRCTL = true and INTR0_CS = '1'
                                  else
                                  IO_DATA_READ_SOCCFG  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1'
+                                 else
+                                 VIDEO_DATA_IN        when                             VIDEO_CS = '1'
                                  else
                                  Z80_DATA_IN          when SOC_IMPL_Z80BUS = true  and Z80BUS_CS = '1'
                                  else
@@ -470,6 +482,155 @@ begin
                                  else
                                  DEBUG_TXD_IN;
 
+    -- Direct addressing Bus. Normally this is set to 0 during standard Sharp MZ operation, when 23:19 > 0 then direct addressing of the various video
+    -- memory's is enabled.
+    -- Address    A23 -A16
+    -- 0x000000   00000000 - Normal Sharp MZ behaviour, Video Controller controlled by Z80 bus transactions.
+    -- 0x080000   00001000 - Memory and I/O ports mapped into direct addressable memory location.
+    --
+    --                       A15 - A8 A7 -  A0
+    --                       I/O registers are mapped to the bottom 256 bytes mirroring the I/O address.
+    -- 0x0800D0              00000000 11010000 - 0xD0 - Set the parameter number to update.
+    --                       00000000 11010001 - 0xD1 - Update the lower selected parameter byte.
+    --                       00000000 11010010 - 0xD2 - Update the upper selected parameter byte.
+    --                       00000000 11010011 - 0xD3 - set the palette slot Off position to be adjusted.
+    --                       00000000 11010100 - 0xD4 - set the palette slot On position to be adjusted.
+    --                       00000000 11010101 - 0xD5 - set the red palette value according to the PALETTE_PARAM_SEL address.
+    --                       00000000 11010110 - 0xD6 - set the green palette value according to the PALETTE_PARAM_SEL address.
+    -- 0x0800D7              00000000 11010111 - 0xD7 - set the blue palette value according to the PALETTE_PARAM_SEL address.
+    --
+    -- 0x0800E0              00000000 11100000 - 0xE0 MZ80B PPI
+    --                       00000000 11100100 - 0xE4 MZ80B PIT
+    -- 0x0800E8              00000000 11101000 - 0xE8 MZ80B PIO
+    --
+    --                       00000000 11110000 - 
+    --                       00000000 11110001 - 
+    --                       00000000 11110010 - 
+    -- 0x0800F3              00000000 11110011 - 0xF3 set the VGA border colour.
+    --                       00000000 11110100 - 0xF4 set the MZ80B video in/out mode.
+    --                       00000000 11110101 - 0xF5 sets the palette.
+    --                       00000000 11110110 - 0xF6 set parameters.
+    --                       00000000 11110111 - 0xF7 set the graphics processor unit commands.
+    --                       00000000 11111000 - 0xF6 set parameters.
+    --                       00000000 11111001 - 0xF7 set the graphics processor unit commands.
+    --                       00000000 11111010 - 0xF8 set the video mode. 
+    --                       00000000 11111011 - 0xF9 set the graphics mode.
+    --                       00000000 11111100 - 0xFA set the Red bit mask
+    --                       00000000 11111101 - 0xFB set the Green bit mask
+    --                       00000000 11111110 - 0xFC set the Blue bit mask
+    -- 0x0800FD              00000000 11111111 - 0xFD set the Video memory page in block C000:FFFF 
+    --
+    --                       Memory registers are mapped to the E000 region as per base machines.
+    -- 0x08E010              11100000 00010010 - Program Character Generator RAM. E010 - Write cycle (Read cycle = reset memory swap).
+    --                       11100000 00010100 - Normal display select.
+    --                       11100000 00010101 - Inverted display select.
+    --                       11100010 00000000 - Scroll display register. E200 - E2FF
+    -- 0x08E2FF              11111111
+    --
+    -- 0x090000   00001001 - Video/Attribute RAM. 64K Window.
+    -- 0x09D000              11010000 00000000 - Video RAM
+    -- 0x09D7FF              11010111 11111111
+    -- 0x09D800              11011000 00000000 - Attribute RAM
+    -- 0x09DFFF              11011111 11111111
+    --
+    -- 0x0A0000   00001010 - Character Generator RAM 64K Window.
+    -- 0x0A0000              00000000 00000000 - CGROM
+    -- 0x0A0FFF              00001111 11111111 
+    -- 0x0A1000              00010000 00000000 - CGRAM
+    -- 0x0A1FFF              00011111 11111111
+    --
+    -- 0x0C0000   00001100 - 128K Red framebuffer.
+    --                       00000000 00000000 - Red pixel addressed framebuffer. Also MZ-80B GRAM I memory in lower 8K
+    -- 0x0C3FFF              00111111 11111111
+    -- 0x0D0000   00001101 - 128K Blue framebuffer.
+    --                       00000000 00000000 - Blue pixel addressed framebuffer. Also MZ-80B GRAM II memory in lower 8K
+    -- 0x0D3FFF              00111111 11111111
+    -- 0x0E0000   00001110 - 128K Green framebuffer.
+    --                       00000000 00000000 - Green pixel addressed framebuffer.
+    -- 0x0E3FFF              00111111 11111111
+    --
+    VIDEO_CS                  <= '1'                                when MEM_ADDR(23 downto 19) = "11001"                                            -- 512Kbyte address space, normally 0xC80000:CFFFFF - can expand down if needed.
+                                 else '0';
+    VIDEO_8BIT_CS             <= '1'                                when MEM_ADDR(23 downto 16) = "11001000"                                         -- 8 bit region of video controller where registers are accessed 8bit at a time for read operations.
+                                 else '0';
+--    VIDEO_ADDR                <= "00001000" & MEM_ADDR(17 downto 2) when VIDEO_8BIT_CS = '1'  and VIDEO_RDn = '0'                                    -- In the 8 bit region, reads are 32bit but the address is x4 so a shift right by 2 will yield a byte level address, 32bits will be return with the top 3 bytes zeroed.
+--                                 else
+--                                 "0000"     & MEM_ADDR(19 downto 0);
+--    VIDEO_DATA_OUT            <= MEM_DATA_WRITE;
+--    VIDEO_WRn                 <= '0'                                when (VIDEO_CS = '1'       and MEM_WRITE_ENABLE = '1')
+--                                 else '1';
+--    VIDEO_RDn                 <= '0'                                when (VIDEO_CS = '1'       and MEM_READ_ENABLE = '1')
+--                                 else '1';
+--    VIDEO_WR_BYTE             <= MEM_WRITE_BYTE_ENABLE;
+--    VIDEO_WR_HWORD            <= MEM_WRITE_HWORD_ENABLE;
+
+    -- A process to match the timing requirements of the Video Controller, which in itself is trying to adapt between a variable low frequency (2-24MHz) multicycle
+    -- Z80 bus and the ZPU bus which runs at 75-100MHz and can complete in a single cycle.
+    --
+    process(ZPU_CLK, ZPU_RESETn)
+        variable IO_WAIT_VIDEO_CNT : unsigned(2 downto 0);
+    begin
+        if rising_edge(ZPU_CLK) then
+            if ZPU_RESETn = '0' then
+                IO_WAIT_VIDEO       <= '0';
+                IO_WAIT_VIDEO_CNT   := (others => '0');
+                VIDEO_RDn           <= '1';
+                VIDEO_WRn           <= '1';
+                VIDEO_WR_BYTE       <= '0';
+                VIDEO_WR_HWORD      <= '0';
+            else
+                -- On positive edge detection commence the transaction applying WAIT to the ZPU to accommodate the frequency and cycle mismatch.
+                -- Timing for 8 bit differs to the 32bit access.
+                if VIDEO_CS = '1' and ((MEM_READ_ENABLE_LAST = "001" and MEM_READ_ENABLE = '1') or (MEM_WRITE_ENABLE_LAST = "001" and MEM_WRITE_ENABLE = '1')) then
+
+                    if VIDEO_8BIT_CS = '1' and MEM_READ_ENABLE = '1' then
+                        VIDEO_ADDR            <= "00001000" & MEM_ADDR(17 downto 2);
+                    else
+                        VIDEO_ADDR            <= "0000"     & MEM_ADDR(19 downto 0);
+                    end if;
+                    if MEM_WRITE_ENABLE = '1' then
+                        VIDEO_DATA_OUT        <= MEM_DATA_WRITE;
+                    end if;
+                    VIDEO_WR_BYTE             <= MEM_WRITE_BYTE_ENABLE;
+                    VIDEO_WR_HWORD            <= MEM_WRITE_HWORD_ENABLE;
+                    IO_WAIT_VIDEO             <= '1';
+
+                    if MEM_READ_ENABLE = '1' then
+                        if VIDEO_8BIT_CS = '1' then
+                            IO_WAIT_VIDEO_CNT := (others => '1');
+                        else
+                            IO_WAIT_VIDEO_CNT := to_unsigned(2, IO_WAIT_VIDEO_CNT'length);
+                        end if;
+                        VIDEO_RDn                 <= '0';
+                    else
+                        if VIDEO_8BIT_CS = '1' then
+                            IO_WAIT_VIDEO_CNT := (others => '1');
+                        else
+                            IO_WAIT_VIDEO_CNT := to_unsigned(2, IO_WAIT_VIDEO_CNT'length);
+                        end if;
+                        VIDEO_WRn             <= '0';
+                    end if;
+                end if;
+
+                -- Reads terminate 1 cycle early so that the Video Controller can latch the output data before the ZPU reads it.
+                --
+                if IO_WAIT_VIDEO_CNT = 1 and VIDEO_RDn = '0' then
+                    VIDEO_RDn                 <= '1';
+                end if;
+                -- At end of down count, reset all control signals and release ZPU from WAIT.
+                if IO_WAIT_VIDEO_CNT = 0 then
+                    VIDEO_WRn                 <= '1';
+                    VIDEO_RDn                 <= '1';
+                    IO_WAIT_VIDEO             <= '0';
+                end if;
+
+                -- IO Wait down counter. When not zero, we are in a WAIT state counting down.
+                if IO_WAIT_VIDEO_CNT /= 0 then
+                    IO_WAIT_VIDEO_CNT := IO_WAIT_VIDEO_CNT - 1;
+                end if;
+            end if;
+        end if;
+    end process;
 
     -- Z80 Bus Interface.
     --
@@ -487,16 +648,7 @@ begin
     --                     byte on the Z80 address space. ie. 0x00780 ZPU = 0x0078 Z80.
     --
     -- Y+100000:Y+10FFFF = 64K address space on host mainboard (ie. RAM/ROM/Memory mapped I/O) accessed 4 bytes at a time, a 32 bit read will return 4 consecutive bytes,1start of read must be on a 32bit word boundary.
-    -- Y+180000:Y+1FFFFF = 512K Video address space - the video processor memory will be directly mapped into this space as follows:
-    --                     0x180000 - 0x187FFF = 32K Video RAM
-    --                     0x188000 - 0x18FFFF = 32K Video Attribute RAM
-    --                     0x190000 - 0x19FFFF = 64K Character Generator ROM/PCG RAM.
-    --                     0x1A0000 - 0x1BFFFF = 128K Red Framebuffer address space.
-    --                     0x1C0000 - 0x1DFFFF = 128K Blue Framebuffer address space.
-    --                     0x1E0000 - 0x1FFFFF = 128K Green Framebuffer address space.
-    --                     This invokes memory read/write operations but the Video Read/Write signal is directly set, MREQ is not set. This 
-    --                     allows direct writes to be made to the FPGA video logic, bypassing the CPLD memory manager.
-    --                     All reads are 32bit, writes are 8, 16 or 32bit wide on word boundary.
+    -- Y+180000:Y+1FFFFF = 512K unassigned.
     --
     -- Y = 2Mbyte sector in ZPU address space the Z80 bus interface is located. This is normally below the ZPU I/O sector and set to 0xExxxxx
     --
@@ -539,9 +691,6 @@ begin
         signal Z80_WRITE_BYTE        :       std_logic;                                    -- Z80 writing 1 byte.
         signal Z80_WRITE_HWORD       :       std_logic;                                    -- Z80 writing 2 bytes.
         signal Z80_BUS_HOST_ACCESS   :       std_logic;                                    -- Z80 to access underlying HOST mainboard hardware. Default is to access tranZPUter hardware.
-        signal Z80_BUS_VIDEO_ADDR    :       std_logic_vector(7 downto 0);                 -- Upper address for direct access to video memory.
-        signal Z80_BUS_VIDEO_WRITE   :       std_logic;                                    -- Z80 to write direct to FPGA video, non-standard bus transaction.
-        signal Z80_BUS_VIDEO_READ    :       std_logic;                                    -- Z80 to read direct from FPGA video, non-standard bus transaction.
         signal Z80_BUS_MREQn         :       std_logic;                                    -- MREQn signal indicates that the address bus holds a valid address for reading or writing memory.
         signal Z80_BUS_IORQn         :       std_logic;                                    -- IORQn signal indicates that the address bus (A0-A7) holds a valid address for reading or writing and I/O device.
         signal Z80_BUS_RDn           :       std_logic;                                    -- RDn signal indicates that data is ready to be read from a memory or I/O device to the CPU.
@@ -552,6 +701,7 @@ begin
         signal Z80_BYTE_COUNT        :       integer range 0 to 4;                         -- Count of bytes in a transaction, 1 byte, half-word (2 bytes) or 32bit word (4 bytes).
         signal Z80_BYTE_ADDR         :       unsigned(1 downto 0);                         -- Lower address bits to accommodate 1, 2 or 4 byte read/writes.
         signal Z80_BUS_XACT          :       Z80BusStateType;                              -- Transaction to perform.
+        signal Z80_BUS_XACT_FULLSPEED:       std_logic;                                    -- Perform transaction at full CPU clock speed rather than the Z80 clock speed.
         signal Z80BusFSMState        :       Z80BusStateType;                              -- Running FSM state.
 
     begin
@@ -567,20 +717,19 @@ begin
             -- ASYNCHRONOUS RESET --
             ------------------------
             if ZPU_RESETn='0' then
-                Z80_BUS_MREQn     <= '1';                                                  -- MREQn signal indicates that the address bus holds a valid address for reading or writing memory.
-                Z80_BUS_IORQn     <= '1';                                                  -- IORQn signal indicates that the address bus (A0-A7) holds a valid address for reading or writing and I/O device.
-                Z80_BUS_RDn       <= '1';                                                  -- RDn signal indicates that data is ready to be read from a memory or I/O device to the CPU.
-                Z80_BUS_WRn       <= '1';                                                  -- WRn signal indicates that data is going to be written from the CPU data bus to a memory or I/O device.
-                Z80_BUS_M1n       <= '1';                                                  -- M1n Machine Cycle 1 signal. M1 and MREQ active = opcode fetch, M1 and IORQ active = interrupt, vector can be read from D0-D7. M1n is used in this module as a flag to the CPLD to latch the upper address bits or enable host mainboard access.
-                Z80_BUS_BUSACKn   <= '0';                                                  -- Bus request acknowledge, becomes active when the Z80 component of the FSM is idle and BUSRQ is asserted or during RESET.
-                Z80_BUS_DATA_OUT  <= (others => '0');                                      -- 8 bit data bus out.
-                IO_WAIT_Z80BUS    <= '0';                                                  -- Flag to force the ZPU to wait during Z80 transactions, the Z80 Bus is slower and 8 bit.
-                VIDEO_WRn         <= '1';                                                  -- Signal to write directly to the FPGA video rather than going via the CPLD.
-                VIDEO_RDn         <= '1';                                                  -- Signal to read directly from the FPGA video rather than going via the CPLD.
-                Z80_START_XACT    <= '0';
-                Z80_XACT_RUN      <= '0';
-                Z80_CLK_EDGE      <= (others => '0');                                      -- Z80 clock edge detection.
-                Z80BusFSMState    <= State_IDLE;
+                Z80_BUS_MREQn          <= '1';                                             -- MREQn signal indicates that the address bus holds a valid address for reading or writing memory.
+                Z80_BUS_IORQn          <= '1';                                             -- IORQn signal indicates that the address bus (A0-A7) holds a valid address for reading or writing and I/O device.
+                Z80_BUS_RDn            <= '1';                                             -- RDn signal indicates that data is ready to be read from a memory or I/O device to the CPU.
+                Z80_BUS_WRn            <= '1';                                             -- WRn signal indicates that data is going to be written from the CPU data bus to a memory or I/O device.
+                Z80_BUS_M1n            <= '1';                                             -- M1n Machine Cycle 1 signal. M1 and MREQ active = opcode fetch, M1 and IORQ active = interrupt, vector can be read from D0-D7. M1n is used in this module as a flag to the CPLD to latch the upper address bits or enable host mainboard access.
+                Z80_BUS_BUSACKn        <= '1';                                             -- Bus request acknowledge, becomes active when the Z80 component of the FSM is idle and BUSRQ is asserted or during RESET.
+                Z80_BUS_DATA_OUT       <= (others => '0');                                 -- 8 bit data bus out.
+                IO_WAIT_Z80BUS         <= '0';                                             -- Flag to force the ZPU to wait during Z80 transactions, the Z80 Bus is slower and 8 bit.
+                Z80_START_XACT         <= '0';
+                Z80_BUS_XACT_FULLSPEED <= '0';                                             -- Perform the Z80 bus transaction at the CPU speed not the Z80 speed.
+                Z80_XACT_RUN           <= '0';
+                Z80_CLK_EDGE           <= (others => '0');                                 -- Z80 clock edge detection.
+                Z80BusFSMState         <= State_IDLE;
 
             -----------------------
             -- RISING CLOCK EDGE --
@@ -609,11 +758,11 @@ begin
                 end if;
 
                 -- If the bus is requested, wait until the Z80 bus FSM is idle then halt operations.
-                if Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and (MEM_WRITE_ENABLE = '1' or MEM_READ_ENABLE = '1') and Z80BUS_CS = '1' and ZPU80_BUSRQn = '0' then
+                if Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ZPU80_BUSRQn = '0' then
                     Z80_BUS_BUSACKn                        <= '0';
 
                 -- Start a Z80 BUS Read or Write?
-                elsif Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and (MEM_WRITE_ENABLE = '1' or MEM_READ_ENABLE = '1') and Z80BUS_CS = '1' and Z80_BUS_BUSACKn = '1' then
+                elsif Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ((MEM_WRITE_ENABLE_LAST = "001" and MEM_WRITE_ENABLE = '1') or (MEM_READ_ENABLE_LAST = "001" and MEM_READ_ENABLE = '1')) and Z80BUS_CS = '1' and Z80_BUS_BUSACKn = '1' then
 
                     -- Halt the ZPU, Z80 transactions take a lot more time.
                     IO_WAIT_Z80BUS                         <= '1';
@@ -630,11 +779,9 @@ begin
 
                     -- Preset signals.
                     --
-                    Z80_BUS_VIDEO_WRITE                    <= '0';
-                    Z80_BUS_VIDEO_READ                     <= '0';
-                    Z80_BUS_VIDEO_ADDR                     <= "00000000";
                     Z80_BUS_HOST_ACCESS                    <= '0';
                     Z80_START_XACT                         <= '1';
+                    Z80_BUS_XACT_FULLSPEED                 <= '0';
 
                     -- Depending on the accessed address will determine the type of transaction. In order to provide byte level access on a 32bit read CPU, a bank of addresses, word aligned per byte is assigned in addition to
                     -- an address to read 32bit word aligned value.
@@ -667,6 +814,7 @@ begin
                         else
                             Z80_BUS_XACT                   <= State_MEM_READ;
                         end if;
+                        Z80_BUS_XACT_FULLSPEED             <= '1';
 
                     -- Y+080000:Y+0BFFFF - Access to host mainboard 64K address space. Due to 32bit mapping, address is shifted right by 2, so each byte on the mainboard is accessed as a 32bit word in the ZPU.
                     elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-2) = "0110" then
@@ -686,6 +834,7 @@ begin
                             Z80_ADDR                       <= "00000" & MEM_ADDR(20 downto 2);
                             Z80_BUS_XACT                   <= State_IO_BYTE_READ;
                         end if;
+                        Z80_BUS_HOST_ACCESS                <= '1';
 
                     -- Y+100000:Y+10FFFF - Access to 64K on mainboard, accessed 32bit at a time (via 4x Z80 transactions as needed).
                     elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-4) = "100000" then
@@ -696,124 +845,16 @@ begin
                         end if;
                         Z80_BUS_HOST_ACCESS                <= '1';
 
-                    -- Video Controller direct access, bypasses the CPLD memory manager.
-                    --
-                    -- Address    A23 -A16
-                    -- Y+0x000000 00000000 - Normal Sharp MZ behaviour
-                    -- Y+0x080000 00001001 - Memory and I/O ports mapped into direct addressable memory location.
-                    --
-                    --                       A15 - A8 A7 -  A0
-                    --                       I/O registers are mapped to the bottom 256 bytes mirroring the I/O address.
-                    -- Y+0x0800D0 00000000 11010000 - 0xD0 - Set the parameter number to update.
-                    --                       00000000 11010001 - 0xD1 - Update the lower selected parameter byte.
-                    --                       00000000 11010010 - 0xD2 - Update the upper selected parameter byte.
-                    --                       00000000 11010011 - 0xD3 - set the palette slot Off position to be adjusted.
-                    --                       00000000 11010100 - 0xD4 - set the palette slot On position to be adjusted.
-                    --                       00000000 11010101 - 0xD5 - set the red palette value according to the PALETTE_PARAM_SEL address.
-                    --                       00000000 11010110 - 0xD6 - set the green palette value according to the PALETTE_PARAM_SEL address.
-                    -- Y+0x0800D7            00000000 11010111 - 0xD7 - set the blue palette value according to the PALETTE_PARAM_SEL address.
-                    --
-                    -- Y+0x0800E0            00000000 11100000 - 0xE0 MZ80B PPI
-                    --                       00000000 11100100 - 0xE4 MZ80B PIT
-                    -- Y+0x0800E8            00000000 11101000 - 0xE8 MZ80B PIO
-                    --
-                    --                       00000000 11110000 - 
-                    --                       00000000 11110001 - 
-                    --                       00000000 11110010 - 
-                    -- Y+0x0800F3            00000000 11110011 - 0xF3 set the VGA border colour.
-                    --                       00000000 11110100 - 0xF4 set the MZ80B video in/out mode.
-                    --                       00000000 11110101 - 0xF5 sets the palette.
-                    --                       00000000 11110110 - 0xF6 set parameters.
-                    --                       00000000 11110111 - 0xF7 set the graphics processor unit commands.
-                    --                       00000000 11111000 - 0xF6 set parameters.
-                    --                       00000000 11111001 - 0xF7 set the graphics processor unit commands.
-                    --                       00000000 11111010 - 0xF8 set the video mode. 
-                    --                       00000000 11111011 - 0xF9 set the graphics mode.
-                    --                       00000000 11111100 - 0xFA set the Red bit mask
-                    --                       00000000 11111101 - 0xFB set the Green bit mask
-                    --                       00000000 11111110 - 0xFC set the Blue bit mask
-                    -- Y+0x0800FD            00000000 11111111 - 0xFD set the Video memory page in block C000:FFFF 
-                    --
-                    --                       Memory registers are mapped to the E000 region as per base machines.
-                    -- Y+0x08E010            11100000 00010010 - Program Character Generator RAM. E010 - Write cycle (Read cycle = reset memory swap).
-                    --                       11100000 00010100 - Normal display select.
-                    --                       11100000 00010101 - Inverted display select.
-                    --                       11100010 00000000 - Scroll display register. E200 - E2FF
-                    -- Y+0x08E2FF            11111111
-                    --
-                    -- Y+0x090000 00001010 - Video/Attribute RAM. 64K Window.
-                    -- Y+0x09D000            11010000 00000000 - Video RAM
-                    -- Y+0x09D7FF            11010111 11111111
-                    -- Y+0x09D800            11011000 00000000 - Attribute RAM
-                    -- Y+0x09DFFF            11011111 11111111
-                    --
-                    -- Y+0x0A0000 00001011 - Character Generator RAM
-                    -- Y+0x0A0000            00000000 00000000 - CGROM
-                    -- Y+0x0A0FFF            00001111 11111111 
-                    -- Y+0x0A1000            00010000 00000000 - CGRAM
-                    -- Y+0x0A1FFF            00011111 11111111
-                    --
-                    -- Y+0x0C0000 00001100 - Red framebuffer.
-                    --                       00000000 00000000 - Red pixel addressed framebuffer. Also MZ-80B GRAM I memory in lower 8K
-                    -- Y+0x0C3FFF            00111111 11111111
-                    -- Y+0x0D0000 00001101 - Blue framebuffer.
-                    --                       00000000 00000000 - Blue pixel addressed framebuffer. Also MZ-80B GRAM II memory in lower 8K
-                    -- Y+0x0D3FFF            00111111 11111111
-                    -- Y+0x0E0000 00001110 - Green framebuffer.
-                    --                       00000000 00000000 - Green pixel addressed framebuffer.
-                    -- Y+0x0E3FFF            00111111 11111111
-                    --
-
                     else
-                        if MEM_WRITE_ENABLE = '1' then
-                            Z80_BUS_XACT                   <= State_MEM_WRITE;
-                            Z80_BUS_VIDEO_WRITE            <= '1';
-                        else
-                            Z80_BUS_XACT                   <= State_MEM_READ;
-                            Z80_BUS_VIDEO_READ             <= '1';
-                        end if;
-
-                        -- 128K Red frame buffer. Y + 0x1A0000:0x1BFFFF
-                        if MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-3) = "10101" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001100";
-
-                        -- 128K Blue frame buffer. Y + 0x1C0000:0x1DFFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-3) = "10110" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001101";
-
-                        -- 128K Green frame buffer. Y + 0x1E0000:0x1FFFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-3) = "10111" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001110";
-
-                        -- Video / Attribute RAM. Y + 0x180000:0x18FFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-4) = "101000" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001001";
-
-                        -- Character Generator RAM. Y + 0x190000:0x19FFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-4) = "101001" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001010";
-
-                        -- I/O registers - 64K 8bit video address space accessed 32bits per read (ie 4x sequential address read) and 1,2 or x4 sequential byte write. Y + 0x130000:0x13FFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-4) = "100011" then
-                            Z80_BUS_VIDEO_ADDR             <= "00001000";
-
-                        -- I/O registers mirror - 64K 8bit video address space occupying 256K address ZPU address space due to 32bit read requirements. Y + 0x140000:0x17FFFF
-                        elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-2) = "1001" then
-                            if MEM_READ_ENABLE = '1' then
-                                Z80_BUS_XACT               <= State_MEM_BYTE_READ;
-                            end if;
-                            Z80_BUS_VIDEO_ADDR             <= "00001000";
-                            Z80_ADDR(15 downto 0)          <= MEM_ADDR(17 downto 2);
-
-                        else
-                            null;
-                        end if;
+                        Z80_BUS_XACT                       <= State_IDLE;
+                        Z80_START_XACT                     <= '0';
+                        IO_WAIT_Z80BUS                     <= '0';
                     end if;
                 end if;
 
-                -- Z80 bus domain. Run at the frequency of the hard or soft Z80 to correctly emulate a Z80 bus transaction.
+                -- Z80 bus domain. Run according to transaction target, either full speed or at the frequency of the hard/soft Z80 to correctly emulate a Z80 bus transaction.
                 --
-                if Z80_CLK_EDGE = "001" and Z80_CLK = '1' then
+                if Z80_BUS_XACT_FULLSPEED = '1' or (Z80_CLK_EDGE = "001" and Z80_CLK = '1') then
 
                     -- Edge detection of completion flag.
                     Z80_XACT_RUN_LAST                          <= Z80_XACT_RUN;
@@ -848,13 +889,12 @@ begin
                             Z80_BUS_DATA_OUT                   <= Z80_BUS_HOST_ACCESS & "0000000";
                             Z80_BUS_M1n                        <= '1';
                         else
-                            Z80_BUS_DATA_OUT                   <= Z80_ADDR(23 downto 16);
+                            Z80_BUS_DATA_OUT                   <= (others => '0'); --Z80_ADDR(23 downto 16);
                             Z80_BUS_M1n                        <= '0';
                         end if;
                         Z80_BUS_MREQn                          <= '0';
                         Z80_BUS_IORQn                          <= '0';
                         Z80_XACT_RUN                           <= '1';
-                        ZPU80_HI_ADDR                          <= Z80_BUS_VIDEO_ADDR;
                         Z80_DATA_IN                            <= (others => '0');
                         Z80BusFSMState                         <= State_SETUP;
                     end if;
@@ -874,20 +914,13 @@ begin
                             Z80_BUS_M1n                        <= '1';
                             Z80_BUS_RDn                        <= '1';
                             Z80_BUS_WRn                        <= '1';
-                            VIDEO_WRn                          <= '1';
-                            VIDEO_RDn                          <= '1';
                             Z80BusFSMState                     <= Z80_BUS_XACT;
 
                         -- Read sets signals on 1st transaction clock edge.
                         when State_MEM_READ =>
-                            if Z80_BUS_VIDEO_READ = '1' then
-                                VIDEO_RDn                      <= '0';
-                                Z80BusFSMState                 <= State_MEM_READ_2;
-                            else
-                                Z80_BUS_MREQn                  <= '0';
-                                Z80_BUS_RDn                    <= '0';
-                                Z80BusFSMState                 <= State_MEM_READ_2;
-                            end if;
+                            Z80_BUS_MREQn                      <= '0';
+                            Z80_BUS_RDn                        <= '0';
+                            Z80BusFSMState                     <= State_MEM_READ_2;
 
                         -- Detect and insert wait states.
                         when State_MEM_READ_1 =>
@@ -897,12 +930,8 @@ begin
 
                         -- End of read cycle we sample and store data.
                         when State_MEM_READ_2 =>
-                            if Z80_BUS_VIDEO_READ = '1' then
-                                VIDEO_RDn                      <= '1';
-                            else
-                                Z80_BUS_MREQn                  <= '1';
-                                Z80_BUS_RDn                    <= '1';
-                            end if;
+                            Z80_BUS_MREQn                      <= '1';
+                            Z80_BUS_RDn                        <= '1';
 
                             -- Shift the data in, so if we are reading more than 1 byte, it is in the correct endian location.
                             --Z80_DATA_IN                        <= ZPU80_DATA_IN & Z80_DATA_IN(31 downto 8);
@@ -911,7 +940,7 @@ begin
                             if Z80_BYTE_COUNT > 1 then
                                 Z80_BYTE_COUNT                 <= Z80_BYTE_COUNT -1;
                                 Z80_BYTE_ADDR                  <= Z80_BYTE_ADDR + 1;
-                                Z80BusFSMState                 <= State_SETUP;
+                                Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
                                 Z80_XACT_RUN                   <= '0';
@@ -919,14 +948,9 @@ begin
 
                         -- Read sets signals on 1st transaction clock edge.
                         when State_MEM_BYTE_READ =>
-                            if Z80_BUS_VIDEO_READ = '1' then
-                                VIDEO_RDn                      <= '0';
-                                Z80BusFSMState                 <= State_MEM_BYTE_READ_1;
-                            else
-                                Z80_BUS_MREQn                  <= '0';
-                                Z80_BUS_RDn                    <= '0';
-                                Z80BusFSMState                 <= State_MEM_BYTE_READ_2;
-                            end if;
+                            Z80_BUS_MREQn                      <= '0';
+                            Z80_BUS_RDn                        <= '0';
+                            Z80BusFSMState                     <= State_MEM_BYTE_READ_2;
 
                         -- Detect and insert wait states.
                         when State_MEM_BYTE_READ_1 =>
@@ -936,12 +960,8 @@ begin
 
                         -- End of read cycle we sample and store data.
                         when State_MEM_BYTE_READ_2 =>
-                            if Z80_BUS_VIDEO_READ = '1' then
-                                VIDEO_RDn                      <= '1';
-                            else
-                                Z80_BUS_MREQn                  <= '1';
-                                Z80_BUS_RDn                    <= '1';
-                            end if;
+                            Z80_BUS_MREQn                      <= '1';
+                            Z80_BUS_RDn                        <= '1';
 
                             -- Single byte appears in bits 7:0
                             Z80_DATA_IN                        <= X"000000" & ZPU80_DATA_IN;
@@ -951,9 +971,7 @@ begin
                         -- Write activates MREQ and prepares data on the bus. 
                         -- Mechanism setup to write MSB Big Endian.
                         when State_MEM_WRITE =>
-                            if Z80_BUS_VIDEO_WRITE = '0' then
-                                Z80_BUS_MREQn                  <= '0';
-                            end if;
+                            Z80_BUS_MREQn                      <= '0';
                             Z80BusFSMState                     <= State_MEM_WRITE_1;
 
                             case to_integer(Z80_BYTE_ADDR) is
@@ -984,26 +1002,18 @@ begin
 
                         -- Activate Write and detect and insert wait states.
                         when State_MEM_WRITE_1 =>
-                            if Z80_BUS_VIDEO_WRITE = '1' then
-                                VIDEO_WRn                      <= '0';
-                            else
-                                Z80_BUS_WRn                    <= '0';
-                            end if;
-                     --       if ZPU80_WAITn = '1' or Z80_BUS_VIDEO_WRITE = '1' then
+                            Z80_BUS_WRn                        <= '0';
+                   --       if ZPU80_WAITn = '1' or Z80_BUS_VIDEO_WRITE = '1' then
                                 Z80BusFSMState                 <= State_MEM_WRITE_2;
-                    --        end if;
+                  --        end if;
 
                         when State_MEM_WRITE_2 =>
-                            if Z80_BUS_VIDEO_WRITE = '1' then
-                                VIDEO_WRn                      <= '1';
-                            else
-                                Z80_BUS_MREQn                  <= '1';
-                                Z80_BUS_WRn                    <= '1';
-                            end if;
+                            Z80_BUS_MREQn                      <= '1';
+                            Z80_BUS_WRn                        <= '1';
                             if Z80_BYTE_COUNT > 1 then
                                 Z80_BYTE_COUNT                 <= Z80_BYTE_COUNT -1;
                                 Z80_BYTE_ADDR                  <= Z80_BYTE_ADDR + 1;
-                                Z80BusFSMState                 <= State_SETUP;
+                                Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
                                 Z80_XACT_RUN                   <= '0';
@@ -1036,7 +1046,7 @@ begin
                             if Z80_BYTE_COUNT > 1 then
                                 Z80_BYTE_COUNT                 <= Z80_BYTE_COUNT -1;
                                 Z80_BYTE_ADDR                  <= Z80_BYTE_ADDR + 1;
-                                Z80BusFSMState                 <= State_SETUP;
+                                Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
                                 Z80_XACT_RUN                   <= '0';
@@ -1054,9 +1064,9 @@ begin
 
                         -- Detect and insert further wait states.
                         when State_IO_BYTE_READ_2 =>
-                   --         if ZPU80_WAITn = '1' then
+                            if ZPU80_WAITn = '1' then
                                 Z80BusFSMState                 <= State_IO_BYTE_READ_3;
-                   --         end if;
+                            end if;
 
                         -- End of read cycle we sample and store data.
                         when State_IO_BYTE_READ_3 =>
@@ -1106,9 +1116,9 @@ begin
 
                         -- Insert automatic wait state for IO operations.
                         when State_IO_WRITE_2 =>
-                       --     if ZPU80_WAITn = '1' then
+                            if ZPU80_WAITn = '1' then
                                 Z80BusFSMState                 <= State_IO_WRITE_3;
-                       --     end if;
+                            end if;
 
                         when State_IO_WRITE_3 =>
                             Z80_BUS_IORQn                      <= '1';
@@ -1116,7 +1126,7 @@ begin
                             if Z80_BYTE_COUNT > 0 then
                                 Z80_BYTE_COUNT                 <= Z80_BYTE_COUNT -1;
                                 Z80_BYTE_ADDR                  <= Z80_BYTE_ADDR + 1;
-                                Z80BusFSMState                 <= State_SETUP;
+                                Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
                                 Z80_XACT_RUN                   <= '0';

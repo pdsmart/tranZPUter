@@ -146,11 +146,15 @@ architecture rtl of coreMZ is
     signal ZPU80_DATA_OUT         :       std_logic_vector(7 downto 0);
     signal ZPU80_HALTn            :       std_logic;
     signal ZPU_DATA_OUT           :       std_logic_vector(31 downto 0);                 -- External RAM block data to write to RAM.
-    signal ZPU_ADDR               :       std_logic_vector(23 downto 0);                 -- 24bit address bus to address RAM.
     signal ZPU_WRITE_EN           :       std_logic;                                     -- Write to external RAM.
     signal ZPU_MEM_BUSACK         :       std_logic;                                     -- Memory bus acknowledge signal.
+    signal ZPU_VIDEO_ADDR         :       std_logic_vector(23 downto 0);                 -- Dedicated video address, bypasses the CPLD.
+    signal ZPU_VIDEO_DATA_IN      :       std_logic_vector(31 downto 0);                 -- Video controller to ZPU data in.
+    signal ZPU_VIDEO_DATA_OUT     :       std_logic_vector(31 downto 0);                 -- ZPU to Video controller data out.
     signal ZPU_VIDEO_WRn          :       std_logic;                                     -- Dedicated video channel write signal, bypasses the CPLD.
     signal ZPU_VIDEO_RDn          :       std_logic;                                     -- Dedicated video channel read signal, bypasses the CPLD.
+    signal ZPU_VIDEO_WR_BYTE      :       std_logic;                                     -- Dedicated video channel 8bit byte write identifier signal, bypasses the CPLD.
+    signal ZPU_VIDEO_WR_HWORD     :       std_logic;                                     -- Dedicated video channel 16bit half word write identifier signal, bypasses the CPLD.
 
     -- Internal core signals, muxed or demuxed physical connections.
     --
@@ -164,10 +168,11 @@ architecture rtl of coreMZ is
     signal CORE_RESETn            :       std_logic; 
     signal CORE_VIDEO_WRn         :       std_logic;                                     -- FPGA video write. Normally from the CPLD memory manager but overriden by soft CPU's such as the ZPU.
     signal CORE_VIDEO_RDn         :       std_logic;                                     -- FPGA video read. Normally from the CPLD memory manager but overriden by soft CPU's such as the ZPU.
-    signal CORE_ADDR              :       std_logic_vector(15 downto 0);                 --
-    signal CORE_HI_ADDR           :       std_logic_vector(7 downto 0);                  -- Upper address bits of the 24bit address bus used to access video memory and BRAM devices of soft CPU's.
-    signal CORE_DATA_OUT          :       std_logic_vector(7 downto 0);                  --
-    signal CORE_DATA_IN           :       std_logic_vector(7 downto 0);                  --
+    signal CORE_VIDEO_WR_BYTE     :       std_logic;                                     -- FPGA video byte write. A single byte is written when this flag is active.
+    signal CORE_VIDEO_WR_HWORD    :       std_logic;                                     -- FPGA video 16bit half word write. A 16bit word, 2 bytes are written when this flag is active, half word aligned.
+    signal CORE_ADDR              :       std_logic_vector(23 downto 0);                 --
+    signal CORE_DATA_OUT          :       std_logic_vector(31 downto 0);                 --
+    signal CORE_DATA_IN           :       std_logic_vector(31 downto 0);                 --
     signal VZ80_CLK_LAST          :       std_logic_vector(2 downto 0);
     signal VZ80_BUSRQn            :       std_logic;
 begin
@@ -239,21 +244,24 @@ begin
     (    
         -- Primary and video clocks.
         CLOCK_50                 => CLOCK_50,                                            -- 50MHz main FPGA clock.
-        VZ80_CLK                 => VZ80_CLK,                                            -- Z80 runtime clock (product of SYSCLK and CTLCLK - variable frequency).
+
+        -- Reset.
+        VRESETn                  => CORE_RESETn,                                         -- Internal reset.
 
         -- V[name] = Voltage translated signals which mirror the mainboard signals but at a lower voltage.
         -- Address Bus
-        VIDEO_ADDR               => CORE_ADDR,                                           -- Z80 Address bus.
-        VIDEO_HI_ADDR            => CORE_HI_ADDR,                                        -- Direct Addressing bus.
+        VIDEO_ADDR               => CORE_ADDR,                                           -- 24bit Address bus.
 
         -- Data Bus
-        VIDEO_DATA_IN            => CORE_DATA_IN,                                        -- Z80 Data bus from CPU into video module.
-        VIDEO_DATA_OUT           => CORE_DATA_OUT,                                       -- Z80 Data bus from video module to CPU.
+        VIDEO_DATA_IN            => CORE_DATA_IN,                                        -- Data bus from CPU into video module.
+        VIDEO_DATA_OUT           => CORE_DATA_OUT,                                       -- Data bus from video module to CPU.
 
         -- Control signals.
         VIDEO_IORQn              => CORE_IORQn,                                          -- IORQ signal, active low. When high, request is to memory.
         VIDEO_RDn                => CORE_VIDEO_RDn,                                      -- Decoded Video Controller Read from CPLD memory manager.
         VIDEO_WRn                => CORE_VIDEO_WRn,                                      -- Decoded Video Controller Write from CPLD memory manager.
+        VIDEO_WR_BYTE            => CORE_VIDEO_WR_BYTE,                                  -- Signal to indicate a byte should be written not a 32bit word.
+        VIDEO_WR_HWORD           => CORE_VIDEO_WR_HWORD,                                 -- Signal to indicate a 16bit half word should be written not a 32bit word.
 
         -- VGA & Composite output signals.
         VGA_R                    => VGA_R,                                               -- 16 level Red output.
@@ -276,9 +284,6 @@ begin
         V_G                      => VZ80_BUSRQn_V_G,                                     -- Soft CPU BUSRQn / Digital Green (on/off) from mainboard.
         V_B                      => VZ80_A16_WAITn_V_B,                                  -- Soft CPU WAITn / Digital Blue (on/off) from mainboard.
         V_R                      => VZ80_A18_INTn_V_R,                                   -- Soft CPU INTn / Digital Red (on/off) from mainboard.
-
-        -- Reset.
-        VRESETn                  => CORE_RESETn,                                         -- Internal reset.
 
         -- Configuration.
         VIDEO_MODE               => CPLD_CFG_DATA(2 downto 0),                           -- Video mode the controller should emulate.
@@ -332,7 +337,7 @@ begin
                                         else
                                         CPU_INFO_DATA               when CS_CPU_INFOn = '0'        and MODE_CPU_SOFT = '1'        and T80_RDn = '0'                                   -- Read CPU version & hw build information.
                                         else
-                                        CORE_DATA_OUT               when CORE_VIDEO_RDn = '0'
+                                        CORE_DATA_OUT(7 downto 0)   when CORE_VIDEO_RDn = '0'
                                         else
                                         VZ80_DATA                   when MODE_SOFTCPU_Z80 = '1'    and T80_RDn = '0'
                                         else (others => '0');
@@ -382,13 +387,18 @@ begin
             Z80_CLK                  => VZ80_CLK,                                            -- Underlying hardware system clock
                                                                                                  
             -- Software controlled signals.                                                      
-            SW_RESET                 =>  MODE_SOFTCPU_RESET,                                  -- Software controlled reset.
+            SW_RESET                 => MODE_SOFTCPU_RESET,                                  -- Software controlled reset.
             SW_CLKEN                 => MODE_SOFTCPU_CLKEN,                                  -- Software controlled clock enable.
             SW_CPUEN                 => MODE_SOFTCPU_ZPUEVO,                                 -- Software controlled CPU enable.
 
             -- Direct access to the video controller, bypassing the CPLD Memory management.
+            VIDEO_ADDR               => ZPU_VIDEO_ADDR,                                      -- Direct video controller addressing, bypass CPLD memory manager and operate at 32bits.
+            VIDEO_DATA_IN            => ZPU_VIDEO_DATA_IN,                                   -- Video controller to ZPU data in.
+            VIDEO_DATA_OUT           => ZPU_VIDEO_DATA_OUT,                                  -- ZPU to Video controller data out.
             VIDEO_WRn                => ZPU_VIDEO_WRn,                                       -- Direct video write from ZPU, bypass CPLD memory manager.
             VIDEO_RDn                => ZPU_VIDEO_RDn,                                       -- Direct video read from ZPU, bypass CPLD memory manager.
+            VIDEO_WR_BYTE            => ZPU_VIDEO_WR_BYTE,                                   -- Direct video write byte signal, when set a byte should be written.
+            VIDEO_WR_HWORD           => ZPU_VIDEO_WR_HWORD,                                  -- Direct video write byte signal, when set a 16bit half word should be written.
     
             -- External Direct addressing Bus. Ability to read and write to the internal ZPU memory for uploading new programs/debugging.
             -- When BUSRQ is asserted, the external system can drive the signals to query memory.
@@ -424,7 +434,6 @@ begin
             ZPU80_HALTn              => ZPU80_HALTn,                                         -- HALTn signal indicates that the CPU has executed a "HALT" instruction.
             ZPU80_BUSACKn            => open,                                                -- BUSACKn signal indicates that the CPU address bus, data bus, and control signals have entered their HI-Z states, and that the external circuitry can now control these lines.
             ZPU80_ADDR               => ZPU80_ADDR,                                          -- 16 bit address lines.
-            ZPU80_HI_ADDR            => ZPU80_VIDEO_ADDR,                                    -- Direct addressing of video memory (bypassing register configuration needed by Sharp MZ host to maintain compatibility or address space restrictions).
             ZPU80_DATA_IN            => ZPU80_DATA_IN,                                       -- 8 bit data bus in.
             ZPU80_DATA_OUT           => ZPU80_DATA_OUT,                                      -- 8 bit data bus out.
 
@@ -434,6 +443,8 @@ begin
         );
 
         -- Direct routed signals to the ZPU when not using mainboard video.
+        ZPU_VIDEO_DATA_IN            <= CORE_DATA_OUT;
+
         ZPU80_INTn                   <= VZ80_A18_INTn_V_R           when VZ80_BUSACKni = '1'       and (MODE_SOFTCPU_ZPUEVO = '1' or  MODE_CPLD_MB_VIDEOn = '1')
                                         else '1';
         ZPU80_NMIn                   <= VZ80_A17_NMIn_V_COLR        when VZ80_BUSACKni = '1'       and (MODE_SOFTCPU_ZPUEVO = '1' or  MODE_CPLD_MB_VIDEOn = '1')
@@ -445,7 +456,7 @@ begin
                                         else
                                         CPU_INFO_DATA               when CS_CPU_INFOn = '0'        and MODE_CPU_SOFT = '1'        and ZPU80_RDn = '0'                                   -- Read CPU version & hw build information.
                                         else
-                                        CORE_DATA_OUT               when CORE_VIDEO_RDn = '0'
+                                        CORE_DATA_OUT(7 downto 0)   when CORE_VIDEO_RDn = '0'
                                         else
                                         VZ80_DATA                   when MODE_SOFTCPU_ZPUEVO = '1' and ZPU80_RDn = '0'
                                         else (others => '0');
@@ -462,7 +473,6 @@ begin
         ZPU80_HALTn                  <= '1';
         ZPU80_ADDR                   <= (others => '0');
         ZPU80_DATA_OUT               <= (others => '0');
-        ZPU_ADDR                     <= (others => '0');
         ZPU_WRITE_EN                 <= '0';
         ZPU_MEM_BUSACK               <= '0';
         ZPU_VIDEO_WRn                <= '1';
@@ -672,16 +682,23 @@ begin
                              else
                              ZPU80_HALTn                                     when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
                              else '1';
-    CORE_VIDEO_WRn        <= '0'                                             when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_WRn = '0'            and VZ80_HI_ADDR(23 downto 19) = "00001"
+    CORE_VIDEO_WRn        <= '0'                                             when VZ80_BUSACKni = '0'       and VZ80_WRn = '0'            and VZ80_HI_ADDR(23 downto 19) = "00001"
                              else
                              ZPU_VIDEO_WRn                                   when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
                              else
                              VIDEO_WRn;
-    CORE_VIDEO_RDn        <= '0'                                             when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_RDn = '0'            and VZ80_HI_ADDR(23 downto 19) = "00001"
+    CORE_VIDEO_RDn        <= '0'                                             when VZ80_BUSACKni = '0'       and VZ80_RDn = '0'            and VZ80_HI_ADDR(23 downto 19) = "00001"
                              else
                              ZPU_VIDEO_RDn                                   when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
                              else
                              VIDEO_RDn;
+    -- 32/16/8 bit write select. When the ZPU is writing, the signals are active and controlled by the ZPU, otherwise default to 1 byte writes.
+    CORE_VIDEO_WR_BYTE    <= '1'                                             when ZPU_VIDEO_WRn = '1'
+                             else
+                             ZPU_VIDEO_WR_BYTE;
+    CORE_VIDEO_WR_HWORD   <= '0'                                             when ZPU_VIDEO_WRn = '1'
+                             else
+                             ZPU_VIDEO_WR_HWORD;
 
     -- Internal reset dependent on external reset or a change of the SOFT CPU.
     CORE_RESETn           <= '0'                                             when RESETn = '0'
@@ -689,63 +706,61 @@ begin
 
 
     -- Address lines driven according to the CPU being used. Hard CPU = address via CPLD, Soft CPU = address direct.
-    CORE_ADDR             <= VZ80_ADDR                                       when MODE_CPU_SOFT = '0'       or  VZ80_BUSACKni = '0'
+    CORE_ADDR             <= X"00" & T80_ADDR                                when MODE_SOFTCPU_Z80 = '1'    and VZ80_BUSACKni = '1'
                              else
-                             T80_ADDR                                        when MODE_SOFTCPU_Z80 = '1'    and VZ80_BUSACKni = '1'
+                             ZPU_VIDEO_ADDR                                  when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'       and (ZPU_VIDEO_WRn = '0'      or  ZPU_VIDEO_RDn = '0')
                              else
-                             ZPU80_ADDR                                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
+                             X"00" & ZPU80_ADDR                              when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'       and ZPU_VIDEO_WRn = '1'       and ZPU_VIDEO_RDn = '1'
+                             else
+                             VZ80_HI_ADDR & VZ80_ADDR                        when MODE_CPU_SOFT = '0'        or VZ80_BUSACKni = '0'
                              else (others => '0');
-
-    -- Hi address lines used for direct external addressing of video memory or BRAM devices for soft CPU's.
-    CORE_HI_ADDR         <=  VZ80_HI_ADDR                                    when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
-                             else
-                             ZPU80_VIDEO_ADDR                                when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
-                             else
-                             (others => '0');
 
     -- Data into the core, generally the Video Controller, comes from the CPLD (hard CPU or mainboard) if the soft CPU is disabled else from the soft CPU.
-    CORE_DATA_IN          <= VZ80_DATA                                       when MODE_CPU_SOFT = '0'       or  VZ80_BUSACKni = '0'
+    CORE_DATA_IN          <= X"000000" & T80_DATA_OUT                        when MODE_SOFTCPU_Z80 = '1'    and VZ80_BUSACKni = '1'
                              else
-                             T80_DATA_OUT                                    when MODE_SOFTCPU_Z80 = '1'    and VZ80_BUSACKni = '1'
+                             ZPU_VIDEO_DATA_OUT                              when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'       and (ZPU_VIDEO_WRn = '0'      or  ZPU_VIDEO_RDn = '0')
                              else
-                             ZPU80_DATA_OUT                                  when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'
+                             X"000000" & ZPU80_DATA_OUT                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '1'       and ZPU_VIDEO_WRn = '1'       and ZPU_VIDEO_RDn = '1'
+                             else
+                             X"000000" & VZ80_DATA                           when MODE_CPU_SOFT = '0'       or  VZ80_BUSACKni = '0'
                              else (others => '0');
+
     -- tranZPUter, hard CPU or mainboard data input. Read directly from the Video Controller if selected, else the data being output from the soft CPU if enabled otherwise
     -- tri-state as data is coming from the CPLD.
     VZ80_DATA             <= CPU_CFG_DATA                                    when CS_CPU_CFGn = '0'         and VZ80_RDn = '0'                                                                  -- Read current CPU register settings.
                              else
                              CPU_INFO_DATA                                   when CS_CPU_INFOn = '0'        and VZ80_RDn = '0'                                                                  -- Read CPU version & hw build information.
                              else
-                             CORE_DATA_OUT                                   when CORE_VIDEO_RDn = '0'                                                                                          -- If the video resources are being read, either by the hard cpu or the K64f, output requested data.
+                             CORE_DATA_OUT (7 downto 0)                      when CORE_VIDEO_RDn = '0'                                                                                          -- If the video resources are being read, either by the hard cpu or the K64f, output requested data.
                              else
-                             T80_DATA_OUT                                    when MODE_SOFTCPU_Z80 = '1'    and T80_WRn = '0'              and VZ80_BUSACKni = '1'                              -- T80 has control over writing data when enabled and bus not requested.
+                             T80_DATA_OUT                                    when MODE_SOFTCPU_Z80 = '1'    and T80_WRn = '0'             and VZ80_BUSACKni = '1'                               -- T80 has control over writing data when enabled and bus not requested.
                              else
-                             ZPU80_DATA_OUT                                  when MODE_SOFTCPU_ZPUEVO = '1' and ZPU80_WRn = '0'            and VZ80_BUSACKni = '1'                              -- ZPU Evo Z80 Bus controller has control over writing data when enabled and bus not requested.
+                             ZPU80_DATA_OUT                                  when MODE_SOFTCPU_ZPUEVO = '1' and ZPU80_WRn = '0'           and VZ80_BUSACKni = '1'                               -- ZPU Evo Z80 Bus controller has control over writing data when enabled and bus not requested.
                              else
-                             ZPU80_DATA_OUT                                  when MODE_SOFTCPU_ZPUEVO = '1' and ZPU80_MREQn = '0'          and ZPU80_IORQn = '0'        and VZ80_BUSACKni = '1' -- ZPU has control when writing special control word to CPLD to enable memory mode.
+                             ZPU80_DATA_OUT                                  when MODE_SOFTCPU_ZPUEVO = '1' and ZPU80_MREQn = '0'         and ZPU80_IORQn = '0'        and VZ80_BUSACKni = '1'  -- ZPU has control when writing special control word to CPLD to enable memory mode.
                              -- When bus requested, K64F has control, reading data from the ZPU BRAM if selected.
                              else
-                             ZPU_DATA_OUT(7 downto 0)                        when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'        and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "11"
+                             ZPU_DATA_OUT(7 downto 0)                        when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "11"
                              else
-                             ZPU_DATA_OUT(15 downto 8)                       when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'        and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "10"
+                             ZPU_DATA_OUT(15 downto 8)                       when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "10"
                              else
-                             ZPU_DATA_OUT(23 downto 16)                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'        and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "01"
+                             ZPU_DATA_OUT(23 downto 16)                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "01"
                              else
-                             ZPU_DATA_OUT(31 downto 24)                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'        and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "00"
+                             ZPU_DATA_OUT(31 downto 24)                      when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'       and VZ80_RDn = '0'           and VZ80_ADDR(1 downto 0) = "00"
                              else (others => 'Z');
 
     -- Direct routed signals to the ZPU when not using mainboard video.
-    VZ80_HI_ADDR(16)      <= VZ80_A16_WAITn_V_B                              when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(16)      <= VZ80_A16_WAITn_V_B                              when VZ80_BUSACKni = '0'
                              else '0';
-    VZ80_HI_ADDR(17)      <= VZ80_A17_NMIn_V_COLR                            when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(17)      <= VZ80_A17_NMIn_V_COLR                            when VZ80_BUSACKni = '0'
                              else '0';
-    VZ80_HI_ADDR(18)      <= VZ80_A18_INTn_V_R                               when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(18)      <= VZ80_A18_INTn_V_R                               when VZ80_BUSACKni = '0'
                              else '0';
-    VZ80_HI_ADDR(19)      <= VZ80_A19_HALTn_V_VSYNCn                         when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(19)      <= VZ80_A19_HALTn_V_VSYNCn                         when VZ80_BUSACKni = '0'
                              else '0';
-    VZ80_HI_ADDR(20)      <= VZ80_A20_RFSHn_V_HSYNCn                         when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(20)      <= VZ80_A20_RFSHn_V_HSYNCn                         when VZ80_BUSACKni = '0'
                              else '0';
-    VZ80_HI_ADDR(21)      <= VWAITn_A21_V_CSYNC                              when MODE_SOFTCPU_ZPUEVO = '1' and VZ80_BUSACKni = '0'
+    VZ80_HI_ADDR(21)      <= VWAITn_A21_V_CSYNC                              when VZ80_BUSACKni = '0'
                              else '0';
     VZ80_HI_ADDR(22)      <= '0';
     VZ80_HI_ADDR(23)      <= '0';

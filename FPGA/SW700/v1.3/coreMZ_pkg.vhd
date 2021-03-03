@@ -64,7 +64,7 @@ package coreMZ_pkg is
     -- Soft CPU's to embed in the core.
     --
     constant IMPL_SOFTCPU_Z80         : boolean   := true;
-    constant IMPL_SOFTCPU_ZPUEVO      : boolean   := true;
+    constant IMPL_SOFTCPU_ZPUEVO      : boolean   := false;
 
     ------------------------------------------------------------ 
     -- Function prototypes

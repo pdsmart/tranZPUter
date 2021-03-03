@@ -703,7 +703,7 @@ begin
             mxNOS.valid                                      <= '0';
 
             -- Memory signals are one clock width wide unless extended by a wait, if no wait, reset them to inactive to ensure this.
-            if MEM_BUSY = '0' then
+            if MEM_BUSY = '0' and mxHoldCycles = 0 then
                 MEM_READ_ENABLE                              <= '0';
                 MEM_WRITE_ENABLE                             <= '0';
 

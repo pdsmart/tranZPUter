@@ -111,8 +111,8 @@ set_multicycle_path -from [get_clocks {SYS_CLK}]                                
 set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_40MHZ}]                                       -setup -end 2
 set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_40MHZ}]                                       -hold -end 1
 
-#set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_65MHZ}]                                       -setup -end 2
-#set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_65MHZ}]                                       -hold -end 1
+set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_65MHZ}]                                       -setup -end 3
+set_multicycle_path -from [get_clocks {SYS_CLK}]                                            -to [get_clocks {VIDCLK_65MHZ}]                                       -hold -end 2
 
 set_multicycle_path -from [get_clocks {VIDCLK_8MHZ}]                                        -to [get_clocks {SYS_CLK}]                                            -setup -end 2
 set_multicycle_path -from [get_clocks {VIDCLK_8MHZ}]                                        -to [get_clocks {SYS_CLK}]                                            -hold -end 1
@@ -129,11 +129,11 @@ set_multicycle_path -from [get_clocks {VIDCLK_17_7344MHZ}]                      
 set_multicycle_path -from [get_clocks {VIDCLK_25_175MHZ}]                                   -to [get_clocks {SYS_CLK}]                                            -setup -end 3
 set_multicycle_path -from [get_clocks {VIDCLK_25_175MHZ}]                                   -to [get_clocks {SYS_CLK}]                                            -hold -end 2
 
-set_multicycle_path -from [get_clocks {VIDCLK_40MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -setup -end 2
-set_multicycle_path -from [get_clocks {VIDCLK_40MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -hold -end 1
+set_multicycle_path -from [get_clocks {VIDCLK_40MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -setup -end 3
+set_multicycle_path -from [get_clocks {VIDCLK_40MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -hold -end 2
 
-set_multicycle_path -from [get_clocks {VIDCLK_65MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -setup -end 2
-set_multicycle_path -from [get_clocks {VIDCLK_65MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -hold -end 1
+set_multicycle_path -from [get_clocks {VIDCLK_65MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -setup -end 3
+set_multicycle_path -from [get_clocks {VIDCLK_65MHZ}]                                       -to [get_clocks {SYS_CLK}]                                            -hold -end 2
 
 # GPU control and run variables have at least 1 clock between them being setup and used.
 set_multicycle_path -from [get_registers {VideoController:vcCoreVideo|\GPU:GPU_START_X[*]}] -to [get_registers {VideoController:vcCoreVideo|GPU_START_ADDR[*]}]   -setup -start 2

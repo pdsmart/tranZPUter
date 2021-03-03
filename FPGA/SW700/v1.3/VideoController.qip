@@ -1,6 +1,9 @@
 set_global_assignment -name IP_TOOL_NAME "Sharp MZ Video Controller"
 set_global_assignment -name IP_TOOL_VERSION "17.1"
 set_global_assignment -name IP_GENERATED_DEVICE_FAMILY "{Cyclone IV E}"
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) VideoController/VideoRAM_DP_3216.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) VideoController/VideoRAM_DP_3208.vhd]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) VideoController/ChrGenRAM_DP_3208.vhd]
 set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) VideoController/VideoController.vhd]
 set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) VideoController/VideoController_pkg.vhd]
 set_global_assignment -name SDC_FILE     [file join $::quartus(qip_path) VideoController/VideoController_constraints.sdc]

@@ -1,5 +1,0 @@
-HEXDMP requests the name of the file to be dumped. It may
-be on any drive.  This program dumps every sector in
-hex to a file HEXDMP.DAT.  Type or print to discover
-the problem with your files data.
-

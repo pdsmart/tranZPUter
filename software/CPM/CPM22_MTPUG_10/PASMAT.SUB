@@ -1,9 +1,0 @@
-mtplus b:cpmname.src
-mtplus b:rnb.src
-mtplus b:pasmat.src
-mtplus b:pminit.src
-mtplus b:pmcoment.src
-mtplus b:pmparse.src
-mtplus b:pmfileio.src
-linkmt pasmat/f
-
