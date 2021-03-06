@@ -33,6 +33,8 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
+BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory.
+BUILD_MZ700             EQU     1                                        ; Build for the Sharp MZ-700 base hardware.
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
@@ -130,12 +132,8 @@ BRKEY                   EQU     0001Eh
 MELDY                   EQU     00030h
 ?TMST                   EQU     00033h
 MONIT:                  EQU     00000h
-SS:                     EQU     00089h
-ST1:                    EQU     00095h
 HLHEX                   EQU     00410h
 _2HEX                   EQU     0041Fh
-?MODE:                  EQU     0074DH
-?KEY                    EQU     008CAh
 PRNT3                   EQU     0096Ch
 ?ADCN                   EQU     00BB9h
 ?DACN                   EQU     00BCEh
@@ -146,20 +144,36 @@ PRTHL:                  EQU     003BAh
 PRTHX:                  EQU     003C3h
 HEX:                    EQU     003F9h
 DPCT:                   EQU     00DDCh
-DLY12:                  EQU     00DA7h
-DLY12A:                 EQU     00DAAh
 ?RSTR1:                 EQU     00EE6h
-MOTOR:                  EQU     006A3H
 CKSUM:                  EQU     0071AH
 GAP:                    EQU     0077AH
-WTAPE:                  EQU     00485H
 MSTOP:                  EQU     00700H
+
+                        ; ROM location differences between the MZ80A and MZ-700.
+                        IF BUILD_MZ80A > 0
+SS:                     EQU     00089h
+ST1:                    EQU     00095h
+WTAPE:                  EQU     00485H
+MOTOR:                  EQU     006A3H
+?MODE:                  EQU     0074DH
+?KEY                    EQU     008CAh
+DLY12:                  EQU     00DA7h
+DLY12A:                 EQU     00DAAh
+                        ELSE
+SS:                     EQU     000A2H
+ST1:                    EQU     000ADH
+WTAPE:                  EQU     0048AH
+MOTOR:                  EQU     0069FH
+?MODE:                  EQU     0073EH
+?KEY                    EQU     009B3H
+DLY12:                  EQU     00996H
+                        ENDIF
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
-; Memory mapped ports in hardware.
+; Memory mapped ports in hardware.1G
 ;-----------------------------------------------
 SCRN:                   EQU     0D000H
 ARAM:                   EQU     0D800H

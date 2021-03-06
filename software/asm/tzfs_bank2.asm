@@ -411,18 +411,18 @@ HELP:       ;CALL    NL
 HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "4     - 40 col mode.",                                 00DH
             DB      "8     - 80 col mode.",                                 00DH
-            DB      "40A   - Select MZ-80A 40col Mode.",                    00DH
-            DB      "80A   - Select MZ-80A 80col Mode.",                    00DH
-            DB      "80B   - Select MZ-80B Mode.",                          00DH
-            DB      "700   - Select MZ-700 40col Mode.",                    00DH
-            DB      "7008  - Select MZ-700 80col Mode.",                    00DH
+            DB      "40A   - select MZ-80A 40col Mode.",                    00DH
+            DB      "80A   - select MZ-80A 80col Mode.",                    00DH
+            DB      "80B   - select MZ-80B Mode.",                          00DH
+            DB      "700   - select MZ-700 40col Mode.",                    00DH
+            DB      "7008  - select MZ-700 80col Mode.",                    00DH
             DB      "B     - toggle keyboard bell.",                        00DH
-            DB      "BASIC - Load BASIC SA-5510.",                          00DH
+            DB      "BASIC - load BASIC SA-5510.",                          00DH
             DB      "C[b]  - clear memory $1200-$D000.",                    00DH
-            DB      "CPM   - Load CPM.",                                    00DH
+            DB      "CPM   - load CPM.",                                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[fn]- erase file, fn=No or Filename",                00DH
-            DB      "EX    - Exit TZFS, reset as original.",                00DH
+            DB      "EX    - exit TZFS, reset as original.",                00DH
             DB      "F[x]  - boot fd drive x.",                             00DH
             DB      "FREQ[n]-set CPU to nKHz, 0 for default.",              00DH
             DB      "H     - this help screen.",                            00DH
@@ -440,12 +440,12 @@ HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "SC[XXXXYYYYZZZZ] - save mem to card.",                 00DH
             DB      "        XXXX=start,YYYY=end,ZZZZ=exec",                00DH
             DB      "T     - test timer.",                                  00DH
-            DB      "T2SD  - copy tape to sd card.",                        00DH
+            DB      "T2SD[B]- copy tape to sd card, B=Bulk",                00DH
             DB      "T80   - switch to soft T80 CPU.",                      00DH
             DB      "V     - verify tape save.",                            00DH
             DB      "VBORDER[n] - set vga border colour.",                  00DH
             DB      "VMODE[n] - set video mode.",                           00DH
-            DB      "VGA[n]- Set VGA mode.",                                00DH
+            DB      "VGA[n]- set VGA mode.",                                00DH
             DB      "Z80   - switch to original Z80 CPU.",                  00DH
             DB      "ZPU   - switch to ZPU Evo CPU and zOS.",               00DH
             DB      000H

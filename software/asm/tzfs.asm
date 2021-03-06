@@ -19,7 +19,8 @@
 ;-                              few bugs like the load from card by name!
 ;-                  Dec 2020  - Updates to accommodate v1.3 of the tranZPUter SW-700 board where soft
 ;-                              CPU's now become possible.
-;-                  Jan 2020  - Additional changes to accommodate soft CPU's.
+;-                  Jan 2021  - Additional changes to accommodate soft CPU's.
+;-                  Mar 2021  - Bug fixes - MZ-700/MZ-80A address differences.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -367,6 +368,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DB      000H | 000H | 000H | 004H
             DB      "TEST"                                               ; A test function used in debugging.
             DW      LOCALTEST
+            DB      000H | 000H | 000H | 005H
+            DB      "T2SDB"                                              ; Copy Tape to SD Card in bulk mode.
+            DW      TAPE2SDBULK
             DB      000H | 000H | 000H | 004H
             DB      "T2SD"                                               ; Copy Tape to SD Card.
             DW      TAPE2SD
@@ -906,8 +910,8 @@ LOADTAPE6:  LD      DE,MSGCMTDATA
             RET
 
 
-            ; SA1510 Routine to write a tape header. Copied into the RFS and modified to merge better
-            ; with the RFS interface.
+            ; SA1510 Routine to write a tape header. Copied into the TZFS and modified to merge better
+            ; with the TZFS interface.
             ;
 CMTWRI:     DI      
             PUSH    DE
@@ -923,6 +927,7 @@ CMTWRI:     DI
             LD      A,E
             CP      0CCH
             JR      NZ,CMTWRI1                
+            ;
             PUSH    HL
             PUSH    DE
             PUSH    BC
@@ -932,6 +937,7 @@ CMTWRI:     DI
             POP     BC
             POP     DE
             POP     HL
+            ;
 CMTWRI1:    CALL    GAP
             CALL    WTAPE
 CMTWRI2:    POP     HL
@@ -1918,8 +1924,12 @@ CHGDIR3:    LD      (RESULT),A
             ; encountered program is loaded into memory at 0x1200. The CMT header is populated with the correct details (even if
             ; the load address isnt 0x1200, the CMT Header contains the correct value).
             ; A call is then made to write the application to the SD card.
+            ; If the bulk method is called, we continue in a never ending loop, converting tape after tape.
             ;
-TAPE2SD:    ; Load from tape into memory, filling the tape CMT header and loading data into location 0x1200.
+TAPE2SDBULK:LD      A, 1                                                 ; Flag to indicate this is a bulk conversion.
+            JR      TAPE2SD1
+TAPE2SD:    XOR     A                                                    ; Flag to indicate this is a single conversion.
+TAPE2SD1:   PUSH    AF                                                   ; Load from tape into memory, filling the tape CMT header and loading data into location 0x1200.
             CALL    LOADTAPECP                                           ; Call the Loadtape command, non execute version to get the tape contents into memory.
             LD      A,(RESULT)
             OR      A
@@ -1930,15 +1940,20 @@ TAPE2SD:    ; Load from tape into memory, filling the tape CMT header and loadin
             OR      A
             JR      NZ,TAPE2SDERR
             LD      DE,MSGT2SDOK
-            JR      TAPE2SDERR2
+            CALL    ?PRINTMSG
+            POP     AF
+            OR      A
+            JR      Z, TAPE2SDERR2
+            JR      TAPE2SD1
 TAPE2SDERR: LD      DE,MSGT2SDERR
-TAPE2SDERR2:CALL    ?PRINTMSG
-            RET
+            POP     AF
+            CALL    ?PRINTMSG
+TAPE2SDERR2:RET
 
             ; Method to copy an SD stored application to a Cassette tape in the CMT.
             ; The directory entry number or filename is passed to the command and the entry is located within the SD
             ; directory structure. The file is then loaded into memory and the CMT header populated. A call is then made
-            ; to write out the data to tap.
+            ; to write out the data to tape.
             ;
 SD2TAPE:    ; Load from SD, fill the CMT header then call CMT save.
             CALL    LOADSDCP
