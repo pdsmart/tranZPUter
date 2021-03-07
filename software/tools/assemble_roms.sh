@@ -12,6 +12,7 @@
 ## Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
+##                  March 2021    - Added MZ-800 IPL
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -32,7 +33,7 @@ ROOTDIR=../../tranZPUter
 TOOLDIR=${ROOTDIR}/software/tools
 JARDIR=${ROOTDIR}/software/tools
 ASM=glass-0.5.jar
-BUILDROMLIST="MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A monitor_1Z-013A-KM monitor_80c_1Z-013A-KM MZ80B_IPL"
+BUILDROMLIST="MZ800_1Z_013B MZ800_9Z_504M MZ800_IOCS MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A monitor_1Z-013A-KM monitor_80c_1Z-013A-KM MZ80B_IPL"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
 BUILDMZFLIST="BASIC sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm
@@ -65,3 +66,6 @@ do
         fi
     fi
 done
+
+# Manual tinkering to build the MZ800 Rom.
+cat ${ROMDIR}/MZ800_1Z_013B.rom ${ROMDIR}/MZ800_CGROM.ORI ${ROMDIR}/MZ800_9Z_504M.rom ${ROMDIR}/MZ800_IOCS.rom > ${ROMDIR}/MZ800_IPL.rom

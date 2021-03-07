@@ -5,12 +5,13 @@
 -- Author(s):       Philip Smart
 -- Description:     tranZPUter SW CPLD configuration file.
 --                                                     
---                  This module contains parameters for the CPLD in v2.1 of the tranZPUterSW project.
+--                  This module contains parameters for the CPLD in v2.1 - v2.2 of the tranZPUterSW project.
 --
 -- Credits:         
 -- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         June 2020 - Initial creation.
+--                  Mar 2021  - Updated to enable better compatibility with the Sharp MZ-800.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -68,12 +69,15 @@ package tranZPUterSW_pkg is
     constant TZMM_CPM                 : integer   := 06;                     -- CPM main memory configuration, all memory on the tranZPUter board, 64K block 4 selected. Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
     constant TZMM_CPM2                : integer   := 07;                     -- CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
                                                                              -- Special case for 0000:003F (interrupt vectors) which resides in block 4, F3FE:F3FF & F7FE:F7FF (floppy disk paging vectors) which resides on the mainboard.
-    constant TZMM_ORIGMON             : integer   := 08;                     -- Original monitor mode, monitor ROM on mainboard, RAM on tranZPUter in Block 0 1000-CFFF.
+    constant TZMM_COMPAT              : integer   := 08;                     -- Compatibility monitor mode, monitor ROM on mainboard, RAM on tranZPUter in Block 0 1000-CFFF.
     constant TZMM_MZ700_0             : integer   := 10;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
     constant TZMM_MZ700_1             : integer   := 11;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     constant TZMM_MZ700_2             : integer   := 12;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     constant TZMM_MZ700_3             : integer   := 13;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
     constant TZMM_MZ700_4             : integer   := 14;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+    constant TZMM_FPGA                : integer   := 21;                     -- Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
+    constant TZMM_TZPUM               : integer   := 22;                     -- Everything in on mainboard, no access to tranZPUter memory.
+    constant TZMM_TZPU                : integer   := 23;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
     constant TZMM_TZPU0               : integer   := 24;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
     constant TZMM_TZPU1               : integer   := 25;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 1 is selected.
     constant TZMM_TZPU2               : integer   := 26;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 2 is selected.
@@ -83,11 +87,14 @@ package tranZPUterSW_pkg is
     constant TZMM_TZPU6               : integer   := 30;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 6 is selected.
     constant TZMM_TZPU7               : integer   := 31;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 7 is selected.
 
+
+
     ------------------------------------------------------------ 
     -- Configurable parameters.
     ------------------------------------------------------------ 
     -- Target hardware.
-    constant CPLD_HOST_HW             : integer  := MODE_MZ80A;
+    constant CPLD_HOST_HW             : integer  := MODE_MZ800;
+    --constant CPLD_HOST_HW             : integer  := MODE_MZ80A;
 
     -- Target video hardware.
     constant CPLD_HAS_FPGA_VIDEO      : std_logic := '1';
@@ -95,7 +102,7 @@ package tranZPUterSW_pkg is
     -- Version of hdl.
     constant CPLD_VERSION             : integer   := 1;
 
-    -- Clock source for the secondary clock. If a K64F is installed the enable it otherwise use the onboard oscillator.
+    -- Clock source for the secondary clock. If a K64F is installed then enable it otherwise use the onboard oscillator.
     --
     constant USE_K64F_CTL_CLOCK       : integer   := 1;
 
@@ -110,6 +117,17 @@ package tranZPUterSW_pkg is
 
     -- Function to calculate the number of whole 'clock' cycles in a given time period, the period being in ns.
     function clockTicks(period : in integer; clock : in integer) return integer;
+
+    -- Function to reverse the order of the bits in a standard logic vector.
+    -- ie. 1010 becomes 0101
+    function reverse_vector(slv:std_logic_vector) return std_logic_vector; 
+
+    -- Function to convert an integer (0 or 1) into std_logic.
+    --
+    function to_std_logic(i : in integer) return std_logic;
+
+    -- Function to return the value of a bit as an integer for array indexing etc.
+    function bit_to_integer( s : std_logic ) return natural;    
 
     ------------------------------------------------------------ 
     -- Records
@@ -167,4 +185,30 @@ package body tranZPUterSW_pkg is
         end if;
     end function;
 
+    function reverse_vector(slv:std_logic_vector) return std_logic_vector is 
+       variable target : std_logic_vector(slv'high downto slv'low); 
+    begin 
+      for idx in slv'high downto slv'low loop 
+        target(idx) := slv(slv'low + (slv'high-idx)); 
+      end loop; 
+      return target; 
+    end reverse_vector;
+
+    function to_std_logic(i : in integer) return std_logic is
+    begin
+      if i = 0 then
+        return '0';
+      end if;
+      return '1';
+    end function;
+
+    -- Function to return the value of a bit as an integer for array indexing etc.
+    function bit_to_integer( s : std_logic ) return natural is
+    begin
+        if s = '1' then
+            return 1;
+        else
+            return 0;
+        end if;
+    end function;
 end package body;

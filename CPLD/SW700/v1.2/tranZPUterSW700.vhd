@@ -34,6 +34,9 @@
 --                              as there are a lot of pin and logic differences. The tranZPUter SW is still
 --                              under development so didnt make sense to share the same files and make 
 --                              them conditional.
+--                  Mar 2021 -  Better control of the external Asyn BUSRQ/BUSACK was needed, bringing in 
+--                              the async K64F CTL_BUSRQ into the Z80 clocked domain and adjustment of
+--                              mux lines.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -82,7 +85,7 @@ entity cpld512 is
         Z80_CLK         : out   std_logic;
 
         -- K64F control signals.
-        CTL_BUSACKn     : in    std_logic;
+        CTL_BUSACKn     : out   std_logic;
         CTL_BUSRQn      : in    std_logic;
         CTL_HALTn       : out   std_logic;
         CTL_M1n         : out   std_logic;
@@ -191,6 +194,8 @@ architecture rtl of cpld512 is
     --
     signal DISABLE_BUSn           :       std_logic;                            -- Signal to disable access to the mainboard (= 0) via the SYS_BUSACKn signal which tri-states the mainboard logic.
     signal SYS_BUSACKni           :       std_logic := '0';                     -- Signal to hold the current state of the SYS_BUSACKn signal used to activate/tri-state the mainboard logic.
+    signal CTL_BUSACKni           :       std_logic;                            -- Buffered BUSACK signal to the K64F to indicate it has control of the bus.
+    signal CTL_BUSRQni            :       std_logic;                                     --  
 
     -- CPU Frequency select logic based on Flip Flops and gates.
     signal SCK_CTLSELn            :       std_logic;
@@ -267,6 +272,13 @@ begin
     -- [4]   - R/W - Enable WAIT state during frame display period. 1 = Enable, 0 = Disable (default). The flag enables Z80 WAIT assertion during the frame display period. Most video modes
     --                                 use double buffering so this isnt needed, but use of direct writes to the frame buffer in 8 colour mode (ie. 640x200 or 320x200 8 colour) there
     --                                 is not enough memory to double buffer so potentially there could be tear or snow, hence this optional wait generator.
+    --*[6:5] - R/W - Mainboard/CPU clock.
+    --               000 = Sharp MZ80A 2MHz System Clock.
+    --               001 = Sharp MZ80B 4MHz System Clock.
+    --               010 = Sharp MZ700 3.54MHz System Clock.
+    --               011 -111 = Reserved, defaults to 2MHz System Clock.
+    -- [7]   - R/W - Preserve configuration over reset (=1) or set to default on reset (=0).
+    -- * = SW v2.2 MZ-80A version only, not used in other CPLD versions.
     --
     MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPLD_CFGn, Z80_ADDR, Z80_DATA )
     begin
@@ -275,7 +287,7 @@ begin
             MODE_CPLD_SWITCH          <= '0';
             CPLD_CFG_DATA             <= "00000100";                            -- Default to Sharp MZ700, mainboard video enabled, wait state off.
 
-        elsif(Z80_CLKi'event and Z80_CLKi = '1') then
+        elsif(rising_edge(Z80_CLKi)) then
 
             -- Write to config register.
             if(CS_CPLD_CFGn = '0' and Z80_WRn = '0') then
@@ -292,7 +304,6 @@ begin
             end if;
         end if;
     end process;
-
 
     -- Memory mode latch. This latch stores the current memory mode (or Bank Paging Scheme) according to the running software.
     --
@@ -581,14 +592,14 @@ begin
     -- is not available, use the onboard oscillator.
     --
     CTLCLKSRC: if USE_K64F_CTL_CLOCK = 1 generate
-        CTLCLKi             <= CTLCLK;
+        CTLCLKi                <= CTLCLK;
     else generate
         process(Z80_RESETn, CTLCLK)
             variable FREQDIVCTR : unsigned(3 downto 0);
         begin
             if Z80_RESETn = '0' then
                 FREQDIVCTR     := (others => '0');
-                CTLCLKi <= '0';
+                CTLCLKi        <= '0';
 
             elsif CTLCLK'event and CTLCLK = '1' then
 
@@ -607,27 +618,27 @@ begin
     -- high until the falling edge of the clock being switched into.
     FFCLK1: process( SYSCLK, Z80_RESETn ) begin
         if Z80_RESETn = '0' then
-            SYSCLK_Q <= '0';
+            SYSCLK_Q           <= '0';
 
         -- If the system clock goes active high, process the inputs and set the D-type output.
         elsif( rising_edge(SYSCLK) ) then
             if ((DISABLE_BUSn = '1' or MB_BUSRQn = '0' or SCK_CTLSELn = '1') and CTLCLK_Q = '1') then
-                SYSCLK_Q    <= '0';
+                SYSCLK_Q       <= '0';
             else
-                SYSCLK_Q    <= '1';
+                SYSCLK_Q       <= '1';
             end if;
         end if;
     end process;
     FFCLK2: process( CTLCLKi, Z80_RESETn ) begin
         if Z80_RESETn = '0' then
-            CTLCLK_Q <= '1';
+            CTLCLK_Q           <= '1';
 
         -- If the control clock goes active high, process the inputs and set the D-type output.
         elsif( rising_edge(CTLCLKi) ) then
             if ((DISABLE_BUSn = '0' and SCK_CTLSELn = '0') and SYSCLK_Q = '1') then
-                CTLCLK_Q    <= '0';
+                CTLCLK_Q       <= '0';
             else
-                CTLCLK_Q    <= '1';
+                CTLCLK_Q       <= '1';
             end if;
         end if;
     end process;
@@ -752,6 +763,9 @@ begin
     --                  12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     --                  13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
     --                  14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+    --                 *21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
+    --                 *22 - Access to the host mainboard 64K address space only.
+    --                 *23 - Access all memory and IO on the tranZPUter board with the K64F addressing the full 512K RAM.
     --                  24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
     --                  25 - All memory and IO are on the tranZPUter board, 64K block 1 selected.
     --                  26 - All memory and IO are on the tranZPUter board, 64K block 2 selected.
@@ -760,6 +774,8 @@ begin
     --                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
+    --
+    -- * = Only on SW-700 v1.3
     MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, MODE_CPLD_MB_VIDEOn)
     begin
 
@@ -1175,6 +1191,15 @@ begin
                     RAM_OEni        <= '1';
                 end if;
 
+            -- Set 21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
+            when TZMM_FPGA =>
+
+            -- Set 22 - Access to the host mainboard 64K address space.
+            when TZMM_TZPUM => 
+
+            -- Set 23 - Access all memory and IO on the tranZPUter board with the K64F addressing the full 512K RAM.
+            when TZMM_TZPU =>
+
             -- Set 24 - All memory and IO are on the tranZPUter board, 64K block 0 selected.
             when TZMM_TZPU0 =>
                 DISABLE_BUSn        <= '0';
@@ -1289,6 +1314,26 @@ begin
         end if;
     end process;
 
+    -- A process to bring the external K64F control signals into this domain. The K64F can request the bus asynchronously so it is important the system state is known before
+    -- passing the request onto the internal processes.
+    --
+    SIGNALSYNC: process( Z80_CLKi, Z80_RESETn, CTL_BUSRQn )
+    begin
+
+        if(Z80_RESETn = '0') then
+            CTL_BUSRQni               <= '1';
+
+        elsif rising_edge(Z80_CLKi) then
+            -- When a Bus request comes in, ensure that the state is idle before passing it on as this signal is used to enable/disable or mux control other signals.
+            if CTL_BUSRQn = '0' then
+                CTL_BUSRQni          <= '0';
+            end if;
+            if CTL_BUSRQn = '1' then
+                CTL_BUSRQni          <= '1';
+            end if;
+        end if;
+    end process;
+
     -- Latch output so the K64F can determine current status.
     Z80_MEM               <= MEM_MODE_LATCH(4 downto 0);
 
@@ -1297,7 +1342,6 @@ begin
     Z80_CLKi              <= (SYSCLK or SYSCLK_Q) and (CTLCLKi or CTLCLK_Q);
     CTL_CLKSLCT           <= SYSCLK_Q;
     Z80_CLK               <= Z80_CLKi;
-
 
     -- Wait states, added by the mainboard video circuitry, FPGA video circuitry or the K64F.
     Z80_WAITn             <= '0'                         when SYS_WAITn = '0' or CTL_WAITn = '0' or (VWAITn = '0' and MODE_CPLD_VIDEO_WAIT = '1') or MB_WAITn = '0'
@@ -1314,11 +1358,16 @@ begin
     -- Bus control logic.
     SYS_BUSACKni          <= '1'                         when Z80_BUSACKn = '0'         and MB_BUSRQn = '0'
                              else
-                             '0'                         when DISABLE_BUSn = '0'        or  (KEY_SUBSTITUTE = '1' and Z80_MREQn = '0') or (Z80_BUSACKn = '0' and CTL_BUSACKn = '0') 
+                             '0'                         when DISABLE_BUSn = '0'        or  (KEY_SUBSTITUTE = '1' and Z80_MREQn = '0') or (Z80_BUSACKn = '0' and CTL_BUSACKni = '0') 
                              else '1';
     SYS_BUSACKn           <= SYS_BUSACKni;
-    Z80_BUSRQn            <= '0'                         when SYS_BUSRQn = '0'          or  CTL_BUSRQn = '0' or MB_BUSRQn = '0'
+    Z80_BUSRQn            <= '0'                         when SYS_BUSRQn = '0'          or  CTL_BUSRQni = '0'      or MB_BUSRQn = '0'
                              else '1';
+
+    -- Acknowlegde to the K64F it has bus control.
+    CTL_BUSACKni          <= '0'                         when CTL_BUSRQni = '0'         and Z80_BUSACKn = '0' 
+                             else '1';
+    CTL_BUSACKn           <= CTL_BUSACKni;
 
     -- Register read values.
     CLK_STATUS_DATA       <= "0000000" & SYSCLK_Q;
@@ -1364,7 +1413,7 @@ begin
                              else 
                              MEM_MODE_DATA               when CS_MEM_CFGn = '0'    and Z80_RDn = '0'                               -- Read the memory mode latch.
                              else
-                             (others => 'Z')             when Z80_BUSACKn = '0'    and CTL_BUSACKn = '0'                           -- Tristate bus when Z80 tristated and the K64F is requesting all devices to tristate.
+                             (others => 'Z')             when Z80_BUSACKn = '0'    and CTL_BUSACKni = '0'                          -- Tristate bus when Z80 tristated and the K64F is requesting all devices to tristate.
                         --     else
                         --     KEY_DATA                    when MB_BUSRQn = '1'      and Z80_BUSACKn = '1' and KEY_SUBSTITUTE = '1' and Z80_MREQn = '0'  -- Read mapped keyboard data.
                         --     else
@@ -1377,48 +1426,48 @@ begin
     --
     -- Address Bus Multiplexing.
     --
-    Z80_ADDR              <= MB_ADDR                     when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    Z80_ADDR              <= MB_ADDR                     when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else
                              (others => 'Z');
 
-    Z80_WRn               <= '0'                         when MB_MREQn = '0'    and Z80_BUSACKn = '0' and (MB_WRITE_STROBE = '1')  -- and (write1 or write2...) signals active here
+    Z80_WRn               <= '0'                         when MB_MREQn = '0'       and Z80_BUSACKn = '0' and (MB_WRITE_STROBE = '1')  -- and (write1 or write2...) signals active here
                              else
-                             '1'                         when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+                             '1'                         when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else 'Z';
 
-    Z80_RDn               <= '0'                         when MB_MREQn = '0'    and Z80_BUSACKn = '0' and (MB_READ_KEYS = '1')     -- and (read1 or read2...) signals active here
+    Z80_RDn               <= '0'                         when MB_MREQn = '0'       and Z80_BUSACKn = '0' and (MB_READ_KEYS = '1')     -- and (read1 or read2...) signals active here
                              else
-                             '1'                         when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+                             '1'                         when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else 'Z';
 
-    Z80_MREQn             <= MB_MREQn                    when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    Z80_MREQn             <= MB_MREQn                    when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else 'Z';
 
-    Z80_INTn              <= '1'                         when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    Z80_INTn              <= '1'                         when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else 'Z';
 
-    Z80_NMIn              <= '1'                         when Z80_BUSACKn = '0' and MB_BUSRQn = '0'
+    Z80_NMIn              <= '1'                         when Z80_BUSACKn = '0'    and MB_BUSRQn = '0'
                              else 'Z';
 
     -- The tranZPUter SW board adds upgrades for the Z80 processor and host. These upgrades are controlled through an IO port which 
     -- in v1.0 - v1.1 was either at 0x2-=0x2f, 0x60-0x6f, 0xA0-0xAf, 0xF0-0xFF, the default being 0x60. This logic mimcs the 74HCT138 and
     -- FlashRAM decoder which produces the I/O port select signals.
     --
-    CS_IO_6XXn            <= '0'                         when Z80_IORQn = '0'   and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "0110"
+    CS_IO_6XXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "0110"
                               else '1';
-    CS_MEM_CFGn           <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 1) = "000"                   -- IO 60
+    CS_MEM_CFGn           <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "000"                -- IO 60
                               else '1';
-    CS_SCK_CTLCLKn        <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 1) = "001"                   -- IO 62
+    CS_SCK_CTLCLKn        <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "001"                -- IO 62
                               else '1';
-    CS_SCK_SYSCLKn        <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 1) = "010"                   -- IO 64
+    CS_SCK_SYSCLKn        <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "010"                -- IO 64
                               else '1';
-    CS_SCK_RDn            <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 1) = "011"                   -- IO 66
+    CS_SCK_RDn            <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "011"                -- IO 66
                               else '1';
-    SVCREQn               <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 1) = "100"                   -- IO 68
+    SVCREQn               <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "100"                -- IO 68
                               else '1';
-    CS_CPLD_CFGn          <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 0) = "1110"                  -- IO 6E
+    CS_CPLD_CFGn          <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1110"               -- IO 6E
                               else '1';
-    CS_CPLD_INFOn         <= '0'                         when CS_IO_6XXn = '0'  and Z80_ADDR(3 downto 0) = "1111"                  -- IO 6F
+    CS_CPLD_INFOn         <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1111"               -- IO 6F
                               else '1';
 
     -- Assign the RAM select signals to their external pins.
@@ -1429,21 +1478,21 @@ begin
                              else '1';
 
     -- I/O Control signals to read and update the current video parameters, mainly used for setting FPGA access.
-    CS_IO_DXXn            <= '0'                         when Z80_IORQn = '0'   and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1101"
+    CS_IO_DXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1101"
                               else '1';
     -- I/O Control signals, mainly used for mirroring of the video module registers.
-    CS_IO_EXXn            <= '0'                         when Z80_IORQn = '0'   and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1110"
+    CS_IO_EXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1110"
                               else '1';
-    CS_IO_FXXn            <= '0'                         when Z80_IORQn = '0'   and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1111"
+    CS_IO_FXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1111"
                               else '1';
     -- 0xF8 set the video mode. [2:0] = mode, 000 = MZ80A, 001 = MZ-700, 010 = MZ-80B, 011 = MZ-800, 111 = Pixel graphics.
-    CS_FB_VMn             <= '0'                         when CS_IO_FXXn = '0' and Z80_ADDR(3 downto 0) = "1000"
+    CS_FB_VMn             <= '0'                         when CS_IO_FXXn = '0'     and Z80_ADDR(3 downto 0) = "1000"
                               else '1';
     -- 0xFD set the Video memory page in block C000:FFFF bit 0, set the CGROM upload access in bit 7.
-    CS_FB_PAGEn           <= '0'                         when CS_IO_FXXn = '0' and Z80_ADDR(3 downto 0) = "1101"
+    CS_FB_PAGEn           <= '0'                         when CS_IO_FXXn = '0'     and Z80_ADDR(3 downto 0) = "1101"
                               else '1';
     -- MZ80B/MZ2000 I/O Registers E0-EB,
-    CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0' and Z80_ADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
+    CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0'     and Z80_ADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
                               else '1';
 
 
@@ -1498,24 +1547,24 @@ begin
     -- Mainboard WAIT State Generator S-R latch 4.
     -- NB: V2.1 design doesnt need the wait state generator as the mapping is done in hardware.
     --
-    --MBWAITGEN: process(SYSCLK, Z80_ADDR, Z80_M1n, CTL_BUSRQn, MEM_MODE_LATCH, Z80_IORQn)
+    --MBWAITGEN: process(SYSCLK, Z80_ADDR, Z80_M1n, CTL_BUSRQni, MEM_MODE_LATCH, Z80_IORQn)
     --    variable tmp    : std_logic;
     --    variable iowait : std_logic;
     --begin
     --
     --    -- IO Wait select active when an IO operation is made in range 0xE0-0xFF.
-    --    if (Z80_ADDR(7 downto 5) = "111" and Z80_M1n = '1' and CTL_BUSRQn = '1' and MEM_MODE_LATCH(5) = '1' and Z80_IORQn = '0') then
+    --    if (Z80_ADDR(7 downto 5) = "111" and Z80_M1n = '1' and CTL_BUSRQni = '1' and MEM_MODE_LATCH(5) = '1' and Z80_IORQn = '0') then
     --        iowait := '0';
     --    else
     --        iowait := '1';
     --    end if;
     --
     --    if(SYSCLK='1' and SYSCLK'event) then
-    --        if((CTL_BUSRQn = '1' and Z80_RESETn = '1') and iowait = '1') then
+    --        if((CTL_BUSRQni = '1' and Z80_RESETn = '1') and iowait = '1') then
     --            tmp := tmp;
-    --        elsif((CTL_BUSRQn = '0' or Z80_RESETn = '0') and iowait = '0') then
+    --        elsif((CTL_BUSRQni = '0' or Z80_RESETn = '0') and iowait = '0') then
     --            tmp := 'Z';
-    --        elsif((CTL_BUSRQn = '0' or Z80_RESETn = '0') and iowait = '1') then
+    --        elsif((CTL_BUSRQni = '0' or Z80_RESETn = '0') and iowait = '1') then
     --            tmp := '1';
     --        else
     --            tmp := '0';

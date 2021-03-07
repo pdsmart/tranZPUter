@@ -56,13 +56,18 @@ set_global_assignment -name MAX7000_DEVICE_IO_STANDARD LVTTL
 
 # Z80 Address Bus
 # ===============
-set_location_assignment PIN_108 -to Z80_HI_ADDR[18]
+set_location_assignment PIN_32 -to Z80_HI_ADDR[23]
+set_location_assignment PIN_42 -to Z80_HI_ADDR[22]
+set_location_assignment PIN_44 -to Z80_HI_ADDR[21]
+set_location_assignment PIN_40 -to Z80_HI_ADDR[20]
+set_location_assignment PIN_39 -to Z80_HI_ADDR[19]
+set_location_assignment PIN_107 -to Z80_HI_ADDR[18]
 set_location_assignment PIN_102 -to Z80_HI_ADDR[17]
-set_location_assignment PIN_107 -to Z80_HI_ADDR[16]
-set_location_assignment PIN_110 -to Z80_HI_ADDR[15]
-set_location_assignment PIN_111 -to Z80_HI_ADDR[14]
-set_location_assignment PIN_112 -to Z80_HI_ADDR[13]
-set_location_assignment PIN_114 -to Z80_HI_ADDR[12]
+set_location_assignment PIN_108 -to Z80_HI_ADDR[16]
+set_location_assignment PIN_110 -to Z80_RA_ADDR[15]
+set_location_assignment PIN_111 -to Z80_RA_ADDR[14]
+set_location_assignment PIN_112 -to Z80_RA_ADDR[13]
+set_location_assignment PIN_114 -to Z80_RA_ADDR[12]
 set_location_assignment PIN_106 -to Z80_ADDR[15]
 set_location_assignment PIN_103 -to Z80_ADDR[14]
 set_location_assignment PIN_98 -to Z80_ADDR[13]
@@ -118,17 +123,17 @@ set_location_assignment PIN_65 -to SVCREQn
 # ============
 set_location_assignment PIN_41 -to CTL_WAITn
 set_location_assignment PIN_38 -to CTL_RFSHn
-set_location_assignment PIN_31 -to CTL_CLKSLCT
+set_location_assignment PIN_55 -to CTL_MBSEL
 set_location_assignment PIN_54 -to CTL_HALTn
 set_location_assignment PIN_128 -to CTLCLK
 set_location_assignment PIN_45 -to CTL_M1n
-set_location_assignment PIN_55 -to CTL_BUSACKn
+set_location_assignment PIN_31 -to CTL_BUSACKn
 set_location_assignment PIN_70 -to CTL_BUSRQn
-set_location_assignment PIN_32 -to Z80_MEM[4]
-set_location_assignment PIN_42 -to Z80_MEM[3]
-set_location_assignment PIN_44 -to Z80_MEM[2]
-set_location_assignment PIN_40 -to Z80_MEM[1]
-set_location_assignment PIN_39 -to Z80_MEM[0]
+#set_location_assignment PIN_32 -to Z80_MEM[4]
+#set_location_assignment PIN_42 -to Z80_MEM[3]
+#set_location_assignment PIN_44 -to Z80_MEM[2]
+#set_location_assignment PIN_40 -to Z80_MEM[1]
+#set_location_assignment PIN_39 -to Z80_MEM[0]
 
 # Z80 Control signals.
 # ====================

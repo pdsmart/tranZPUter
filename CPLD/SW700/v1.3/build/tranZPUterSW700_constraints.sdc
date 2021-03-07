@@ -276,7 +276,7 @@ set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {CTLCLK}]
 #set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {CTLCLK}]
 
 # For both configurations.
-#set_false_path -from {cpld512:cpldl512Toplevel|KEY_SUBSTITUTE} -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
+#set_false_path -from {cpld512:cpldl512Toplevel|KEY_SUBSTITUTE}    -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[*]}  -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]}    -to {cpld512:cpldl512Toplevel|CTLCLK_Q}
 set_false_path -from {cpld512:cpldl512Toplevel|CPLD_CFG_DATA[*]}   -to {cpld512:cpldl512Toplevel|CTLCLK_Q}

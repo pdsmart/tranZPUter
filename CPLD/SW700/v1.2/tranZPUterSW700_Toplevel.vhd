@@ -61,7 +61,7 @@ entity tranZPUterSW700 is
         Z80_CLK         : out   std_logic;
 
         -- K64F control signals.
-        CTL_BUSACKn     : in    std_logic;
+        CTL_BUSACKn     : out   std_logic;
         CTL_BUSRQn      : in    std_logic;
         CTL_HALTn       : out   std_logic;
         CTL_M1n         : out   std_logic;

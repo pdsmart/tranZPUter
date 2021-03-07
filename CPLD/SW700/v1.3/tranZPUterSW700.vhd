@@ -239,7 +239,7 @@ architecture rtl of cpld512 is
     signal CPLD_RFSHn             :       std_logic;                                     --  
     signal CPLD_HALTn             :       std_logic;                                     --  
     signal CTL_BUSRQni            :       std_logic;                                     --  
-    signal CTL_BUSACKni           :       std_logic;                                     --  
+    signal CTL_BUSACKni           :       std_logic;                                     -- Buffered BUSACK signal to the K64F to indicate it has control of the bus.
     signal CTL_BUSGRANTn          :       std_logic;                                     --  
 
     -- RAM select and write signals.
@@ -289,10 +289,16 @@ begin
     --               111 = MZ-2000
     -- [3]   - R/W - Mainboard Video - 0 = Enable, 1 = Disable - This flag allows Z-80 transactions in the range D000:DFFF to be directed to the mainboard. When disabled all transactions
     --                                 can only be seen by the FPGA video logic. The FPGA uses this flag to enable/disable it's functionality.
-    -- [4]   - R/W - Enable WAIT state during frame display period. 1 = Enable, 0 = Disable (default). The flag enables Z80 WAIT assertion during the frame display period. Most video modes
+    --*[4]   - R/W - Enable WAIT state during frame display period. 1 = Enable, 0 = Disable (default). The flag enables Z80 WAIT assertion during the frame display period. Most video modes
     --                                 use double buffering so this isnt needed, but use of direct writes to the frame buffer in 8 colour mode (ie. 640x200 or 320x200 8 colour) there
     --                                 is not enough memory to double buffer so potentially there could be tear or snow, hence this optional wait generator.
+    -- [6:5] - R/W - Mainboard/CPU clock.
+    --               000 = Sharp MZ80A 2MHz System Clock.
+    --               001 = Sharp MZ80B 4MHz System Clock.
+    --               010 = Sharp MZ700 3.54MHz System Clock.
+    --               011 -111 = Reserved, defaults to 2MHz System Clock.
     -- [7]   - R/W - Preserve configuration over reset (=1) or set to default on reset (=0).
+    --  * = SW v2.2 MZ80A only, not used in other CPLD versions.
     --
     MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_ADDR, CPLD_DATA_IN, CPLD_CFG_DATA, CPU_CFG_DATA )
     begin
@@ -632,6 +638,8 @@ begin
     --                  29 - All memory and IO are on the tranZPUter board, 64K block 5 selected.
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
+    --
+    -- * = Only on SW-700 v1.3
     MEMORYMGMT: process(CPLD_ADDR, CPLD_WRn, CPLD_RDn, CPLD_IORQn, CPLD_MREQn, CPLD_M1n, Z80_HI_ADDR, VZ80_HI_ADDR, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPU_CFGn, CS_CPU_INFOn, MODE_CPLD_MB_VIDEOn)
     begin
 
