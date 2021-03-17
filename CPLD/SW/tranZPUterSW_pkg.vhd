@@ -75,6 +75,7 @@ package tranZPUterSW_pkg is
     constant TZMM_MZ700_2             : integer   := 12;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     constant TZMM_MZ700_3             : integer   := 13;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
     constant TZMM_MZ700_4             : integer   := 14;                     -- MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+    constant TZMM_MZ800               : integer   := 15;                     -- MZ800 Mode - Running on MZ800 hardware, configuration set according to MZ700/MZ800 mode.
     constant TZMM_FPGA                : integer   := 21;                     -- Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
     constant TZMM_TZPUM               : integer   := 22;                     -- Everything in on mainboard, no access to tranZPUter memory.
     constant TZMM_TZPU                : integer   := 23;                     -- Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
@@ -97,7 +98,7 @@ package tranZPUterSW_pkg is
     --constant CPLD_HOST_HW             : integer  := MODE_MZ80A;
 
     -- Target video hardware.
-    constant CPLD_HAS_FPGA_VIDEO      : std_logic := '1';
+    constant CPLD_HAS_FPGA_VIDEO      : std_logic := '0';
 
     -- Version of hdl.
     constant CPLD_VERSION             : integer   := 1;

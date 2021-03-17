@@ -30,11 +30,12 @@
 --                              onto the output that would normally be driven by a K64F. This output
 --                              is then divided down to act as the secondary clock. When a mode switch
 --                              is made to MZ700 mode the frequency automatically changes.
---                  Mar 2021  - Updated to enable better compatibility with the Sharp MZ-800.
 --                  Mar 2021 -  Better control of the external Asyn BUSRQ/BUSACK was needed, bringing in 
 --                              Synchronize with the SW700 development.
 --                              the async K64F CTL_BUSRQ into the Z80 clocked domain and adjustment of
 --                              mux lines.
+--                  Mar 2021 -  Many changes to cater for the MZ-800. The machine has different memory
+--                              modes and maps so extensive changes needed.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -144,6 +145,8 @@ architecture rtl of cpld512 is
     signal MODE_CPLD_MZ2000       :       std_logic;
     signal MODE_CPLD_SWITCH       :       std_logic;
     signal MODE_CPLD_MB_VIDEOn    :       std_logic;                                     -- Mainboard video, 0 = enabled, 1 = disabled. 
+    signal MODE_HOST_DEFAULT      :       std_logic;                                     -- On cold start, the host acts per original specifications until changed by programming.
+    signal CPU_CFG_DATA           :       std_logic_vector(7 downto 0):=(others => '0'); -- CPU Configuration register.
     signal CPLD_CFG_DATA          :       std_logic_vector(7 downto 0);                  -- CPLD Configuration register.
     signal CPLD_INFO_DATA         :       std_logic_vector(7 downto 0);                  -- CPLD status value.
     signal VIDEOMODULE_PRESENT    :       std_logic;                                     -- Automatic flag which is set if the serializer becomes active.
@@ -154,6 +157,8 @@ architecture rtl of cpld512 is
     signal CS_SCK_CTLCLKn         :       std_logic;                                     -- Select for setting the K64F clock as the active Z80 clock.
     signal CS_SCK_SYSCLKn         :       std_logic;                                     -- Select for setting the Mainboard clock as the active Z80 clock.
     signal CS_SCK_RDn             :       std_logic;                                     -- Select to read which clock is active.
+    signal CS_CPU_CFGn            :       std_logic;                                     -- Select to set the CPU configuration register.
+    signal CS_CPU_INFOn           :       std_logic;                                     -- Select to set the CPU information register.
     signal CS_CPLD_CFGn           :       std_logic;                                     -- Select to set the CPLD configuration register.
     signal CS_CPLD_INFOn          :       std_logic;                                     -- Select to read the CPLD information register.
     signal CS_VIDEOn              :       std_logic;                                     -- Primary select of the FPGA video logic, used to enable control signals in the memory management process.
@@ -161,7 +166,7 @@ architecture rtl of cpld512 is
     signal CS_VIDEO_IOn           :       std_logic;                                     -- Select to read/write video IO registers according to mode.
     signal CS_VIDEO_RDn           :       std_logic;                                     -- Select to read video memory and video IO registers according to mode.
     signal CS_VIDEO_WRn           :       std_logic;                                     -- Select to write video memory and video IO registers according to mode.
-    signal MEM_MODE_LATCH         :       std_logic_vector(4 downto 0);                  -- Register to store the active memory mode.
+    signal MEM_MODE_LATCH         :       std_logic_vector(4 downto 0):=(others => '0'); -- Register to store the active memory mode.
     signal MEM_MODE_DATA          :       std_logic_vector(7 downto 0);                  -- Scratch signal to form an 8 bit read of the memory mode register.
 
     -- SR (LS279) state symbols.
@@ -196,7 +201,8 @@ architecture rtl of cpld512 is
     signal MZ80B_VRAM_LO_ADDR     :       std_logic;                                     -- Video RAM located at 5000:7FFF when high.
     signal CS_FB_VMn              :       std_logic;                                     -- Chip Select for the Video Mode register.
     signal CS_FB_PAGEn            :       std_logic;                                     -- Chip Select for the Page select register.
-    signal CS_IO_DXXn             :       std_logic;                                     -- Chip select for block 00:0F
+    signal CS_IO_CXXn             :       std_logic;                                     -- Chip select for block C0:CF
+    signal CS_IO_DXXn             :       std_logic;                                     -- Chip select for block D0:DF
     signal CS_IO_EXXn             :       std_logic;                                     -- Chip select for block E0:EF
     signal CS_IO_FXXn             :       std_logic;                                     -- Chip select for block F0:FF
     signal CS_80B_PIOn            :       std_logic;                                     -- Chip select for MZ80B PIO when in MZ80B mode.
@@ -214,6 +220,45 @@ architecture rtl of cpld512 is
     signal RAM_OEni               :       std_logic;
     signal RAM_CSni               :       std_logic;
     signal RAM_WEni               :       std_logic;
+
+    -- MZ800 Memory map signals.
+    signal MAP_0000_0FFF_ROM      :       std_logic;                                     --  
+    signal MAP_E000_EFFF_ROM      :       std_logic;                                     --  
+    signal MAP_F000_FFFF_ROM      :       std_logic;                                     --  
+    signal MAP_1000_1FFF_CGROM    :       std_logic;                                     --  
+
+    signal MAP_0000_0FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_1000_1FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_2000_2FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_3000_3FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_4000_4FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_5000_5FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_6000_6FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_7000_7FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_8000_8FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_9000_9FFF_DRAM     :       std_logic;                                     --  
+    signal MAP_A000_AFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_B000_BFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_C000_CFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_D000_DFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_E000_EFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_F000_FFFF_DRAM     :       std_logic;                                     --  
+    signal MAP_8000_8FFF_VRAM     :       std_logic;                                     --  
+    signal MAP_9000_9FFF_VRAM     :       std_logic;                                     --  
+    signal MAP_A000_AFFF_VRAM     :       std_logic;                                     --  
+    signal MAP_B000_BFFF_VRAM     :       std_logic;                                     --  
+    signal MAP_C000_CFFF_VRAM     :       std_logic;                                     --  
+    signal MAP_D000_DFFF_VRAM     :       std_logic;                                     --  
+    signal MAP_E000_E00F_IO       :       std_logic;                                     --  
+    signal MAP_INHIBIT            :       std_logic;                                     --  
+    signal MAP_TZFS_BANK          :       std_logic;                                     -- Override to use Bank 0 in the 512K Static RAM chup rather than the normal Bank 7. This is so TZFS and MZ-800 IPL are seperate and independent allowing change from one to the other.
+    signal MODE_320x200           :       std_logic;                                     -- MZ-800 Set to 320x200 graphics mode.
+    signal MODE_640x200           :       std_logic;                                     -- MZ-800 Set to 640x200 graphics mode.
+
+    -- MZ800 IO Signals
+    signal CS_GDG_GWF             :       std_logic;                                     -- GDG Write Format Register 
+    signal CS_GDG_GRF             :       std_logic;                                     -- GDG Read Format Register 
+    signal CS_GDG_CMD             :       std_logic;                                     -- GDG Command Register
 
     -- Mainboard writeback multiplexing signals.
     signal MB_MREQn               :       std_logic;
@@ -235,6 +280,21 @@ architecture rtl of cpld512 is
 begin
 
     -- CPLD Configuration register.
+    --
+    -- CPU: (NOT YET IMPLEMENTED)
+    -- Version 1.3-> of the tranZPUter SW-700 provides the ability to instantiate alternative soft CPU's. This register configures the FPGA to enable a soft/hard CPU and the CPLD
+    -- is reconfigured to allow a CPU operation on the FPGA side rather than the physical hardware side.
+    --
+    -- [5:0] - R/W - CPU selection.
+    --               000000 = Hard CPU
+    --               000001 = T80 CPU
+    --               000010 = ZPU Evolution
+    --               000100 = Future CPU AAA
+    --               001000 = Future CPU AAA
+    --               010000 = Future CPU AAA
+    --               100000 = Future CPU AAA
+    --               All other configurations reserved and default to Hard CPU.
+    -- [7]   - R/W - CPU Reset. When active ('1'), hold the CPU in reset, when inactive, commence the reset completion and CPU run.
     --
     -- The mode can be changed by a Z80 transaction write into the register and it is acted upon if the mode switches between differing values. The Z80 write is typically used
     -- by host software such as RFS.
@@ -261,122 +321,487 @@ begin
     --*[7]   - R/W - Preserve configuration over reset (=1) or set to default on reset (=0).
     -- * = SW700 v1.3 only, not used in other CPLD versions.
     --
-    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPLD_CFGn, CPLD_CFG_DATA, CS_CPLD_INFOn, Z80_DATA )
+    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_CFG_DATA, CS_CPLD_INFOn, Z80_DATA )
     begin
 
         if(Z80_RESETn = '0') then
-            MODE_CPLD_SWITCH          <= '0';
+            MODE_CPLD_SWITCH                  <= '0';
+            CPU_CFG_DATA(5 downto 0)          <= (others => '0');
+            MAP_TZFS_BANK                     <= '0';
+            MODE_640x200                      <= '1';
+            MODE_320x200                      <= '0';
+         --   MODE_HOST_DEFAULT                 <= '0';
             if CPLD_CFG_DATA(7) = '0' then
+                -- On MZ-800 hardware, reset the mode to MZ800 as it may be in MZ700 mode prior to reset.
                 if CPLD_HOST_HW = MODE_MZ800 then
                     CPLD_CFG_DATA             <= "10001101";                            -- Enable Sharp MZ-800 host setting, mainboard video unused, wait state unused.
-                else -- Default to MZ-80A
+                else
+                    -- Default to MZ-80A
                     CPLD_CFG_DATA             <= "10000011";                            -- Default to Sharp MZ80A
                 end if;
+                MODE_HOST_DEFAULT             <= '1';                                   -- Host runs as original until features enabled.
             end if;
 
         elsif(rising_edge(Z80_CLKi)) then
 
-            -- Write to config register.
-            if(CS_CPLD_CFGn = '0' and Z80_WRn = '0') then
+            -- Write to CPU config register.
+            if(CS_CPU_CFGn = '0' and Z80_WRn = '0') then
+
+                -- Currently this option is not implemented on the tranZPUter SW so set to default Z80 configuration.
+                CPU_CFG_DATA(5 downto 0) <= (others => '0');
+            
+            -- Write to CPLD config register.
+            elsif(CS_CPLD_CFGn = '0' and Z80_WRn = '0') then
 
                 -- Set the mode switch event flag if the mode changes.
                 if CPLD_CFG_DATA(2 downto 0) /= Z80_DATA(2 downto 0) then
-                    MODE_CPLD_SWITCH  <= '1';
+                    MODE_CPLD_SWITCH          <= '1';
+                end if;
+
+                -- On the first mode set, if the mode matches the underlying hardware setup a flag so that all the features are enabled.
+                -- This mechanism is to allow a machine to behave as original after a cold power-up if the K64F processor is not running or disabled.
+                --
+                if CPLD_CFG_DATA(2 downto 0) = std_logic_vector(to_unsigned(CPLD_HOST_HW, 3)) then
+                    MODE_HOST_DEFAULT         <= '0';
                 end if;
 
                 -- Store the new value into the register, used for read operations.
-                CPLD_CFG_DATA         <= Z80_DATA;
+                CPLD_CFG_DATA                 <= Z80_DATA;
             else
-                MODE_CPLD_SWITCH      <= '0';
+                MODE_CPLD_SWITCH              <= '0';
+            end if;
+
+            -- On the MZ800 host capture and action the gate array command as it changes the mode.
+            if CS_GDG_CMD = '0' and Z80_WRn = '0' then
+
+                -- Mode 700 command?
+                if Z80_DATA(3 downto 0) = "1000" then
+                    CPLD_CFG_DATA(2 downto 0) <= std_logic_vector(to_unsigned(MODE_MZ700, 3));
+
+                -- All zeros then switch mode.
+                elsif Z80_DATA(3 downto 0) = "0000" then
+                    CPLD_CFG_DATA(2 downto 0) <= std_logic_vector(to_unsigned(MODE_MZ800, 3));
+
+                -- Set 320x200 mode?
+                elsif Z80_DATA(3 downto 2) = "00" then
+                    MODE_640x200              <= '0';
+                    MODE_320x200              <= '1';
+
+                -- Set 640x200 mode?
+                elsif Z80_DATA(3 downto 2) = "01" then
+                    MODE_640x200              <= '1';
+                    MODE_320x200              <= '0';
+                end if;
+
+                -- A non-standard GDG Command, if bit 7 is set swap ROM banks to allow TZFS to run.
+                if Z80_DATA(7) = '1' then
+                    MAP_TZFS_BANK             <= '1';
+                end if;
             end if;
         end if;
     end process;
 
     -- Memory mode latch. This latch stores the current memory mode (or Bank Paging Scheme) according to the running software.
     --
-    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, CS_MEM_CFGn, Z80_IORQn, Z80_WRn, Z80_ADDR, Z80_DATA )
+    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, CS_MEM_CFGn, Z80_IORQn, Z80_WRn, Z80_ADDR, Z80_DATA, CPLD_CFG_DATA, MODE_640x200 )
         variable mz700_LOWER_RAM      : std_logic;
         variable mz700_UPPER_RAM      : std_logic;
         variable mz700_INHIBIT        : std_logic;
+        variable MODE_CPLD_LAST       : std_logic_vector(2 downto 0);
     begin
 
         if(Z80_RESETn = '0') then
-            MEM_MODE_LATCH            <= "00000";
+            -- On power up reset, default to original configuration.
+            if CPLD_CFG_DATA(7) = '0' then
+                -- Default to MZ-700/MZ-80A
+                MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_ORIG, MEM_MODE_LATCH'length));
+
+            -- MZ-800 mode
+            --elsif CPLD_HOST_HW = MODE_MZ800 then
+            --    MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_MZ800, MEM_MODE_LATCH'length));
+            end if;
             mz700_LOWER_RAM           := '0';
             mz700_UPPER_RAM           := '0';
             mz700_INHIBIT             := '0';
 
+            -- Setup MZ-800 control on reset to MZ-800 startup memory map.
+            MAP_0000_0FFF_ROM         <= '1';
+            MAP_1000_1FFF_CGROM       <= '1';
+            MAP_2000_2FFF_DRAM        <= '1';
+            MAP_3000_3FFF_DRAM        <= '1';
+            MAP_4000_4FFF_DRAM        <= '1';
+            MAP_5000_5FFF_DRAM        <= '1';
+            MAP_6000_6FFF_DRAM        <= '1';
+            MAP_7000_7FFF_DRAM        <= '1';
+            MAP_A000_AFFF_DRAM        <= not MODE_640x200;
+            MAP_B000_BFFF_DRAM        <= not MODE_640x200;
+            MAP_C000_CFFF_DRAM        <= '1';
+            MAP_D000_DFFF_DRAM        <= '1';
+            MAP_8000_8FFF_VRAM        <= '1';
+            MAP_9000_9FFF_VRAM        <= '1';
+            MAP_A000_AFFF_VRAM        <= MODE_640x200;
+            MAP_B000_BFFF_VRAM        <= MODE_640x200;
+            MAP_E000_EFFF_ROM         <= '1';
+            MAP_F000_FFFF_ROM         <= '1';
+            -- Clear remaining flags.
+            MAP_0000_0FFF_DRAM        <= '0';
+            MAP_1000_1FFF_DRAM        <= '0';
+            MAP_8000_8FFF_DRAM        <= '0';
+            MAP_9000_9FFF_DRAM        <= '0';
+            MAP_E000_EFFF_DRAM        <= '0';
+            MAP_F000_FFFF_DRAM        <= '0';
+            MAP_C000_CFFF_VRAM        <= '0';
+            MAP_D000_DFFF_VRAM        <= '0';
+            MAP_E000_E00F_IO          <= '0';
+            MAP_INHIBIT               <= '0';
+
+            MODE_CPLD_LAST            := std_logic_vector(to_unsigned(CPLD_HOST_HW, MODE_CPLD_LAST'length));
+
         elsif (CS_MEM_CFGn = '0' and Z80_WRn = '0') then
-            MEM_MODE_LATCH          <= Z80_DATA(4 downto 0);
+            MEM_MODE_LATCH            <= Z80_DATA(4 downto 0);
 
         elsif(Z80_CLKi'event and Z80_CLKi = '1') then
 
-            -- Check for MZ700 Mode memory changes and adjust current memory mode setting.
-            if(MODE_CPLD_MZ700 = '1' and Z80_IORQn = '0' and Z80_M1n = '1' and Z80_ADDR(7 downto 3) = "11100") then
-                
-                -- MZ700 memory mode switch?
-                --         0x0000:0x0FFF     0xD000:0xFFFF
-                -- 0xE0 =  DRAM
-                -- 0xE1 =                    DRAM
-                -- 0xE2 =  MONITOR
-                -- 0xE3 =                    Memory Mapped I/O
-                -- 0xE4 =  MONITOR           Memory Mapped I/O
-                -- 0xE5 =                    Inhibit
-                -- 0xE6 =                    Return to state prior to 0xE5
+            -- Cater for mode switches made by software between the MZ800 and MZ700 modes.
+            --.
+--            if MODE_CPLD_LAST = MODE_MZ700 and MODE_CPLD_MZ800 = '1' then
+--                MAP_0000_0FFF_ROM     <= '1';
+--                MAP_1000_1FFF_CGROM   <= '1';
+--                MAP_2000_2FFF_DRAM    <= '1';
+--                MAP_3000_3FFF_DRAM    <= '1';
+--                MAP_4000_4FFF_DRAM    <= '1';
+--                MAP_5000_5FFF_DRAM    <= '1';
+--                MAP_6000_6FFF_DRAM    <= '1';
+--                MAP_7000_7FFF_DRAM    <= '1';
+--                MAP_A000_AFFF_DRAM    <= not MODE_640x200;
+--                MAP_B000_BFFF_DRAM    <= not MODE_640x200;
+--                MAP_C000_CFFF_DRAM    <= '1';
+--                MAP_D000_DFFF_DRAM    <= '1';
+--                MAP_8000_8FFF_VRAM    <= '1';
+--                MAP_9000_9FFF_VRAM    <= '1';
+--                MAP_A000_AFFF_VRAM    <= MODE_640x200;
+--                MAP_B000_BFFF_VRAM    <= MODE_640x200;
+--                MAP_E000_EFFF_ROM     <= '1';
+--                MAP_F000_FFFF_ROM     <= '1';
+--                -- Clear remaining flags.
+--                MAP_0000_0FFF_DRAM    <= '0';
+--                MAP_1000_1FFF_DRAM    <= '0';
+--                MAP_8000_8FFF_DRAM    <= '0';
+--                MAP_9000_9FFF_DRAM    <= '0';
+--                MAP_E000_EFFF_DRAM    <= '0';
+--                MAP_F000_FFFF_DRAM    <= '0';
+--                MAP_C000_CFFF_VRAM    <= '0';
+--                MAP_D000_DFFF_VRAM    <= '0';
+--                MAP_E000_E00F_IO      <= '0';
+--                MAP_INHIBIT           <= '0';
+--
+--            elsif MODE_CPLD_LAST = MODE_MZ800 and MODE_CPLD_MZ700 = '1' then
+--                MAP_0000_0FFF_ROM     <= '1';
+--                MAP_1000_1FFF_DRAM    <= '1';
+--                MAP_2000_2FFF_DRAM    <= '1';
+--                MAP_3000_3FFF_DRAM    <= '1';
+--                MAP_4000_4FFF_DRAM    <= '1';
+--                MAP_5000_5FFF_DRAM    <= '1';
+--                MAP_6000_6FFF_DRAM    <= '1';
+--                MAP_7000_7FFF_DRAM    <= '1';
+--                MAP_8000_8FFF_DRAM    <= '1';
+--                MAP_9000_9FFF_DRAM    <= '1';
+--                MAP_A000_AFFF_DRAM    <= '1';
+--                MAP_B000_BFFF_DRAM    <= '1';
+--                MAP_C000_CFFF_DRAM    <= '1';
+--                MAP_D000_DFFF_VRAM    <= '1';
+--                MAP_E000_E00F_IO      <= '1';
+--                MAP_E000_EFFF_ROM     <= '1';
+--                MAP_F000_FFFF_ROM     <= '1';
+--                -- Clear remaining flags.
+--                MAP_1000_1FFF_CGROM   <= '0';
+--                MAP_0000_0FFF_DRAM    <= '0';
+--                MAP_D000_DFFF_DRAM    <= '0';
+--                MAP_E000_EFFF_DRAM    <= '0';
+--                MAP_F000_FFFF_DRAM    <= '0';
+--                MAP_8000_8FFF_VRAM    <= '0';
+--                MAP_9000_9FFF_VRAM    <= '0';
+--                MAP_A000_AFFF_VRAM    <= '0';
+--                MAP_B000_BFFF_VRAM    <= '0';
+--                MAP_C000_CFFF_VRAM    <= '0';
+--                MAP_INHIBIT           <= '0';
+--
+--            end if;
+
+            -- Each clock remember the current mode to detect a change.
+            MODE_CPLD_LAST            := CPLD_CFG_DATA(2 downto 0);
+
+            -- MZ700/MZ800 memory mode switch?
+            --
+            --             MZ-700                                                     MZ-800
+            --            |0000:0FFF|1000:1FFF|1000:CFFF|C000:CFFF|D000:FFFF          |0000:7FFF|1000:1FFF|2000:7FFF|8000:BFFF|C000:CFFF|C000:DFFF|E000:FFFF
+            --            --------------------------------------------------          ----------------------------------------------------------------------
+            -- OUT 0xE0 = |DRAM     |         |         |         |                   |DRAM     |         |         |         |         |         |            
+            -- OUT 0xE1 = |         |         |         |         |DRAM               |         |         |         |         |         |         |DRAM
+            -- OUT 0xE2 = |MONITOR  |         |         |         |                   |MONITOR  |         |         |         |         |         |             
+            -- OUT 0xE3 = |         |         |         |         |Memory Mapped I/O  |         |         |         |         |         |         |Upper MONITOR ROM             
+            -- OUT 0xE4 = |MONITOR  |         |DRAM     |         |Memory Mapped I/O  |MONITOR  |CGROM    |DRAM     |VRAM     |         |DRAM     |Upper MONITOR ROM
+            -- OUT 0xE5 = |         |         |         |         |Inhibit            |         |         |         |         |         |         |Inhibit
+            -- OUT 0xE6 = |         |         |         |         |<return>           |         |         |         |         |         |         |<return>
+            -- IN  0xE0 = |         |CGROM*   |         |VRAM*    |                   |         |CGROM    |         |VRAM     |         |         |              
+            -- IN  0xE1 = |         |DRAM     |         |DRAM     |                   |         |<return> |         |DRAM     |         |         |                                                                           
+            --
+            -- <return> = Return to the state prior to the complimentary command being invoked.
+            -- * = MZ-800 host only.
+
+            -- On MZ-800 hardware the MZ-700 mode is not quite the same so I've elected to use seperate decoding. You thus have MZ700/MZ800 modes on MZ800 hardware and MZ700 modes on 
+            -- MZ700/MZ-80A hardware.
+            --
+            if(CPLD_HOST_HW = MODE_MZ800 and (MODE_CPLD_MZ700 = '1' or MODE_CPLD_MZ800 = '1') and Z80_IORQn = '0' and Z80_M1n = '1' and Z80_ADDR(7 downto 3) = "11100") then
+
                 case Z80_ADDR(2 downto 0) is
                     -- 0xE0
                     when "000" =>
-                        mz700_LOWER_RAM  := '1';
+                        -- To cater for the CGROM being paged into the address space we use an override rather than a seperate memory mode.
+                        if Z80_RDn = '0' then
+                            MAP_1000_1FFF_DRAM     <= '0';
+                            MAP_1000_1FFF_CGROM    <= '1';
+                            if MODE_CPLD_MZ800 = '1' then
+                                MAP_8000_8FFF_VRAM <= '1';
+                                MAP_9000_9FFF_VRAM <= '1';
+                                MAP_A000_AFFF_VRAM <= MODE_640x200;
+                                MAP_B000_BFFF_VRAM <= MODE_640x200;
+                                MAP_8000_8FFF_DRAM <= '0';
+                                MAP_9000_9FFF_DRAM <= '0';
+                                MAP_A000_AFFF_DRAM <= not MODE_640x200;
+                                MAP_B000_BFFF_DRAM <= not MODE_640x200;
+                            else
+                                MAP_C000_CFFF_VRAM <= '1';
+                                MAP_C000_CFFF_DRAM <= '0';
+                            end if;
+
+                        elsif MODE_CPLD_MZ800 = '1' then
+                            MAP_0000_0FFF_DRAM     <= '1';
+                            MAP_1000_1FFF_DRAM     <= '1';
+                            MAP_2000_2FFF_DRAM     <= '1';
+                            MAP_3000_3FFF_DRAM     <= '1';
+                            MAP_4000_4FFF_DRAM     <= '1';
+                            MAP_5000_5FFF_DRAM     <= '1';
+                            MAP_6000_6FFF_DRAM     <= '1';
+                            MAP_7000_7FFF_DRAM     <= '1';
+                            MAP_0000_0FFF_ROM      <= '0';
+                            MAP_1000_1FFF_CGROM    <= '0';
+                        else
+                            MAP_0000_0FFF_DRAM     <= '1';
+                            MAP_1000_1FFF_DRAM     <= '1';
+                            MAP_2000_2FFF_DRAM     <= '1';
+                            MAP_3000_3FFF_DRAM     <= '1';
+                            MAP_4000_4FFF_DRAM     <= '1';
+                            MAP_5000_5FFF_DRAM     <= '1';
+                            MAP_6000_6FFF_DRAM     <= '1';
+                            MAP_7000_7FFF_DRAM     <= '1';
+                            MAP_8000_8FFF_DRAM     <= '1';
+                            MAP_9000_9FFF_DRAM     <= '1';
+                            MAP_A000_AFFF_DRAM     <= '1';
+                            MAP_B000_BFFF_DRAM     <= '1';
+                            MAP_C000_CFFF_DRAM     <= '1';
+                            MAP_0000_0FFF_ROM      <= '0';
+                            MAP_1000_1FFF_CGROM    <= '0';
+                        end if;
 
                     -- 0xE1
                     when "001" =>
-                        mz700_UPPER_RAM  := '1';
+                        if Z80_RDn = '0' then
+                            MAP_1000_1FFF_DRAM     <= '1';
+                            MAP_1000_1FFF_CGROM    <= '0';
+
+                            if MODE_CPLD_MZ800 = '1' then
+                                MAP_8000_8FFF_DRAM <= '1';
+                                MAP_9000_9FFF_DRAM <= '1';
+                                MAP_A000_AFFF_DRAM <= '1';
+                                MAP_B000_BFFF_DRAM <= '1';
+                                MAP_8000_8FFF_VRAM <= '0';
+                                MAP_9000_9FFF_VRAM <= '0';
+                                MAP_A000_AFFF_VRAM <= '0';
+                                MAP_B000_BFFF_VRAM <= '0';
+                            else
+                                MAP_C000_CFFF_DRAM <= '1';
+                                MAP_C000_CFFF_VRAM <= '0';
+                            end if;
+
+                        elsif MODE_CPLD_MZ800 = '1' then
+                            MAP_E000_EFFF_DRAM     <= '1';
+                            MAP_F000_FFFF_DRAM     <= '1';
+                            MAP_E000_EFFF_ROM      <= '0';
+                            MAP_F000_FFFF_ROM      <= '0';
+                            MAP_E000_E00F_IO       <= '0';
+                        else
+                            MAP_D000_DFFF_DRAM     <= '1';
+                            MAP_E000_EFFF_DRAM     <= '1';
+                            MAP_F000_FFFF_DRAM     <= '1';
+                            MAP_D000_DFFF_VRAM     <= '0';
+                            MAP_E000_EFFF_ROM      <= '0';
+                            MAP_F000_FFFF_ROM      <= '0';
+                            MAP_E000_E00F_IO       <= '0';
+                        end if;
 
                     -- 0xE2
                     when "010" =>
-                        mz700_LOWER_RAM  := '0';
+                        MAP_0000_0FFF_ROM          <= '1';
+                        MAP_0000_0FFF_DRAM         <= '0';
 
                     -- 0xE3
                     when "011" =>
-                        mz700_UPPER_RAM  := '0';
+                        if MODE_CPLD_MZ800 = '1' then
+                            MAP_E000_EFFF_ROM      <= '1';
+                            MAP_F000_FFFF_ROM      <= '1';
+                            MAP_E000_E00F_IO       <= '0';
+                            MAP_E000_EFFF_DRAM     <= '0';
+                            MAP_F000_FFFF_DRAM     <= '0';
+                        else
+                            MAP_D000_DFFF_VRAM     <= '1';
+                            MAP_E000_E00F_IO       <= '1';
+                            MAP_E000_EFFF_ROM      <= '1';
+                            MAP_F000_FFFF_ROM      <= '1';
+                        end if;
 
                     -- 0xE4
                     when "100" =>
-                        mz700_LOWER_RAM  := '0';
-                        mz700_UPPER_RAM  := '0';
+                        if MODE_CPLD_MZ800 = '1' then
+                            MAP_0000_0FFF_ROM      <= '1';
+                            MAP_1000_1FFF_CGROM    <= '1';
+                            MAP_2000_2FFF_DRAM     <= '1';
+                            MAP_3000_3FFF_DRAM     <= '1';
+                            MAP_4000_4FFF_DRAM     <= '1';
+                            MAP_5000_5FFF_DRAM     <= '1';
+                            MAP_6000_6FFF_DRAM     <= '1';
+                            MAP_7000_7FFF_DRAM     <= '1';
+                            MAP_A000_AFFF_DRAM     <= not MODE_640x200;
+                            MAP_B000_BFFF_DRAM     <= not MODE_640x200;
+                            MAP_C000_CFFF_DRAM     <= '1';
+                            MAP_D000_DFFF_DRAM     <= '1';
+                            MAP_8000_8FFF_VRAM     <= '1';
+                            MAP_9000_9FFF_VRAM     <= '1';
+                            MAP_A000_AFFF_VRAM     <= MODE_640x200;
+                            MAP_B000_BFFF_VRAM     <= MODE_640x200;
+                            MAP_E000_EFFF_ROM      <= '1';
+                            MAP_F000_FFFF_ROM      <= '1';
+                            -- Clear remaining flags.
+                            MAP_0000_0FFF_DRAM     <= '0';
+                            MAP_1000_1FFF_DRAM     <= '0';
+                            MAP_8000_8FFF_DRAM     <= '0';
+                            MAP_9000_9FFF_DRAM     <= '0';
+                            MAP_E000_EFFF_DRAM     <= '0';
+                            MAP_F000_FFFF_DRAM     <= '0';
+                            MAP_C000_CFFF_VRAM     <= '0';
+                            MAP_D000_DFFF_VRAM     <= '0';
+                            MAP_E000_E00F_IO       <= '0';
+                            MAP_INHIBIT            <= '0';
+
+                        else
+                            MAP_0000_0FFF_ROM      <= '1';
+                            MAP_1000_1FFF_DRAM     <= '1';
+                            MAP_2000_2FFF_DRAM     <= '1';
+                            MAP_3000_3FFF_DRAM     <= '1';
+                            MAP_4000_4FFF_DRAM     <= '1';
+                            MAP_5000_5FFF_DRAM     <= '1';
+                            MAP_6000_6FFF_DRAM     <= '1';
+                            MAP_7000_7FFF_DRAM     <= '1';
+                            MAP_8000_8FFF_DRAM     <= '1';
+                            MAP_9000_9FFF_DRAM     <= '1';
+                            MAP_A000_AFFF_DRAM     <= '1';
+                            MAP_B000_BFFF_DRAM     <= '1';
+                            MAP_C000_CFFF_DRAM     <= '1';
+                            MAP_D000_DFFF_VRAM     <= '1';
+                            MAP_E000_E00F_IO       <= '1';
+                            MAP_E000_EFFF_ROM      <= '1';
+                            MAP_F000_FFFF_ROM      <= '1';
+                            -- Clear remaining flags.
+                            MAP_0000_0FFF_DRAM     <= '0';
+                            MAP_1000_1FFF_CGROM    <= '0';
+                            MAP_D000_DFFF_DRAM     <= '0';
+                            MAP_E000_EFFF_DRAM     <= '0';
+                            MAP_F000_FFFF_DRAM     <= '0';
+                            MAP_8000_8FFF_VRAM     <= '0';
+                            MAP_9000_9FFF_VRAM     <= '0';
+                            MAP_A000_AFFF_VRAM     <= '0';
+                            MAP_B000_BFFF_VRAM     <= '0';
+                            MAP_C000_CFFF_VRAM     <= '0';
+                            MAP_INHIBIT            <= '0';
+                        end if;
 
                     -- 0xE5
                     when "101" =>
-                        mz700_INHIBIT    := '1';
+                        MAP_INHIBIT                <= '1';
 
                     -- 0xE6
                     when "110" =>
-                        mz700_INHIBIT    := '0';
+                        MAP_INHIBIT                <= '0';
+
+                    -- 0xE7
+                    when "111" =>
+                end case;
+
+                -- Single memory map mode to handle the MZ-800, decoding is done in the memory management process.
+                if MODE_HOST_DEFAULT = '0' then
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ800, MEM_MODE_LATCH'length));
+                end if;
+
+            -- Check for MZ700 Mode memory changes and adjust current memory mode setting.
+            --
+            elsif((CPLD_HOST_HW = MODE_MZ700 or CPLD_HOST_HW = MODE_MZ80A) and MODE_CPLD_MZ700 = '1' and Z80_IORQn = '0' and Z80_M1n = '1' and Z80_ADDR(7 downto 3) = "11100") then
+                
+                case Z80_ADDR(2 downto 0) is
+                    -- 0xE0
+                    when "000" =>
+                        mz700_LOWER_RAM            := '1';
+
+                    -- 0xE1
+                    when "001" =>
+                        mz700_UPPER_RAM            := '1';
+
+                    -- 0xE2
+                    when "010" =>
+                        mz700_LOWER_RAM            := '0';
+
+                    -- 0xE3
+                    when "011" =>
+                        mz700_UPPER_RAM            := '0';
+
+                    -- 0xE4
+                    when "100" =>
+                        mz700_LOWER_RAM            := '0';
+                        mz700_UPPER_RAM            := '0';
+
+                    -- 0xE5
+                    when "101" =>
+                        mz700_INHIBIT              := '1';
+
+                    -- 0xE6
+                    when "110" =>
+                        mz700_INHIBIT              := '0';
 
                     -- 0xE7
                     when "111" =>
                 end case;
 
                 if(mz700_INHIBIT = '0' and mz700_LOWER_RAM = '0' and mz700_UPPER_RAM = '0') then
-                    MEM_MODE_LATCH(4 downto 0) <= "00010";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_TZFS,    MEM_MODE_LATCH'length));
 
                 elsif(mz700_INHIBIT = '0' and mz700_LOWER_RAM = '1' and mz700_UPPER_RAM = '0') then
-                    MEM_MODE_LATCH(4 downto 0) <= "01010";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ700_0, MEM_MODE_LATCH'length));
 
                 elsif(mz700_INHIBIT = '0' and mz700_LOWER_RAM = '0' and mz700_UPPER_RAM = '1') then
-                    MEM_MODE_LATCH(4 downto 0) <= "01011";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ700_1, MEM_MODE_LATCH'length));
 
                 elsif(mz700_INHIBIT = '0' and mz700_LOWER_RAM = '1' and mz700_UPPER_RAM = '1') then
-                    MEM_MODE_LATCH(4 downto 0) <= "01100";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ700_2, MEM_MODE_LATCH'length));
 
                 elsif(mz700_INHIBIT = '1' and mz700_LOWER_RAM = '0') then
-                    MEM_MODE_LATCH(4 downto 0) <= "01101";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ700_3, MEM_MODE_LATCH'length));
 
                 elsif(mz700_INHIBIT = '1' and mz700_LOWER_RAM = '1') then
-                    MEM_MODE_LATCH(4 downto 0) <= "01110";
+                    MEM_MODE_LATCH(4 downto 0)     <= std_logic_vector(to_unsigned(TZMM_MZ700_4, MEM_MODE_LATCH'length));
                 else
                     null;
                 end if;
+
+            -- Unknown event!
             else
                 null;
             end if;
@@ -828,6 +1253,7 @@ begin
     --                  12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     --                  13 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
     --                  14 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+    --                  15 - MZ800 Mode - Running on MZ800 hardware, configuration set according to MZ700/MZ800 mode.
     --                  21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
     --                  22 - Access to the host mainboard 64K address space only.
     --                  23 - Access all memory and IO on the tranZPUter board with the K64F addressing the full 512K RAM.
@@ -840,7 +1266,10 @@ begin
     --                  30 - All memory and IO are on the tranZPUter board, 64K block 6 selected.
     --                  31 - All memory and IO are on the tranZPUter board, 64K block 7 selected.
     --
-    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPLD_CFGn, CS_CPLD_INFOn, MODE_CPLD_MB_VIDEOn)
+    MEMORYMGMT: process(Z80_ADDR, Z80_WRn, Z80_RDn, Z80_IORQn, Z80_MREQn, Z80_M1n, MEM_MODE_LATCH, SYS_BUSACKni, CS_VIDEOn, CS_VIDEO_IOn, CS_IO_DXXn, CS_IO_EXXn, CS_IO_FXXn, CS_CPLD_CFGn, CS_CPLD_INFOn, MODE_CPLD_MB_VIDEOn, MAP_TZFS_BANK,
+                        MAP_INHIBIT, MODE_CPLD_MZ700, MODE_CPLD_MZ800, MAP_0000_0FFF_ROM, MAP_E000_EFFF_ROM, MAP_F000_FFFF_ROM, MAP_1000_1FFF_CGROM, MAP_0000_0FFF_DRAM, MAP_1000_1FFF_DRAM, MAP_2000_2FFF_DRAM, MAP_3000_3FFF_DRAM, MAP_4000_4FFF_DRAM, 
+                        MAP_5000_5FFF_DRAM, MAP_6000_6FFF_DRAM, MAP_7000_7FFF_DRAM, MAP_8000_8FFF_DRAM, MAP_9000_9FFF_DRAM, MAP_A000_AFFF_DRAM, MAP_B000_BFFF_DRAM, MAP_C000_CFFF_DRAM, MAP_D000_DFFF_DRAM, MAP_E000_EFFF_DRAM, MAP_F000_FFFF_DRAM, 
+                        MAP_8000_8FFF_VRAM, MAP_9000_9FFF_VRAM, MAP_A000_AFFF_VRAM, MAP_B000_BFFF_VRAM, MAP_C000_CFFF_VRAM, MAP_D000_DFFF_VRAM, MAP_E000_E00F_IO, MODE_320x200, MODE_640x200)
     begin
 
         -- Memory action according to the configured memory mode. Not synchronous as we need to detect and act on address or signals long before a rising edge.
@@ -865,10 +1294,10 @@ begin
 
             -- Whenever running in RAM ensure the mainboard is disabled to prevent decoder propagation delay glitches.
             when TZMM_BOOT => 
-                RAM_CSni            <= '0';
-                CS_VIDEO_MEMn       <= '1';
                 Z80_HI_ADDRi        <= "00000000"; 
                 Z80_RA_ADDRi        <= Z80_ADDR(15 downto 12);
+                RAM_CSni            <= '0';
+                CS_VIDEO_MEMn       <= '1';
                 if CS_VIDEOn = '0' then
                     DISABLE_BUSn    <= '1';
                     RAM_WEni        <= '1';
@@ -894,19 +1323,22 @@ begin
             -- detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when TZMM_TZFS => 
-                RAM_CSni            <= '0';
-                CS_VIDEO_MEMn       <= '1';
-                Z80_HI_ADDRi        <= "00000000"; 
-                Z80_RA_ADDRi        <= Z80_ADDR(15 downto 12);
 
+                -- FPGA Video
                 if CS_VIDEOn = '0' then
+                    CS_VIDEO_MEMn   <= Z80_MREQn;
                     DISABLE_BUSn    <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
-                    CS_VIDEO_MEMn   <= Z80_MREQn;
 
-                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                -- Monitor/TZFS page locations 0000:0FFF, E800:FFFF
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                    Z80_HI_ADDRi    <= "00000000"; 
+                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
                     DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -914,8 +1346,21 @@ begin
                         RAM_WEni    <= Z80_WRn;
                     end if;
 
+                -- DRAM
+                elsif(unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") then
+                    Z80_HI_ADDRi    <= "00000110"; 
+                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
+                    RAM_OEni        <= Z80_RDn;
+                    RAM_WEni        <= Z80_WRn;
+
                 else
+                    -- No action, defaults set to work directly on mainboard.
                     DISABLE_BUSn    <= '1';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -923,21 +1368,26 @@ begin
             -- Set 3 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 1.
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when TZMM_TZFS2 => 
-                RAM_CSni            <= '0';
-                CS_VIDEO_MEMn       <= '1';
 
                 if CS_VIDEOn = '0' then
+                    CS_VIDEO_MEMn   <= Z80_MREQn;
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
-                    CS_VIDEO_MEMn   <= Z80_MREQn;
 
-                elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then 
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000000"; 
+                -- Monitor/TZFS page locations 0000:0FFF, E800:FFFF
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                    if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"EFFF" )) then
+                        Z80_HI_ADDRi    <= "00000000"; 
+                    else
+                        -- Page in Bank 1 memory in F000:FFFF slot.
+                        Z80_HI_ADDRi    <= "00000001"; 
+                    end if;
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -945,17 +1395,21 @@ begin
                         RAM_WEni    <= Z80_WRn;
                     end if;
 
-                elsif (unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000001"; 
+                -- DRAM
+                elsif(unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") then
+                    Z80_HI_ADDRi    <= "00000110"; 
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
+                    -- No action, defaults set to work directly on mainboard.
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -963,21 +1417,26 @@ begin
             -- Set 4 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 2.
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when TZMM_TZFS3 => 
-                RAM_CSni            <= '0';
-                CS_VIDEO_MEMn       <= '1';
 
                 if CS_VIDEOn = '0' then
+                    CS_VIDEO_MEMn   <= Z80_MREQn;
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
-                    CS_VIDEO_MEMn   <= Z80_MREQn;
 
-                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000000"; 
+                -- Monitor/TZFS page locations 0000:0FFF, E800:FFFF
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                    if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"EFFF" )) then
+                        Z80_HI_ADDRi    <= "00000000"; 
+                    else
+                        -- Page in Bank 2 memory in F000:FFFF slot.
+                        Z80_HI_ADDRi    <= "00000010"; 
+                    end if;
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -985,17 +1444,21 @@ begin
                         RAM_WEni    <= Z80_WRn;
                     end if;
 
-                elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF")) then
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000010"; 
+                -- DRAM
+                elsif(unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") then
+                    Z80_HI_ADDRi    <= "00000110"; 
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
+                    -- No action, defaults set to work directly on mainboard.
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -1003,21 +1466,26 @@ begin
             -- Set 5 - Monitor ROM 0000-0FFF, Main RAM area 0x1000-0xD000, User ROM 0xE800-EFFF are in tranZPUter memory block 0, Floppy ROM F000-FFFF are in tranZPUter memory block 3.
             -- NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
             when TZMM_TZFS4 => 
-                RAM_CSni            <= '0';
-                CS_VIDEO_MEMn       <= '1';
 
                 if CS_VIDEOn = '0' then
+                    CS_VIDEO_MEMn   <= Z80_MREQn;
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
-                    CS_VIDEO_MEMn   <= Z80_MREQn;
 
-                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) < X"F000"))) then
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000000"; 
+                -- Monitor/TZFS page locations 0000:0FFF, E800:FFFF
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                    if( (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"EFFF" )) then
+                        Z80_HI_ADDRi    <= "00000000"; 
+                    else
+                        -- Page in Bank 2 memory in F000:FFFF slot.
+                        Z80_HI_ADDRi    <= "00000011"; 
+                    end if;
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     if unsigned(Z80_ADDR(15 downto 0)) = X"E800" then
                         RAM_WEni    <= '1';
@@ -1025,17 +1493,21 @@ begin
                         RAM_WEni    <= Z80_WRn;
                     end if;
 
-                elsif((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF")) then
-                    DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000011"; 
+                -- DRAM
+                elsif(unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) < X"D000") then
+                    Z80_HI_ADDRi    <= "00000110"; 
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
 
                 else
+                    -- No action, defaults set to work directly on mainboard.
                     DISABLE_BUSn    <= '1';
-                    Z80_HI_ADDRi    <= "00000000"; 
-                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;
@@ -1048,7 +1520,7 @@ begin
 
                 if (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) then 
                     DISABLE_BUSn    <= '0';
-                    Z80_HI_ADDRi    <= "00000000"; 
+                    Z80_HI_ADDRi    <= "00000100"; 
                     Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
                     RAM_OEni        <= Z80_RDn;
                     RAM_WEni        <= Z80_WRn;
@@ -1294,6 +1766,105 @@ begin
                     RAM_OEni        <= '1';
                 end if;
 
+            -- Set 15 - MZ800 Mode - The memory map is decoded according to a set of flags registered in the MACHINEMODE process. This technique
+            --                       differs to that used for the MZ700 which in hindsight the MZ700 should use but the MZ700 mode comes from the
+            --                       early tranZPUter SW developments which used a Flash RAM decoder.
+            when TZMM_MZ800 =>
+                -- Defaults.
+                RAM_CSni            <= '0';
+                RAM_WEni            <= '1';
+                RAM_OEni            <= '1';
+                Z80_HI_ADDRi        <= "00000110";            -- Bank 6 = DRAM
+                Z80_RA_ADDRi        <= Z80_ADDR(15 downto 12);
+                DISABLE_BUSn        <= '1';
+                CS_VIDEO_MEMn       <= '1';
+
+                -- Memory area inhibited?
+                if( MAP_INHIBIT = '1' and
+                   ((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and MODE_CPLD_MZ700 = '1') or
+                    (unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and MODE_CPLD_MZ800 = '1') )) then
+
+                -- CGROM override? Used for copying the CGROM into the PCG at startup.
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) <= X"1FFF") and MAP_1000_1FFF_CGROM = '1') then
+
+                    -- No action necessary, the region is locked out.
+
+                -- Monitor ROM at 0000 enabled? If so, setup to access tranZPUter RAM acting as ROM.
+                elsif(((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) < X"1000")) and MAP_0000_0FFF_ROM = '1') then
+
+                    -- Setup to access tranZPUter RAM. Default to Bank 0 64K RAM block.
+                    DISABLE_BUSn    <= '0';
+                    RAM_OEni        <= Z80_RDn;
+                    RAM_WEni        <= '1';
+
+                    -- Chose RAM bank according to mode, Original = Bank 7 IPL ROMs, TZFS = Bank 0 ROMs.
+                    if MAP_TZFS_BANK = '1' then
+                        Z80_HI_ADDRi<= "00000000"; 
+                    else
+                        Z80_HI_ADDRi<= "00000111"; 
+                    end if;
+
+                -- Monitor ROM enabled at E000:FFFF or E010:FFFF? If so, setup to access tranZPUter RAM acting as ROM.
+                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"E00F" and MAP_E000_E00F_IO = '0' and MAP_E000_EFFF_ROM = '1')) or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"E010" and unsigned(Z80_ADDR(15 downto 0)) <= X"EFFF" and MAP_E000_EFFF_ROM = '1')) or 
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF" and MAP_F000_FFFF_ROM = '1')) ) then 
+                   
+                    -- Setup to access tranZPUter RAM. Default to Bank 0 64K RAM block.
+                    DISABLE_BUSn    <= '0';
+                    RAM_OEni        <= Z80_RDn;
+                    RAM_WEni        <= Z80_WRn;
+
+                    -- Chose RAM bank according to mode, Original = Bank 7 IPL ROMs, TZFS = Bank 0 ROMs.
+                    if MAP_TZFS_BANK = '1' then
+                        Z80_HI_ADDRi<= "00000000"; 
+                    else
+                        Z80_HI_ADDRi<= "00000111"; 
+                    end if;
+
+                -- Memory I/O region mapped in during MZ-700 mode.
+                elsif( (unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"E00F" and MAP_E000_E00F_IO = '1')) then
+
+                    -- Defaults apply, accessing a mainboard resource and the mainboard decode logic will activate.
+
+                -- Video RAM enabled in region: 8000:9FFF, A000:BFFF, D000:DFFF? If so, setup to access mainboard Video RAM.
+                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"8000" and unsigned(Z80_ADDR(15 downto 0)) <= X"8FFF") and MAP_8000_8FFF_VRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"9000" and unsigned(Z80_ADDR(15 downto 0)) <= X"9FFF") and MAP_9000_9FFF_VRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"A000" and unsigned(Z80_ADDR(15 downto 0)) <= X"AFFF") and MAP_A000_AFFF_VRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"B000" and unsigned(Z80_ADDR(15 downto 0)) <= X"BFFF") and MAP_B000_BFFF_VRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"CFFF") and MAP_C000_CFFF_VRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"DFFF") and MAP_D000_DFFF_VRAM = '1') ) then
+
+                    -- Defaults apply, accessing a mainboard resource and the mainboard decode logic will activate.
+
+                -- DRAM enabled in region: 0000:FFFF enabled in 4K blocks. If one is active, select the correct tranZPUter RAM bank.
+                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") and MAP_0000_0FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"1000" and unsigned(Z80_ADDR(15 downto 0)) <= X"1FFF") and MAP_1000_1FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"2000" and unsigned(Z80_ADDR(15 downto 0)) <= X"2FFF") and MAP_2000_2FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"3000" and unsigned(Z80_ADDR(15 downto 0)) <= X"3FFF") and MAP_3000_3FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"4000" and unsigned(Z80_ADDR(15 downto 0)) <= X"4FFF") and MAP_4000_4FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"5000" and unsigned(Z80_ADDR(15 downto 0)) <= X"5FFF") and MAP_5000_5FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"6000" and unsigned(Z80_ADDR(15 downto 0)) <= X"6FFF") and MAP_6000_6FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"7000" and unsigned(Z80_ADDR(15 downto 0)) <= X"7FFF") and MAP_7000_7FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"8000" and unsigned(Z80_ADDR(15 downto 0)) <= X"8FFF") and MAP_8000_8FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"9000" and unsigned(Z80_ADDR(15 downto 0)) <= X"9FFF") and MAP_9000_9FFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"A000" and unsigned(Z80_ADDR(15 downto 0)) <= X"AFFF") and MAP_A000_AFFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"B000" and unsigned(Z80_ADDR(15 downto 0)) <= X"BFFF") and MAP_B000_BFFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"C000" and unsigned(Z80_ADDR(15 downto 0)) <= X"CFFF") and MAP_C000_CFFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"DFFF") and MAP_D000_DFFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"E000" and unsigned(Z80_ADDR(15 downto 0)) <= X"EFFF") and MAP_E000_EFFF_DRAM = '1') or
+                       ((unsigned(Z80_ADDR(15 downto 0)) >= X"F000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF") and MAP_F000_FFFF_DRAM = '1') ) then
+
+                    -- Setup to access tranZPUter RAM. Default to Bank 6 64K RAM block.
+                    DISABLE_BUSn    <= '0';
+--                    if (unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"0FFF") or (unsigned(Z80_ADDR(15 downto 0)) >= X"D000" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF") then
+ --                   else
+ --                       Z80_HI_ADDRi<= "00000000"; 
+--                    end if;
+                    RAM_OEni        <= Z80_RDn;
+                    RAM_WEni        <= Z80_WRn;
+
+                end if;
+
             -- Set 21 - Access the FPGA memory by passing through the full 24bit Z80 address, typically from the K64F.
             when TZMM_FPGA =>
                 DISABLE_BUSn        <= '0';
@@ -1522,6 +2093,10 @@ begin
                              else
                              CPLD_INFO_DATA              when CS_CPLD_INFOn = '0'  and Z80_RDn = '0'                               -- Read version & hw build information.
                              else
+                             CPU_CFG_DATA                when CS_CPU_CFGn = '0'    and Z80_RDn = '0'                               -- Read the CPU configuration data - Not yet implemented.
+                             else
+                             CPU_CFG_DATA                when CS_CPU_INFOn = '0'   and Z80_RDn = '0'                               -- Read the CPU information data - Not yet implemented.
+                             else
                              CLK_STATUS_DATA             when CS_SCK_RDn = '0'     and Z80_RDn = '0'                               -- Read the clock select status.
                              else 
                              MEM_MODE_DATA               when CS_MEM_CFGn = '0'    and Z80_RDn = '0'                               -- Read the memory mode latch.
@@ -1581,6 +2156,10 @@ begin
                               else '1';
     SVCREQn               <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 1) = "100"                -- IO 68
                               else '1';
+    CS_CPU_CFGn           <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1100"               -- IO 6C
+                              else '1';
+    CS_CPU_INFOn          <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1101"               -- IO 6D
+                              else '1';
     CS_CPLD_CFGn          <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1110"               -- IO 6E
                               else '1';
     CS_CPLD_INFOn         <= '0'                         when CS_IO_6XXn = '0'     and Z80_ADDR(3 downto 0) = "1111"               -- IO 6F
@@ -1593,10 +2172,13 @@ begin
     RAM_WEn               <= RAM_WEni                    when Z80_MREQn = '0'
                              else '1';
 
-    -- I/O Control signals to read and update the current video parameters, mainly used for setting FPGA access.
+    -- MZ-800 Custom gate array control registers.
+    CS_IO_CXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1100"
+                              else '1';
+    -- I/O Control signals to read and update the current video parameters, used for setting FPGA access on the MZ-80A and underlying hardware on the MZ-800..
     CS_IO_DXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1101"
                               else '1';
-    -- I/O Control signals, mainly used for mirroring of the video module registers.
+    -- I/O Control signals, used for mirroring of the video module registers on the MZ-80A and underlying registers on the MZ-800..
     CS_IO_EXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1110"
                               else '1';
     CS_IO_FXXn            <= '0'                         when Z80_IORQn = '0'      and Z80_M1n = '1' and Z80_ADDR(7 downto 4) = "1111"
@@ -1608,8 +2190,19 @@ begin
     CS_FB_PAGEn           <= '0'                         when CS_IO_FXXn = '0'     and Z80_ADDR(3 downto 0) = "1101"
                               else '1';
     -- MZ80B/MZ2000 I/O Registers E0-EB,
-    CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0'     and Z80_ADDR(3 downto 2) = "10" and MODE_VIDEO_MZ80B = '1'
+    CS_80B_PIOn           <= '0'                         when CS_IO_EXXn = '0'     and Z80_ADDR(3 downto 2) = "10"   and MODE_VIDEO_MZ80B = '1'
                               else '1';
+    -- MZ-800 Custom gate array control signals.
+    -- 0xCC
+    CS_GDG_GWF            <= '0'                         when CS_IO_CXXn = '0'     and Z80_ADDR(3 downto 0) = "1100" and CPLD_HOST_HW = MODE_MZ800
+                             else '1';
+    -- 0xCD
+    CS_GDG_GRF            <= '0'                         when CS_IO_CXXn = '0'     and Z80_ADDR(3 downto 0) = "1101" and CPLD_HOST_HW = MODE_MZ800
+                             else '1';
+    -- 0xCE
+    CS_GDG_CMD            <= '0'                         when CS_IO_CXXn = '0'     and Z80_ADDR(3 downto 0) = "1110" and CPLD_HOST_HW = MODE_MZ800
+                             else '1';
+
 
     -- Select for video based on the memory being accessed, the mode and control signals.
                              -- Standard access to VRAM/ARAM. Video memory based IO registers in region E000:E2FF are enabled so that the FPGA can set its internal mirrored values but FPGA to block read operations as it will affect mainboard reads from keyboard etc.
@@ -1629,7 +2222,7 @@ begin
 
     -- Set the mainboard video state, 0 = enabled, 1 = disabled. The flag is set if the CPLD Config register Bit 3 is set or if the Serializer
     -- becomes active which means a Video Module is connected.
-    MODE_CPLD_MB_VIDEOn   <= '1'                         when CPLD_CFG_DATA(3) = '1' or VIDEOMODULE_PRESENT = '1'
+    MODE_CPLD_MB_VIDEOn   <= '1'                         when CPLD_CFG_DATA(3) = '0' or VIDEOMODULE_PRESENT = '1'
                              else '0';
     -- Set CPLD mode flag according to value given in config 2:0 
     MODE_CPLD_MZ80K       <= '1'                         when to_integer(unsigned(CPLD_CFG_DATA(2 downto 0))) = MODE_MZ80K

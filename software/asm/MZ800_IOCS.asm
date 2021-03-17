@@ -1,16 +1,22 @@
               ;
               ;
-              ; SHARPMZ - 821
-              ; (ROM contents, upper monitor E000-F3FF)
+              ; SHARP MZ-800 BASIC IOCS
+              ; (C) Sharp Corporation, 1982-84
+              ;
+              ; Dissassembled, assembled and compared with original binary. Will need some additional work to make labels etc more readable along
+              ; with comments!
+              ;
+              ; This code is targetted in the upper monitor region, 0xF400 - 0xFFFF
               ;
               ;
-              ; Input / Output address
+              ;
+
+              ORG     0F400H
               INCLUDE "Macros.asm"
 
 BRKEY:        EQU     0001EH
 
-              ORG     0F400H
-
+              ; API Jump Table.
               JP      LF6C8
               JP      LF8FF
               JP      LF96A

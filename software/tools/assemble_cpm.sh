@@ -38,7 +38,7 @@ ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms                     # Compiled or source ROM files.
 HDRDIR=${ROOTDIR}/software/hdr                      # MZF headers directory.
-MZFDIR=${ROOTDIR}/software/MZF                      # MZF Format source files.
+MZFDIR=${ROOTDIR}/software/MZF/Common               # MZF Format source files.
 
 # Go through list and build images.
 #

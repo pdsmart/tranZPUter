@@ -327,7 +327,7 @@ FDCJMPL2:   JP       (IX)
             ;-------------------------------------------------------------------------------
             ;        0                                       + <- 39
             ;        -----------------------------------------
-MSGSON:     DB      "+ TZFS v1.4 ",                                                       000H                     ; Version 1.0-> first split from RFS v2.0
+MSGSON:     DB      "+ TZFS v1.5 ",                                                       000H                     ; Version 1.0-> first split from RFS v2.0
 MSGSONEND:  DB      " **",                                                          00DH, 000H                     ; Signon banner termination.
 MSGSONT80:  DB      "(T80)",                                                              000H                     ; T80 CPU detected.
 MSGNOTFND:  DB      "Not Found",                                                    00DH, 000H
@@ -409,45 +409,47 @@ HELP:       ;CALL    NL
             ; Help text. Use of lower case, due to Sharp's non standard character set, is not easy, you have to manually code each byte
             ; hence using upper case.
 HELPSCR:    ;       "--------- 40 column width -------------"
-            DB      "4     - 40 col mode.",                                 00DH
-            DB      "8     - 80 col mode.",                                 00DH
-            DB      "40A   - select MZ-80A 40col Mode.",                    00DH
-            DB      "80A   - select MZ-80A 80col Mode.",                    00DH
-            DB      "80B   - select MZ-80B Mode.",                          00DH
-            DB      "700   - select MZ-700 40col Mode.",                    00DH
-            DB      "7008  - select MZ-700 80col Mode.",                    00DH
-            DB      "B     - toggle keyboard bell.",                        00DH
-            DB      "BASIC - load BASIC SA-5510.",                          00DH
-            DB      "C[b]  - clear memory $1200-$D000.",                    00DH
-            DB      "CPM   - load CPM.",                                    00DH
+            DB      "4      - 40 col mode.",                                00DH
+            DB      "8      - 80 col mode.",                                00DH
+            DB      "40A    - select MZ-80A 40col Mode.",                   00DH
+            DB      "80A    - select MZ-80A 80col Mode.",                   00DH
+            DB      "80B    - select MZ-80B Mode.",                         00DH
+            DB      "700    - select MZ-700 40col Mode.",                   00DH
+            DB      "7008   - select MZ-700 80col Mode.",                   00DH
+            DB      "B      - toggle keyboard bell.",                       00DH
+            DB      "BASIC  - load BASIC SA-5510.",                         00DH
+            DB      "C[b]   - clear memory $1200-$D000.",                   00DH
+            DB      "CPM    - load CPM.",                                   00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
-            DB      "EC[fn]- erase file, fn=No or Filename",                00DH
-            DB      "EX    - exit TZFS, reset as original.",                00DH
-            DB      "F[x]  - boot fd drive x.",                             00DH
-            DB      "FREQ[n]-set CPU to nKHz, 0 for default.",              00DH
-            DB      "H     - this help screen.",                            00DH
-            DB      "IC[wc]- SD dir listing, wc=wildcard.",                 00DH
-            DB      "JXXXX - jump to location XXXX.",                       00DH
-            DB      "LT[fn]- load tape, fn=Filename",                       00DH
-            DB      "LC[fn]- load from SD, fn=No or Filename",              00DH
-            DB      "      - add NX for no exec, ie.LCNX.",                 00DH
-            DB      "MXXXX - edit memory starting at XXXX.",                00DH
-            DB      "P     - test printer.",                                00DH
-            DB      "R     - test dram memory.",                            00DH
-            DB      "SDD[d]- change to SD directory [d].",                  00DH
-            DB      "SD2T  - copy sd card to tape.",                        00DH
-            DB      "ST[XXXXYYYYZZZZ] - save mem to tape.",                 00DH
-            DB      "SC[XXXXYYYYZZZZ] - save mem to card.",                 00DH
+            DB      "ECfn   - erase file, fn=No or Filename",               00DH
+            DB      "EX     - exit TZFS, reset as original.",               00DH
+            DB      "Fx     - boot fd drive x.",                            00DH
+            DB      "FREQn  -set CPU to nKHz, 0 default.",                  00DH
+            DB      "H      - this help screen.",                           00DH
+            DB      "IC[wc] - SD dir listing, wc=wildcard.",                00DH
+            DB      "JXXXX  - jump to location XXXX.",                      00DH
+            DB      "LTfn- load tape, fn=Filename",                         00DH
+            DB      "LCfn[,M]- load from SD, fn=No or FileN",               00DH
+            DB      "         M = HW Mode, ie. 8=MZ800.",                   00DH
+            DB      "       - add NX for no exec, ie.LCNX.",                00DH
+            DB      "MXXXX  - edit memory starting at XXXX.",               00DH
+            DB      "P      - test printer.",                               00DH
+            DB      "R      - test dram memory.",                           00DH
+            DB      "SDDd   - change to SD directory {d}.",                 00DH
+            DB      "SD2Tfn - copy sd card to tape.",                       00DH
+            DB      "STXXXXYYYYZZZZ - save mem to tape.",                   00DH
+            DB      "SCXXXXYYYYZZZZ - save mem to card.",                   00DH
             DB      "        XXXX=start,YYYY=end,ZZZZ=exec",                00DH
-            DB      "T     - test timer.",                                  00DH
+            DB      "T      - test timer.",                                 00DH
             DB      "T2SD[B]- copy tape to sd card, B=Bulk",                00DH
-            DB      "T80   - switch to soft T80 CPU.",                      00DH
-            DB      "V     - verify tape save.",                            00DH
-            DB      "VBORDER[n] - set vga border colour.",                  00DH
-            DB      "VMODE[n] - set video mode.",                           00DH
-            DB      "VGA[n]- set VGA mode.",                                00DH
-            DB      "Z80   - switch to original Z80 CPU.",                  00DH
-            DB      "ZPU   - switch to ZPU Evo CPU and zOS.",               00DH
+            DB      "T80    - switch to soft T80 CPU.",                     00DH
+            DB      "V      - verify tape save.",                           00DH
+            DB      "VBORDERn - set vga border colour.",                    00DH
+            DB      "VMODEn - set video mode.",                             00DH
+            DB      "VGAn   - set VGA mode.",                               00DH
+            DB      "Z80    - switch to original Z80 CPU.",                 00DH
+            DB      "ZPU    - switch to ZPU Evo CPU / zOS.",                00DH
+            ;       "--------- 40 column width -------------"
             DB      000H
 
             ;-------------------------------------------------------------------------------

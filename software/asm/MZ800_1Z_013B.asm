@@ -1,12 +1,20 @@
-              ORG   0                                                  
               ;
+              ; SHARP MZ-800 Monitor 1Z-013B
+              ; (C) Sharp Corporation, 1982-84
               ;
-              ; SHARPMZ - 8 2 1
-              ; (ROM contents, lower monitor 0000-0FFF)
+              ; This source based on the printer listing of the original rom dissassembled by the Czech Sharp Users Club 1987.
               ;
+              ; Dissassembly had missing data definition areas which have now been added along with translation
+              ; of the comments and changes to better match the Sharp original listing labels.
               ;
-              ; Input / Output address
+              ; Re-assembly of this source using the Glass Z80 assembler results in identical output compared with the original rom.
               ;
+              ; This code is targetted in the lower monitor region, 0x0000 - 0x0FFF
+              ;
+
+              ORG   00000H                                                  
+              INCLUDE "Macros.asm"              
+
               ; Printer interface                                              
 PCPR:         EQU   0FCH                            ; Z80 / PIO
 PLPT:         EQU   PCPR+3                          ; printer data output
@@ -20,15 +28,15 @@ PJ1:          EQU   0F1H                            ; joystick-2 input port
 PJ0:          EQU   0F0H                            ; joystick-1 input port
               ; Pallet write                                                   
 PPAL:         EQU   0F0H                            ; pallet write
-              ; Memory managerment ports  OUT                                  
-PMMC6:        EQU   0E6H                            ; condition from hill protection
-PMMC5:        EQU   0E5H                            ; protect the hill
-PMMC4:        EQU   0E4H                            ; maximum neRAM as far as possible
-PMMC3:        EQU   0E3H                            ; ROM up
-PMMC2:        EQU   0E2H                            ; ROM down
-              ; Memory managerment ports  OUT / IN                             
-PMMC1:        EQU   0E1H                            ; DRAM up / VRAM pryc
-PMMC0:        EQU   0E0H                            ; DRAM up / VRAM
+              ; Memory managerment ports OUT / IN
+MMIO0:        EQU   0E0H                            ; DRAM up / VRAM
+MMIO1:        EQU   0E1H                            ; DRAM up / VRAM pryc
+              ; Memory managerment ports OUT
+MMIO2:        EQU   0E2H                            ; ROM down
+MMIO3:        EQU   0E3H                            ; ROM up
+MMIO4:        EQU   0E4H                            ; maximum neRAM as far as possible
+MMIO5:        EQU   0E5H                            ; Inhibit upper memory access
+MMIO6:        EQU   0E6H                            ; Restore upper memory access
               ; Floppy disk                                                    
 PFD:          EQU   0D8H                                               
 PFDSIZ:       EQU   PFD+5                           ; floppy side settings
@@ -50,10 +58,10 @@ PPORTC:       EQU   P8255+2                         ; port C - CMT and control
 PKBDIN:       EQU   P8255+1                         ; keyboard input
 PKBOUT:       EQU   P8255+0                         ; keyboard strobe
               ; GDG I/O ports                                                  
-PCRTC:        EQU   0CFH                            ; CRTC register
-PDMD:         EQU   0CEH                            ; display mod register
-PRF:          EQU   0CDH                            ; read format register
-PWF:          EQU   0CCH                            ; write format register
+GDCRTC:       EQU   0CFH                            ; CRTC control register
+GDCMD:        EQU   0CEH                            ; CRTC Mode register
+GDGRF:        EQU   0CDH                            ;      read format register
+GDGWF:        EQU   0CCH                            ;      write format register
               ;                                                                
               ;  Memory mapping                                                
               ;                                                                
@@ -71,14 +79,14 @@ MPORTC:       EQU   M8255+2                         ; port C - CMT and control
 MKBDIN:       EQU   M8255+1                         ; keyboard input
 MKBOUT:       EQU   M8255+0                         ; keyboard strobe
               ;                                                                
-              ; definice ASCII konstant                                        
-CR:         EQU   0DH                             ; novy line
+              ; ASCII constants                                        
+CR:           EQU   0DH                             ; novy line
 SPACE:        EQU   20H                             ; gap
-ESC:        EQU   1BH                             ; escape
-CLS:        EQU   16H                             ; clear the screen
-CRD:        EQU   0CDH                            ; CR in display code
-NOKEY:         EQU   0F0H                            ; code NO KEY
-              ; definice adres displaye                                         
+ESC:          EQU   1BH                             ; escape
+CLS:          EQU   16H                             ; clear the screen
+CRD:          EQU   0CDH                            ; CR in display code
+NOKEY:        EQU   0F0H                            ; code NO KEY
+              ; definition of display addresses
 ADRCRT:       EQU   0D000H                          ; address MZ-700 VRAM
 ADRATB:       EQU   0D800H                          ; the address of the CRS attribute
 IMPATB:       EQU   71H                             ; default display attribute
@@ -159,14 +167,14 @@ RBASE:        EQU   0FFF0H                          ; run the program in RAM
               CP    20H                                                
               JR    NZ,J0070                        ; SHIFT, that's uninteresting
 GORAM:                                              ; jump to RAM from address 0
-              OUT   (PMMC1),A                       ; mapping - end = DRAM
+              OUT   (MMIO1),A                       ; mapping - end = DRAM
               LD    DE,RBASE                        ; where
               LD    HL,QRUNT                        ; what
               LD    BC,5                            ; pin
               LDIR                                  ; MOVE
               JP    RBASE                           ; ... jump
               ;                                                                
-QRUNT:        OUT   (PMMC0),A                       ; ... for copying
+QRUNT:        OUT   (MMIO0),A                       ; ... for copying
               JP    0                               ; jump to RAM
               ;                                                                
 J0070:                                                                 

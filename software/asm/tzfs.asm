@@ -21,6 +21,8 @@
 ;-                              CPU's now become possible.
 ;-                  Jan 2021  - Additional changes to accommodate soft CPU's.
 ;-                  Mar 2021  - Bug fixes - MZ-700/MZ-80A address differences.
+;-                            - Added optional machine model code on load command to enable 700/800
+;-                              programs to be loaded without changing the MZ800 mode switch.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -108,6 +110,8 @@ BANKTOBANK_:JMPTOBNK
 ?SETT80:    CALLBNK SETT80,      TZMM_TZFS4
 ?SETZ80:    CALLBNK SETZ80,      TZMM_TZFS4
 ?SETZPUEVO: CALLBNK SETZPUEVO,   TZMM_TZFS4
+?GETMODEL:  CALLBNK GETMODEL,    TZMM_TZFS3
+?PLTST:     CALLBNK PLTST,       TZMM_TZFS3
             ;-----------------------------------------
 
 
@@ -449,6 +453,7 @@ SVC_CMD2:   LD      A,(TZSVCRESULT)
             LD      DE,SVCIOERR
             CALL    ?PRINTMSG
             POP     DE
+            POP     BC
             LD      A,1                                                  ; No response, error.
             RET
 SVC_CMD3:   POP     BC
@@ -473,6 +478,7 @@ SVC_CMD5:   LD      A,(TZSVCRESULT)
             LD      DE,SVCRESPERR
             CALL    ?PRINTMSG
             POP     DE
+            POP     BC
             LD      A,2
             RET
 SVC_CMD6:   XOR     A                                                    ; Success.
@@ -487,35 +493,6 @@ SVC_CMD6:   XOR     A                                                    ; Succe
             ;-------------------------------------------------------------------------------
             ; UTILITIES
             ;-------------------------------------------------------------------------------
-
-            ; Method to get a string parameter and copy it into the provided buffer.
-            ;
-            ; Inputs:
-            ;     DE = Pointer to BUFER where user entered data has been placed.
-            ;     HL = Pointer to Destination buffer.
-            ;     B  = Max number of characters to read.
-            ; Outputs:
-            ;     DE and HL point to end of bufer and buffer resepectively.
-            ;     B  = Characters copied (ie. B - input B = no characters).
-            ;
-GETSTRING:  LD      A,(DE)                                               ; Skip white space before copy.
-            CP      ' '
-            JR      NC, GETSTR1
-            CP      00DH
-            JR      GETSTR2                                              ; No directory means use the I/O set default.
-            INC     DE
-            JR      GETSTRING
-GETSTR1:    LD      (HL),A                                               ; Copy the name entered by user. Validation is done on the I/O processor, bad directory name will result in error next read/write.
-            INC     DE
-            INC     HL
-            LD      A,(DE)                                               ; Get next char and check it isnt CR, end of input line character.
-            CP      00DH
-            JR      Z,GETSTR2                                            ; Finished if we encounter CR.
-            DJNZ    GETSTR1                                              ; Loop until buffer is full, ignore characters beyond buffer limit.
-GETSTR2:    XOR     A                                                    ; Place end of buffer terminator as I/O processor uses C strings.
-            LD      (HL),A
-            RET
-
 
             ; Method to read 4 bytes from a buffer pointed to by DE and attempt to convert to a 16bit number. If it fails, print out an error
             ; message and return with C set.
@@ -556,6 +533,11 @@ HEXIYX:     EX      (SP),IY
             JP      (IY)
 HEXIYX2:    POP     AF                                                   ; Waste the intermediate caller address
             RET    
+
+BOOTMB:     LD      A, TZMM_BOOT
+            OUT     (MMCFG),A
+            LD      HL,(EXADR)
+            JP      (HL)
 
             ; Bring in additional resources.
             USE_CMPSTRING:    EQU   1
@@ -1721,7 +1703,14 @@ LOADSD2:    LD      (SDCOPY),A
             CALL    _2HEX
             JR      C, LOADSD2A                                          ; 
             LD      (TZSVC_FILE_NO),A                                    ; A file number was found so store it in the service structure.
-LOADSD2A:   POP     HL
+LOADSD2A:   CALL    ?GETMODEL                                            ; Get machine model option.
+            LD      (TMPCNT),A
+            CP      008H                                                 ; Original mainboard memory is target?
+            LD      A,000H                                               ; tranZPUter.
+            JR      NZ,LOADSD2B
+            INC     A                                                    ; Mainboard.
+LOADSD2B:   LD      (TZSVC_MEM_TARGET), A
+            POP     HL
             LD      A,(TZSVC_FILE_NO)                                    ; Test to see if a file number was found, if one wasnt then a filename was given, so copy.
             CP      0FFH
             JR      NZ,LOADSD3A
@@ -1732,7 +1721,7 @@ LOADSD3A:   LD      A,TZSVC_FTYPE_MZF                                    ; Set t
             LD      (TZSVC_FILE_TYPE),A
             LD      A,TZSVC_CMD_LOADFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
-            CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
+            CALL    SVC_CMD                                              ; And make communications with the I/O processor, returning with the required record.
             OR      A
             JR      Z, LOADSD4
             LD      A,255                                                ; Report I/O error as 255.
@@ -1741,13 +1730,13 @@ LOADSD4:    LD      A,(TZSVCRESULT)
             OR      A
             JR      Z, LOADSD14
 LOADSD4A:   LD      DE,MSGNOTFND
-            CALL    ?PRINTMSG                                             ; Print message that file wasnt found.
+            CALL    ?PRINTMSG                                            ; Print message that file wasnt found.
             RET
 
             ; The file has been found and loaded into memory by the I/O processor.
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
             LD      BC,NAME
-            CALL    ?PRINTMSG                                             ; Print out the filename.
+            CALL    ?PRINTMSG                                            ; Print out the filename.
 
 LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoexecute turned off?
             CP      0FFh
@@ -1757,27 +1746,61 @@ LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoe
             JR      Z,LOADSD14A
             CP      TZOBJCD0                                             ; TZFS binary file for a particular bank?
             JR      C,LOADSD17
-LOADSD14A:  LD      HL,(EXADR)
+
+LOADSD14A:  IN      A,(CPLDINFO)                                         ; Check hardware, if not MZ800 skip memory reconfig.
+            AND     07H
+            CP      MODE_MZ800
+            JR      NZ, LOADSD14C
+            ;
+            LD      A,TZMM_MZ800                                         ; Return to MZ800 memory mode.
+            OUT     (MMCFG),A
+            OUT     (MMIO4),A                                            ; Reset to known state.
+            IN      A,(MMIO1)                                            ; Remove CGROM.
+            ;
+            LD      HL,DTADR                                             ; Load address 0? If so, page out monitor ROM.
+            XOR     A
+            OR      (HL)
+            INC     HL
+            OR      (HL)
+            JR      NZ, LOADSD14B
+            OUT     (MMIO0), A                    
+            ;
+LOADSD14B:  LD      A,(TMPCNT)                                           ; Get hardware model the loaded program should execute under.
+            CP      MODE_MZ700
+            JR      Z,LOADSD14C
+            CP      MODE_MZ800                                           ; Only interested in the MZ-800 at the moment, K to 700 models dont need special settings.
+            JR      NZ,LOADSD14C
+            OUT     (MMIO0),A                                            ; Bring in RAM to lower bank.
+            ;
+            XOR     A                                            
+            OUT     (GDCMD),A                                            ; Set MZ 800 mode
+            CALL    ?PLTST                                               ; Set the palette.
+            ;
+LOADSD14C:  LD      HL,(EXADR)
+            LD      A,(TZSVC_MEM_TARGET)
+            OR      A
+            JP      NZ,BOOTMB
             JP      (HL)                                                 ; Execution address.
+
 LOADSD15:   LD      DE,MSGCMTDATA                                        ; Indicate where the program was loaded and the execution address.
             LD      HL,(DTADR)
             PUSH    HL
             LD      HL,(EXADR)
             PUSH    HL
             LD      BC,(SIZE)
-LOADSD16:   CALL    ?PRINTMSG                                             ; Print out the filename.
+LOADSD16:   CALL    ?PRINTMSG                                            ; Print out the filename.
             POP     BC
             POP     BC                                                   ; Remove parameters off stack.
 LOADSDX:    LD      A,0                                                  ; Non error exit.
 LOADSDX1:   LD      (RESULT),A
             RET
 LOADSD17:   LD      DE,MSGNOTBIN
-            CALL    ?PRINTMSG                                             ; Print out the filename.
+            CALL    ?PRINTMSG                                            ; Print out the filename.
             JR      LOADSD16
 
 LOADSDERR:  LD      DE,MSGSDRERR
             LD      BC,(TMPCNT)
-            CALL    ?PRINTMSG                                             ; Print out the filename.
+            CALL    ?PRINTMSG                                            ; Print out the filename.
             LD      A,2
             JR      LOADSDX1
 
@@ -2346,6 +2369,42 @@ L0300:      IN      A,(0D8H)	                                 	     ; State reg
 
             ;-------------------------------------------------------------------------------
             ; END OF FLOPPY DISK CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF UTILITIES
+            ;-------------------------------------------------------------------------------
+
+            ; Method to get a string parameter and copy it into the provided buffer.
+            ;
+            ; Inputs:
+            ;     DE = Pointer to BUFER where user entered data has been placed.
+            ;     HL = Pointer to Destination buffer.
+            ;     B  = Max number of characters to read.
+            ; Outputs:
+            ;     DE and HL point to end of bufer and buffer resepectively.
+            ;     B  = Characters copied (ie. B - input B = no characters).
+            ;
+GETSTRING:  LD      A,(DE)                                               ; Skip white space before copy.
+            CP      ' '
+            JR      NC, GETSTR1
+            CP      00DH
+            JR      GETSTR2                                              ; No directory means use the I/O set default.
+            INC     DE
+            JR      GETSTRING
+GETSTR1:    LD      (HL),A                                               ; Copy the name entered by user. Validation is done on the I/O processor, bad directory name will result in error next read/write.
+            INC     DE
+            INC     HL
+            LD      A,(DE)                                               ; Get next char and check it isnt CR, end of input line character.
+            CP      00DH
+            JR      Z,GETSTR2                                            ; Finished if we encounter CR.
+            DJNZ    GETSTR1                                              ; Loop until buffer is full, ignore characters beyond buffer limit.
+GETSTR2:    XOR     A                                                    ; Place end of buffer terminator as I/O processor uses C strings.
+            LD      (HL),A
+            RET
+
+            ;-------------------------------------------------------------------------------
+            ; END OF UTILITIES
             ;-------------------------------------------------------------------------------
 
 

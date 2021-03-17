@@ -211,11 +211,23 @@ CPUINFO                 EQU     06DH                                     ; Versi
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+GDCRTC                  EQU     0CFH                                     ; MZ-800 CRTC control register
+GDCMD                   EQU     0CEH                                     ; MZ-800 CRTC Mode register
+GDGRF                   EQU     0CDH                                     ; MZ-800      read format register
+GDGWF                   EQU     0CCH                                     ; MZ-800      write format register
 PALSLCTOFF              EQU     0D3H                                     ; set the palette slot Off position to be adjusted.
 PALSLCTON               EQU     0D4H                                     ; set the palette slot On position to be adjusted.
 PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
 PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
 PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
+MMIO0                   EQU     0E0H                                     ; MZ-700/MZ-800 Memory Management Set 0
+MMIO1                   EQU     0E1H                                     ; MZ-700/MZ-800 Memory Management Set 1
+MMIO2                   EQU     0E2H                                     ; MZ-700/MZ-800 Memory Management Set 2
+MMIO3                   EQU     0E3H                                     ; MZ-700/MZ-800 Memory Management Set 3
+MMIO4                   EQU     0E4H                                     ; MZ-700/MZ-800 Memory Management Set 4
+MMIO5                   EQU     0E5H                                     ; MZ-700/MZ-800 Memory Management Set 5
+MMIO6                   EQU     0E6H                                     ; MZ-700/MZ-800 Memory Management Set 6
+MMIO7                   EQU     0E7H                                     ; MZ-700/MZ-800 Memory Management Set 7
 SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
 VMBORDER                EQU     0F3H                                     ; Select VGA Border colour attributes. Bit 2 = Red, 1 = Green, 0 = Blue.
 GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
@@ -323,6 +335,7 @@ TZMM_MZ700_1            EQU     00BH + TZMM_ENIOWAIT                     ; MZ700
 TZMM_MZ700_2            EQU     00CH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_3            EQU     00DH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
 TZMM_MZ700_4            EQU     00EH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+TZMM_MZ800              EQU     00FH + TZMM_ENIOWAIT                     ; MZ800 Mode - Tracks original hardware mode offering MZ700/MZ800 configurations.
 TZMM_FPGA               EQU     015H + TZMM_ENIOWAIT                     ; Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
 TZMM_TZPUM              EQU     016H + TZMM_ENIOWAIT                     ; Everything in on mainboard, no access to tranZPUter memory.
 TZMM_TZPU               EQU     017H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
@@ -488,6 +501,8 @@ TZSVCDIRSEC:            DS      virtual 1                                ; Stora
 TZSVC_FILE_SEC:         EQU     TZSVCDIRSEC                              ; Union of the file and directory sector as only one can be used at a time.
 TZSVC_TRACK_NO:         DS      virtual 2                                ; Storage for the virtual drive track number.
 TZSVC_SECTOR_NO:        DS      virtual 2                                ; Storage for the virtual drive sector number.
+TZSVC_SECTOR_LBA:       EQU     TZSVC_TRACK_NO                           ; Sector in 32bit LBA format.
+TZSVC_MEM_TARGET:       EQU     TZSVC_TRACK_NO                           ; Memory command should target, 0 = tranZPUter, 1 = mainboard.
 TZSVC_FILE_NO:          DS      virtual 1                                ; File number to be opened in a file service command.
 TZSVC_FILE_TYPE:        DS      virtual 1                                ; Type of file being accessed to differentiate between Sharp MZF files and other handled files.
 TZSVC_LOADADDR:         DS      virtual 2                                ; Dynamic load address for rom/images.

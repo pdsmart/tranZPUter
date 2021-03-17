@@ -1,14 +1,24 @@
               ;
               ;
-              ; SHARPMZ - 821
-              ; (ROM contents, upper monitor E000-F3FF)
+              ; SHARP MZ-800 IPL 9Z-504M
+              ; (C) Sharp Corporation, 1982-84
               ;
+              ; This source based on the printer listing of the original rom dissassembled by the Czech Sharp Users Club 1987.
               ;
-              ; Input / Output address
+              ; Dissassembly had missing data definition areas which have now been added along with translation
+              ; of the comments and changes to better match the Sharp original listing labels.
+              ;
+              ; Re-assembly of this source using the Glass Z80 assembler results in identical output compared with the original rom.              
+              ;
+              ; This code is targetted in the upper monitor region, 0xE000 - 0xF3FF
 
-
+              ORG   0E000H                                       
               INCLUDE "Macros.asm"
 
+              ;----------------------------------------------------------------------------------------
+              ; Change this constant, 0 = original 9Z-504M build, 1 = tranZPUter/TZFS additions build.
+              ;----------------------------------------------------------------------------------------
+TZFS_BUILD    EQU   1                           ;
 
               ;
               ; Printer interface
@@ -24,16 +34,16 @@ PJ1:          EQU   0F1H                        ; joystick-2 input port
 PJ0:          EQU   0F0H                        ; joystick-1 input port
               ; Pallet write
 PPAL:         EQU   0F0H                        ; pallet write
-              ; Memory managerment ports OUT
-PMMC6:        EQU   0E6H                        ; condition from hill protection
-PMMC5:        EQU   0E5H                        ; protect the hill
-PMMC4:        EQU   0E4H                        ; maximum neRAM as far as possible
-PMMC3:        EQU   0E3H                        ; ROM up
-PMMC2:        EQU   0E2H                        ; ROM down
               ; Memory managerment ports OUT / IN
-PMMC1:        EQU   0E1H                        ; DRAM up / VRAM pryc
-PMMC0:        EQU   0E0H                        ; DRAM up / VRAM
-              ; Folppy disk
+MMIO0:        EQU   0E0H                        ; DRAM up / VRAM
+MMIO1:        EQU   0E1H                        ; DRAM up / VRAM pryc
+              ; Memory managerment ports OUT
+MMIO2:        EQU   0E2H                        ; ROM down
+MMIO3:        EQU   0E3H                        ; ROM up
+MMIO4:        EQU   0E4H                        ; maximum neRAM as far as possible
+MMIO5:        EQU   0E5H                        ; Inhibit upper memory access
+MMIO6:        EQU   0E6H                        ; Restore upper memory access
+              ; Floppy disk
 PFD:          EQU   0D8H                                         
 PFDSIZ:       EQU   PFD+5                       ; floppy side settings
 PFDMOT:       EQU   PFD+4                       ; drive on / off
@@ -54,10 +64,10 @@ PPORTC:       EQU   P8255+2                     ; port C - CMT and control
 PKBDIN:       EQU   P8255+1                     ; keyboard input
 PKBOUT:       EQU   P8255+0                     ; keyboard strobe
               ; GDG I / O ports
-PCRTC:        EQU   0CFH                        ; CRTC register
-PDMD:         EQU   0CEH                        ; display mod register
-PRF:          EQU   0CDH                        ; read format register
-PWF:          EQU   0CCH                        ; write format register
+GDCRTC:       EQU   0CFH                        ; CRTC control register
+GDCMD:        EQU   0CEH                        ; CRTC Mode register
+GDGRF:        EQU   0CDH                        ;      read format register
+GDGWF:        EQU   0CCH                        ;      write format register
               ;
               ; Memory mapping
               ;
@@ -75,7 +85,7 @@ MPORTC:       EQU   M8255+2                     ; port C - CMT and control
 MKBDIN:       EQU   M8255+1                     ; keyboard input
 MKBOUT:       EQU   M8255+0                     ; keyboard strobe
               ;
-              ; definition of ASCII constants
+              ; ASCII constants
 CR:           EQU   0DH                                          
 SPACE:        EQU   20H                                          
 ESC:          EQU   1BH                                          
@@ -86,7 +96,21 @@ ADRCRT:       EQU   0D000H                      ; address MZ-700 VRAM
 ADRATB:       EQU   0D800H                      ; the address of the CRS attribute
 IMPATB:       EQU   71H                         ; default display attribute
               ;
-              ORG   0E000H                                       
+              ; tranZPUter additions.
+              ;
+CPLDCFG       EQU   06EH                        ; Version 2.1 CPLD configuration register.
+CPLDSTATUS    EQU   06EH                        ; Version 2.1 CPLD status register.
+CPLDINFO      EQU   06FH                        ; Version 2.1 CPLD version information register.
+MODE_MZ80K    EQU   0                           ; Set to MZ-80K mode.
+MODE_MZ80C    EQU   1                           ; Set to MZ-80C mode.
+MODE_MZ1200   EQU   2                           ; Set to MZ-1200 mode.
+MODE_MZ80A    EQU   3                           ; Set to MZ-80A mode (base mode on MZ-80A hardware).
+MODE_MZ700    EQU   4                           ; Set to MZ-700 mode (base mode on MZ-700 hardware).
+MODE_MZ800    EQU   5                           ; Set to MZ-800 mode.
+MODE_MZ80B    EQU   6                           ; Set to MZ-80B mode.
+MODE_MZ2000   EQU   7                           ; Set to MZ-2000 mode.
+MODE_VID_FPGA EQU   8                           ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
+              ;
               ;
               ; Ports D0-D7 are mapped here in MZ-700 mode
               ;
@@ -765,7 +789,7 @@ JE436:        EQU   0E436H
               ; nothing: everything
               ;
 @FDBOOT:      ; floppy disc BOOT
-              EX    (SP),HL                      ;
+              EX    (SP),HL                     ;
               LD    (FDARET),HL                 ; return address
               CALL  @???FD                      ; fdc?
               JP    NZ,FDERR0                                    
@@ -778,32 +802,32 @@ JE436:        EQU   0E436H
               CALL  @FDREAD                     ; read ...
               LD    HL,FDHEAD                   ; compared to
               LD    DE,TIPLPR                   ; 03 "IPLPRO"
-              LD    B,7                          ;
-JE471:        LD    C,(HL)                       ;
-              LD    A,(DE)                       ;
-              CP    C                            ;
+              LD    B,7                         ;
+JE471:        LD    C,(HL)                      ;
+              LD    A,(DE)                      ;
+              CP    C                           ;
               JP    NZ,FDERR1                   ; IPLPRO not found
-              INC   HL                           ;
-              INC   DE                           ;
+              INC   HL                          ;
+              INC   DE                          ;
               DJNZ  JE471                       ; comparison loop
               LD    DE,IPLM0                    ; "IPL IS LOADING"
-              RST   18H                          ;
+              RST   18H                         ;
               LD    DE,FDHEAD+7                 ; filename, the other half
-              RST   18H                          ;
-              LD    HL,MGBASE                    ;
+              RST   18H                         ;
+              LD    HL,MGBASE                   ;
               LD    (IX+005H),L                 ; boot address of the program
-              LD    (IX+006H),H                  ;
-              LD    HL,(FDHEAD+14H)                 ;
+              LD    (IX+006H),H                 ;
+              LD    HL,(FDHEAD+14H)             ;
               LD    (IX+003H),L                 ; block length
-              LD    (IX+004H),H                  ;
-              LD    HL,(FDHEAD+1EH)                 ;
+              LD    (IX+004H),H                 ;
+              LD    HL,(FDHEAD+1EH)             ;
               LD    (IX+001H),L                 ; sector number calculated
               LD    (IX+002H),H                 ; from the beginning of the block
               CALL  @FDREAD                     ; honor data
               CALL  @FDDESL                     ; disconnect disks
               LD    BC,200H                     ; starts from FD
               EXX                                                
-              LD    HL,FDHEAD+14H                ; address to the header file
+              LD    HL,FDHEAD+14H               ; address to the header file
               JP    QGOPGM                                       
               ;
               ; Error correction
@@ -1447,17 +1471,17 @@ COLD:
 @COPYL:       JP    COPYL                       ; load file from CMT:
 @COPYS:       JP    COPYS                       ; save file to CMT:
 @COPYV:       JP    COPYV                       ; verify file on CMT:
-              JP    @QDISK                      ; some EXEC (?, ...
+              JP    @QDISK                      ; call quick disk driver.
               ;
 JE813:                                                           
               DI                                                 
               IM    1                                                
               LD    A,8                                          
-              OUT   (PDMD),A                    ; MZ-700 mode settings
+              OUT   (GDCMD),A                   ; MZ-700 mode settings
               LD    A,1                         ; CRT settings:
-              OUT   (PRF),A                     ; single color
-              OUT   (PWF),A                     ; MZ-700 = DATA, ATB, CG
-              OUT   (PMMC4 ),A                  ; mapped ROM, CGROM, VRAM
+              OUT   (GDGRF),A                   ; single color
+              OUT   (GDGWF),A                   ; MZ-700 = DATA, ATB, CG
+              OUT   (MMIO4 ),A                  ; mapped ROM, CGROM, VRAM
               LD    SP,NEWSP                                     
               CALL  @INI55                                       
               XOR   A                                            
@@ -1465,36 +1489,43 @@ JE813:
               CALL  TIMST                       ; we start at midnight
               LD    BC,37                                        
               CALL  @944BC                      ; delay approx. 16.28 ms
-              LD    BC,4*256+PCPR                ; control PIO port
+              LD    BC,4*256+PCPR               ; control PIO port
               LD    HL,TPIO                     ; bit mode, 6th and 7th bit as
               OTIR                              ; output, other input, DI
-              LD    BC,4*256+PCPR+1                ; PIO data port
+              LD    BC,4*256+PCPR+1             ; PIO data port
               OTIR                              ; bit mode, all output, DI
               LD    A,1                                          
               OUT   (0F7H),A                                     
               XOR   A                                            
               OUT   (0F7H),A                    ; turn off QD:
               CALL  BRKEY                       ; test CTRL
-              JR    NC,JE862                    ; CTRL not pressed
+              JR    NC,PSG0                     ; CTRL not pressed
               CP    20H                                          
-              JP    NZ,JE862                    ; just SHIFT, we don't care
-              IN    A,(PDMD)                    ; state of switch MZ-700
+              JP    NZ,PSG0                     ; just SHIFT, we don't care
+              IN    A,(GDCMD)                   ; state of switch MZ-700
               AND   2                           ; is ON?
               JR    Z,JE85F                     ; is, we leave the MZ-700
               XOR   A                                            
-              OUT   (PDMD),A                    ; no, so MZ-800
-              CALL  @BLACK                      ; black display
+              OUT   (GDCMD),A                   ; no, so MZ-800
+              CALL  PLTST                       ; Pallette set
 JE85F:        JP    GORAM                       ; jump to RAM at 0
-JE862:        LD    B,4                         ; turn off PSG
+
+              ;
+              ; PSG Reset
+              ;
+PSG0:         LD    B,4                         ; turn off PSG
               LD    A,9FH                                        
-JE866:        OUT   (PPSG),A                                     
+PSGSET:       OUT   (PPSG),A                                     
               ADD   A,20H                                        
-              DJNZ  JE866                       ; all registers are turned off
-              LD    A,1                                          
+              DJNZ  PSGSET                      ; all registers are turned off
+
+              ; Sound & Interrupt mask reset.
+SORES:        LD    A,1                                          
               LD    (MCWR55),A                  ; ban on whistling from 8253
               LD    A,5                                          
               LD    (MCWR55),A                  ; permission interrupted
-              LD    B,0FFH                      ; zero
+
+BGI0:         LD    B,0FFH                      ; zero
               LD    HL,FNAME                    ; buffer
               CALL  @F0B                        ; CMT control block
               LD    A,16H                                        
@@ -1513,21 +1544,28 @@ JE866:        OUT   (PPSG),A
               CALL  BEEP                        ; beep
               LD    A,1                         ; beep on each key
               LD    (BPFLG),A                   ; will not
-              IN    A,(PMMC0 )                  ; mapping CGROM, CGRAM
-              LD    DE,0C000H                   ; copied
-              LD    HL,1000H                    ; character
-              LD    BC,1000H                    ; degenerator
+              IN    A,(MMIO0 )                  ; Set memory map to page in CGROM and CGRAM.
+LOADPCG:      LD    DE,0C000H                   ; point to the programmable character generator, 
+              LD    HL,1000H                    ; set location of bitmap in ROM.
+              LD    BC,1000H                    ; 4K in size.
               LDIR                              ; to VRAM
-              IN    A,(PMMC1)                   ; unmaps CG
-              CALL  @GETKY                      ; key pressed during RESET?
-              CP    'M'                                          
+              IN    A,(MMIO1)                   ; unmaps CG
+
+              ; Add in tranZPUter/TZFS customisations when enabled.
+              IF TZFS_BUILD = 1
+                JP    GETBOOTKEY                  ; Check to see if a boot key was pressed during reset for quick device boot.
+              ELSE
+                CALL  @GETKY
+              ENDIF
+
+BOOTKEYSEL:   CP    'M'                                          
               JR    Z,QMONIT                    ; to the monitor now
               CP    'Q'                                          
-              JR    Z,JE91B                     ; clean from QD:
+              JR    Z,KSJPQB                     ; clean from QD:
               CP    'C'                                          
               JR    Z,IPLCMT                    ; clean from CMT:
               CALL  @???FD                      ; we have floppy disks
-              JR    NZ,IPLRD                    ; we don't
+              JR    NZ,R12C_B                    ; we don't
 IPLFD:        CALL  @CLRS                       ; delete CRT:
               CALL  @FDBOOT                     ; cti program IPLPRO
               JP    QIPL                        ; return voice printing and RET
@@ -1539,8 +1577,7 @@ IPLFD:        CALL  @CLRS                       ; delete CRT:
               ;
               ; nici: AF, B
               ;
-@???FD:                                                          
-              LD    A,0A5H                      ; some constant
+@???FD:       LD    A,0A5H                      ; some constant
               LD    B,A                                          
               OUT   (PFDTRK),A                  ; to the trace register
               CALL  @D125                       ; wait for a while
@@ -1548,64 +1585,71 @@ IPLFD:        CALL  @CLRS                       ; delete CRT:
               CP    B                           ; did she stay there?
               RET                               ; if so, we have FD
               ;
-              ; The entire MZ 800 screen will be black
+              ; Pallet Reg. & Border Reg. set
+              ;      PLT0~3  Black
+              ;      Border  Black
               ;
               ; output: BC = 6CFH, A = 0
               ;
-@BLACK:                                                          
-              PUSH  HL                                           
-              LD    BC,5*256+PPAL                ; pallet settings
-              LD    HL,TBLACK                   ; all black
+PLTST:        PUSH  HL                                           
+              LD    BC,05F0H                    ; C=port (Pallet Write), B=count
+              LD    HL,PLTDT                    ; Data
               OTIR                                               
               XOR   A                                            
-              LD    BC,6*256+PCRTC                ; border register
-              OUT   (C),A                       ; border take black
+              LD    BC,06CFH                    ; Border Black
+              OUT   (C),A                       ; Send to port.
               POP   HL                                           
               RET                                                
               ;
-              ; Load the program from the RD disk, if it exists
+              ; MZ-1R12 check & boot
               ;
-IPLRD:                                                           
-              LD    C,0F8H                                       
+R12C_B:       LD    C,0F8H                                       
               CALL  @???RD                      ; do we have RD?
               JP    C,IPLQD                     ; we don't
               CALL  @RDLOAD                     ; The house is here, try to clean
-              LD    DE,ERMG12                    ; SRAM: check sum error
+              LD    DE,ERMG12                   ; SRAM: check sum error
               JP    NZ,QIPL                     ; we don't have a ram disk
               JP    QGORD                       ; program from the RD and run
               ;
-              CALL  CLR3L                       ; delete the CRT and three times the CRLF
               ;
               ;
-              ; Display the initialization screen and wait for it to press
-              ; keys of any of the listed displays
+              ; Display the initialization screen and wait for the user to choose one of the
+              ; displayed options.
               ;
-IPLKEY:       CALL  @MSGIN                      ; initialize screen
+SLMSG:        CALL  CLLET                       ; delete the CRT and three times the CRLF
+SELMG0:       CALL  SELMSG                      ; initialize screen
               CALL  @WNKEY                      ; until the key is pressed
-JE90F:        CALL  @???QD                                       
-              JR    NZ,JE91E                    ; QD not connected
+KSCAN0:       CALL  @???QD                                       
+              JR    NZ,KSCAN1                   ; QD not connected
               LD    A,2                                          
               CALL  QKBD??                                       
               CP    7FH                         ; pressed Q?
-JE91B:        JP    Z,IPLQD                     ; Yes
-JE91E:        LD    A,4                                          
+KSJPQB:       JP    Z,IPLQD                     ; Yes
+KSCAN1:       LD    A,4                                          
               CALL  QKBD??                                       
               CP    0DFH                        ; C pressed?
               JR    Z,IPLCMT                    ; Yes
               LD    C,A                                          
               CALL  @???FD                                       
-              JR    NZ,JE932                    ; FDs are not
+              JR    NZ,KSCAN2                    ; FDs are not
               LD    A,C                                          
               CP    0FBH                        ; pressed F?
               JR    Z,IPLFD                     ; Yes
-JE932:        LD    A,3                                          
+KSCAN2:       LD    A,3                                          
               CALL  QKBD??                                       
-              CP    0F7H                        ; pressed M?
-              JR    NZ,JE90F                    ; No
+
+              ; Add in tranZPUter/TZFS customisations when enabled.
+              IF TZFS_BUILD = 1
+                JP     TZFSKEY                    ; Check to see if TZFS key pressed.                                                   
+                DB    000H                        ; Filler to ensure remainder of compilation matches original.
+              ELSE
+                CP    0F7H                        ; 'M' - Monitor?
+                JR    NZ,KSCAN0
+              ENDIF
               ;
               ; List the header of the monitor and jump to its reading display
               ;
-QMONIT:                                                          
+QMONIT:       
               CALL  @CLRS                                        
               LD    DE,MONMSG                                     
               RST   18H                                          
@@ -1617,44 +1661,44 @@ IPLCMT:
               LD    HL,MPORTC                   ; is CMT?
               LD    A,(HL)                                       
               AND   10H                                          
-              JR    NZ,JE972                    ; yes, you can start cleaning immediately
+              JR    NZ,JE972                    ; Tape drive active, button pressed, start reading.
               INC   HL                                            
               LD    A,6                                          
-              LD    (HL),A                      ; up
+              LD    (HL),A                      ; Toggle the motor enable, first up
               INC   A                                            
-              LD    (HL),A                      ; down
+              LD    (HL),A                      ; then down
               DEC   HL                                           
               LD    A,(HL)                                       
-              AND   10H                         ; now he should go
-              JR    NZ,JE972                    ; yes, now he eats
+              AND   10H                         ; Has the button been pressed?
+              JR    NZ,JE972                    ; yes, start reading.
               CALL  @CLRS                                        
               CALL  @LETNL                                       
               CALL  @LETNL                                       
               LD    DE,IPLM1                    ; Make ready CMT
-              CALL  MSG12                                        
+              CALL  MSGLET                                        
 JE968:                                                           
               CALL  @BRKEY                                       
-              JR    Z,CMTER2                    ; break
+              JR    Z,CMTER2                    ; break key check
               LD    A,(HL)                                       
               AND   10H                                          
-              JR    Z,JE968                     ; we are waiting for them to turn it on
+              JR    Z,JE968                     ; Go in a loop until the play button has been pressed on the tape drive.
 JE972:                                                           
               CALL  @CLRS                                        
               CALL  @LETNL                                       
               LD    DE,IPLM4                    ; IPL is looking ...
               RST   18H                                          
-              CALL  @RHEAD                                        
-              JP    C,CMTER1                                     
-              CALL  @CLRS                                        
+              CALL  @RHEAD                      ; Read tape header.                  
+              JP    C,CMTER1                    ; Exit on error.                 
+              CALL  @CLRS                       ; Clear screen to print loading message.                 
               LD    DE,IPLM0                    ; IPL is loading ..
               RST   18H                                          
               LD    DE,FNAME                    ; file name
               RST   18H                                          
               LD    HL,(BEGIN)                                   
-              EXX                                                
-              LD    HL,MGBASE                   ; boot address
-              LD    (BEGIN),HL                  ; for now in the header
-              CALL  @RDATA                      ; clean data from 1200
+              EXX                               ; DE <-> HL                 
+              LD    HL,MGBASE                   ; Load address @ 1200H
+              LD    (BEGIN),HL                  ; Place the load address into the header overwriting the read value so that data is read into a known location.
+              CALL  @RDATA                      ; Read in the main data.
               JP    C,CMTER1                    ; error
               ;
               ; run the program loaded from CMT
@@ -1662,7 +1706,7 @@ JE972:
 QGOCMT:                                                          
               LD    BC,100H                     ; tape recorder
               EXX                               ; to BC '
-              LD    (BEGIN),HL                  ; actual boot address
+              LD    (BEGIN),HL                  ; Put back the original load address
               LD    HL,FSIZE                    ; to the header points to the length
               JP    QGOPGM                      ; start
               ;
@@ -1723,38 +1767,40 @@ QDERR:
               ; writes a menu for selecting a display
               ; Nothing all registers
               ;
-@MSGIN:                                                          
-              CALL  @LETNL                                       
+SELMSG:       CALL  @LETNL                                       
               LD    DE,SELM0                    ; Please push key
-              CALL  MSG12                                        
+              CALL  MSGLET                                        
               CALL  @LETNL                                       
               CALL  @???FD                                       
-              JR    NZ,JEA1D                    ; not floppy
+              JR    NZ,SELM00                   ; not floppy
               LD    DE,SELM1                    ; F: floppy disk
-              CALL  MSG12                                        
-JEA1D:        CALL  @???QD                                       
-              JR    NZ,JEA28                    ; not QD
+              CALL  MSGLET                                        
+SELM00:       CALL  @???QD                                       
+              JR    NZ,SELM01                   ; not QD
               LD    DE,SELM2                    ; Q: quick disk
-              CALL  MSG12                                        
-JEA28:        LD    DE,SELM3                    ; C: tape cassette
-              CALL  MSG12                                        
+              CALL  MSGLET                                        
+SELM01:       LD    DE,SELM3                    ; C: tape cassette
+              CALL  MSGLET                                        
               LD    DE,SELM4                    ; M: monitor
-              JP    MSG12                       ; list and RET
+              ; Add in tranZPUter/TZFS customisations when enabled.
+              IF TZFS_BUILD = 1
+                JP    TZFSMSG                     ; Add in the TZFS option.
+              ELSE
+                JP    MSGLET
+              ENDIF
               ;
               ; List of messages from DE on the display, list of help menus
               ; MGIN and waiting for the keyboard to press
               ;
-QIPL:                                                            
-              CALL  @CLRS                                        
+QIPL:         CALL  @CLRS                                        
               CALL  @LETNL                                       
               CALL  @LETNL                                       
-              CALL  MSG12                                        
-              JP    IPLKEY                                       
+              CALL  MSGLET                                        
+              JP    SELMG0                                       
               ;
               ; Clear the display and CRLF 3 times on it
               ;
-CLR3L:                                                           
-              CALL  @CLRS                                        
+CLLET:        CALL  @CLRS                                        
               LD    B,3                                          
 JEA48:        CALL  @LETNL                                       
               DJNZ  JEA48                                        
@@ -1763,7 +1809,7 @@ JEA48:        CALL  @LETNL
               ; Printing twelve spaces and messages on the display, which
               ; the address is in the DE register
               ;
-MSG12:                                                           
+MSGLET:                                                           
               LD    B,12                        ; number of spaces
 JEA50:        CALL  @PRNTS                      ; gap
               DJNZ  JEA50                                        
@@ -2258,29 +2304,28 @@ QHEXIN:
               JR    C,QHEXIN                    ; wrong input
               RET                                                
               ;
-              ; Sales of program loaded from 1200H, first
-              ; place where it belongs
+              ; Start of program loaded from 1200H, setup to execute changing mode as necessary.
               ;
-              ; input: HL = address of the file size in the header
-              ; BC '= parameter sold by the program
+              ; input: HL  = address of the file size in the header
               ;
 QGOPGM:                                                          
-              IN    A,(PDMD)                                     
+              IN    A,(GDCMD)                   ; Query the mode switch, bit 1 = 1 - MZ-700, = 0 - MZ-800 mode.                  
               BIT   1,A                                          
-              JR    Z,JED08                     ; MZ 700 mod
+              JR    Z,MODE700                   ; MZ 700 mode, skip configuration as monitor operates in MZ-700 mode.
               XOR   A                                            
-              OUT   (PDMD),A                    ; MZ 800 mod
-              CALL  @BLACK                      ; black screen
-JED08:        LD    C,(HL)                      ; BC: = length
+              OUT   (GDCMD),A                   ; Set MZ 800 mode
+              CALL  PLTST                       ; Clear screen
+              ;
+MODE700:      LD    C,(HL)                      ; BC = length
               INC   HL                                           
               LD    B,(HL)                                       
               INC   HL                                           
-              LD    E,(HL)                      ; DE: = address
+              LD    E,(HL)                      ; DE = Load address
               LD    A,(HL)                                       
               INC   HL                                           
               LD    D,(HL)                                       
               OR    (HL)                                         
-              PUSH  DE                          ; hide address
+              PUSH  DE                          
               INC   HL                                           
               LD    E,(HL)                      ; DE: = start address
               OR    (HL)                                         
@@ -2288,19 +2333,19 @@ JED08:        LD    C,(HL)                      ; BC: = length
               LD    D,(HL)                                       
               OR    (HL)                                         
               PUSH  DE                                           
-              POP   IX                          ; IX = start address
-              POP   DE                          ; boot address
-              JR    NZ,JED20                    ; if the bootloader and boot address are
-              OUT   (PMMC0 ),A                  ; zero, map down to RAM
-JED20:        LD    HL,MGBASE                                    
-              LD    A,MGBASE/256                ; address of the program page
+              POP   IX                          ; IX = Exec address
+              POP   DE                          ; Load address
+              JR    NZ,BLKTR                    ; if the bootloader and boot address are
+              OUT   (MMIO0 ),A                  ; zero, map down to RAM
+BLKTR:        LD    HL,MGBASE                                    
+              LD    A, 012H                     ; address of the program page
               CP    D                                            
-              JR    C,JED2E                     ; the program will be over 1200
-              JR    NZ,JED3E                    ; the program will be below 1200
+              JR    C,LDDEC                     ; the program will be over 1200
+              JR    NZ,LDINC                    ; the program will be below 1200
               XOR   A                           ; will be from 1200 to 12FF
-              CP    E                           ; CURRENT, ADMINISTRATELY APARTMENT
-              JR    NC,JED3E                    ; JR NC, JED40 
-JED2E:        DEC   BC                          ; the program will be over 1200
+              CP    E                           ; 
+              JR    NC,LDINC                    ; 
+LDDEC:        DEC   BC                          ; the program will be over 1200
               PUSH  HL                          ; addresses must be edited
               LD    HL,0                        ; reading length
               ADD   HL,DE                       ; and reading the unit
@@ -2311,10 +2356,10 @@ JED2E:        DEC   BC                          ; the program will be over 1200
               ADD   HL,BC                                        
               INC   BC                                           
               LDDR                                                
-              JR    JED40                       ; run
-JED3E:                                          ; program below 1200, it's easy
+              JR    EXF0                        ; run
+LDINC:                                          ; program below 1200, it's easy
               LDIR                                               
-JED40:                                                           
+EXF0:                                                           
               EXX                               ; to the BC start parameter
               JP    (IX)                                         
 
@@ -2352,7 +2397,11 @@ ERRM4:        DB    051H, 044H, 03aH, 046H, 0a6H, 0b8H, 092H, 020H, 0b3H, 0b7H, 
               ; SRAM: Checksum error
 ERMG12:       DB    053H, 052H, 041H, 04dH, 03aH, 043H, 098H, 092H, 09fH, 0a9H, 020H, 0a4H, 0a5H, 0b3H, 020H, 092H, 09dH, 09dH, CR
               ; ** MONITOR 9Z-504M **
-MONMSG:       DB    "**  MONITOR 9Z-504MA **", CR
+MONMSG:       IF TZFS_BUILD = 1
+                DB    "**  MONITOR 9Z-504TZ **", CR
+              ELSE
+                DB    "**  MONITOR 9Z-504M  **", CR
+              ENDIF
               ; Filename?
 MSGV0:        DB    046H, 0a6H, 0b8H, 092H, 0b0H, 0a1H, 0b3H, 092H, 03fH, 020H, CR
               ; Top address?
@@ -2371,9 +2420,9 @@ MSGLD:        DB    04cH, 0b7H, 0a1H, 09cH, 0a6H, 0b0H, 097H, 020H, CR
 TPIO:         DB    0,0CFH,3FH,7                                 
               DB    0,0CFH,0,7                                   
               ;
-              ; Initialization table for PAL
+              ; Initialization table for Palette
               ;
-TBLACK:       DB    0,10H,20H,30H,40H                            
+PLTDT:        DB    0,10H,20H,30H,40H                            
 
               ;----------------------------------------------------
               ;
@@ -2937,6 +2986,12 @@ QDQCM:        DB   053H, 092H, 096H, 020H, 09cH, 092H, 0a4H, 096H, 0a6H, 0b0H, 0
 QDCM0:        DB   04fH, 04bH, 03fH, 028H, 059H, 02fH, 04eH, 029H, CR
               ; Directory of QD:
 DIRMSG:       DB   044H, 0a6H, 09dH, 092H, 09fH, 096H, 0b7H, 09dH, 0bdH, 020H, 0b7H, 0aaH, 020H, 051H, 044H, 03aH, CR
+
+              ; Add in tranZPUter/TZFS customisations when enabled.
+              IF TZFS_BUILD = 1
+                ; T: TZFS
+SELM5:          DB  "T:TZFS ", 04dH, 0b7H, 0b0H, 0a6H, 096H, 0b7H, 09dH, CR
+              ENDIF
                                                                  
               ;
               ALIGN 0F380H
@@ -2945,6 +3000,48 @@ JF380:
               LD    A,0C0H                                       
               OUT   (0F6H),A                                     
               RET                                                
+
+              ; Add in tranZPUter/TZFS customisations when enabled.
+TZFSMSG:      IF TZFS_BUILD = 1
+                CALL  MSGLET                    ; Display the Monitor option pointed to by DE.
+                LD    DE, SELM5                 ; Offer the TZFS option.
+                JP    MSGLET                    ; Output and return.
+              ENDIF
+
+GETBOOTKEY:   IF TZFS_BUILD = 1
+                ; Check to see if a boot key was pressed during reset for quick device boot.
+                CALL  @GETKY                     ; key pressed during RESET?
+                CP    'T'                                          
+                JR    Z,TZFSINIT                ; Init TZFS at user request.
+                JP    BOOTKEYSEL                ; Go back to original code to finish checks.
+              ENDIF
+
+TZFSKEY:      IF TZFS_BUILD = 1
+                CP    0F7H                      ; pressed M? - Monitor request?
+                JP     Z, QMONIT                ; Launch monitor.
+                LD    A,2                       ; Select 3rd row of keyboard matrix.  
+                CALL  QKBD??                                       
+                CP    0EFH                      ; T key pressed?
+                JP    NZ, KSCAN0                ; No valid key entered return to loop.
+              ENDIF
+TZFSINIT:     IF TZFS_BUILD = 1
+                LD    HL,BOOTTZFS               ; Copy the memory change routine to 'safe' memory.
+                LD    DE,01200H
+                LD    BC,BOOTTZFS_END - BOOTTZFS
+                LDIR
+                JP    01200H                    ; Execute it.
+              ENDIF
+
+              ; Method to change from MZ-800 memory mode to TZFS.
+BOOTTZFS:     IF TZFS_BUILD = 1
+                LD    A, 088H                   ; Issue non-standard GDG command to swap bank 7 with bank 0 memory allowing use of TZFS.
+                OUT   (GDCMD), A
+                OUT   (MMIO4), A                ; Set memory to default.
+                JP    0E800H
+              ENDIF
+BOOTTZFS_END: IF TZFS_BUILD = 1
+              ENDIF
+
 
               ALIGN 0F400H
               ;

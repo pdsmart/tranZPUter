@@ -169,6 +169,69 @@ set_false_path -from [get_clocks {SYSCLK}] -to [get_clocks {INCLK}]
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_0000_0FFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_EFFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_F000_FFFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_1000_1FFF_CGROM} -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_0000_0FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_1000_1FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_2000_2FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_3000_3FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_4000_4FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_5000_5FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_6000_6FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_7000_7FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_8000_8FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_9000_9FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_A000_AFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_B000_BFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_C000_CFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_D000_DFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_EFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_F000_FFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_8000_8FFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_9000_9FFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_A000_AFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_B000_BFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_C000_CFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_D000_DFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_E00F_IO}    -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_INHIBIT}         -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_TZFS_BANK}       -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MODE_320x200}        -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MODE_640x200}        -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -setup -end 2 
+
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_0000_0FFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_EFFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_F000_FFFF_ROM}   -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_1000_1FFF_CGROM} -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_0000_0FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_1000_1FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_2000_2FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_3000_3FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_4000_4FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_5000_5FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_6000_6FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_7000_7FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_8000_8FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_9000_9FFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_A000_AFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_B000_BFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_C000_CFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_D000_DFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_EFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_F000_FFFF_DRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_8000_8FFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_9000_9FFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_A000_AFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_B000_BFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_C000_CFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_D000_DFFF_VRAM}  -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_E000_E00F_IO}    -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_INHIBIT}         -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MAP_TZFS_BANK}       -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1
+#set_multicycle_path -from {cpld512:cpldl512TopLevel|MODE_320x200}        -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
+set_multicycle_path -from {cpld512:cpldl512TopLevel|MODE_640x200}        -to {cpld512:cpldl512TopLevel|CTLCLK_Q} -hold  -end 1 
 
 
 #**************************************************************

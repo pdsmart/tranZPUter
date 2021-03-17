@@ -34,10 +34,119 @@
 
             ;============================================================
             ;
-            ; TZFS BANK 3 - 
+            ; TZFS BANK 3 - Utilities and additional commands.
             ;
             ;============================================================
             ORG     BANKRAMADDR
+
+            ;-------------------------------------------------------------------------------
+            ; START OF UTILITY METHODS
+            ;-------------------------------------------------------------------------------
+
+            ; Method to skip white space whilst locating a comma. Once found, advance to the next first non-white space character.
+            ; Outputs:
+            ;     Z  = No comma - either comma found but no following characters or no comma found.
+            ;     NZ = comma found, DE points to next non-white character.
+SKIPCOMMA:  LD      A,(DE)                                               ; Scan the parameter buffer for a comma.
+            INC     DE
+            CP      ' '
+            JR      Z,SKIPCOMMA     
+            CP      000H
+            RET     Z                                                    ; End of string, no comma found.
+            CP      ','
+            JR      NZ,SKIPCOMMA
+SKIPCOM2:   LD      A,(DE)                                               ; Comma found no advance to first non-white char.
+            CP      000H                                                 ; End of string?
+            RET     Z
+            CP      ' '                                                  ; Non comma found, return success.
+            RET     NZ
+            INC     DE                                                   ; Whitespace so advance to next char.
+            JR      SKIPCOM2
+
+            ; Method to validate a model code, the single character should be one of:
+            ; K = MZ-80K
+            ; C = MZ-80C
+            ; 1 = MZ-1200
+            ; A = MZ-80A
+            ; B = MZ-80B
+            ; 7 = MZ-700
+            ; 8 = MZ-800
+            ; 2 = MZ-2000
+            ; O = Original memory load.
+            ; Outputs:
+            ;    C = Binary model number 0..7
+            ;    Z = Model code valid.
+            ;   NZ = Invalid code.
+CHECKMODEL: LD      C,MODE_MZ80K
+            CP      'K'
+            RET     Z
+            INC     C
+            CP      'C'
+            RET     Z
+            INC     C
+            CP      '1'
+            RET     Z
+            INC     C
+            CP      'A'
+            RET     Z
+            INC     C
+            CP      '7'
+            RET     Z
+            INC     C
+            CP      '8'
+            RET     Z
+            INC     C
+            CP      'B'
+            RET     Z
+            INC     C
+            CP      '2'
+            RET     Z
+            INC     C
+            CP      'O'
+            RET 
+
+            ; Get optional machine model code. Format is: CMD<param>[,][machine model code]
+            ; Outputs:
+            ;     A = Model number.
+GETMODEL:   CALL    SKIPCOMMA
+            JR      Z,READMODEL                                          ; No comma found so no parameter, read default model from CPLD.
+            LD      A,(DE)                                               ; Get code
+            CALL    CHECKMODEL
+            LD      A,C
+            JR      NZ,READMODEL
+            RET
+READMODEL:  IN      A,(CPLDINFO)                                         ; Get the model number from the underlying hardware.
+            AND     00FH                                                 ; Mask in the relevant bits, A = Model number.
+            RET
+
+            ;
+            ; Pallet Reg. & Border Reg. set
+            ;      PLT0~3  Black
+            ;      Border  Black
+            ;
+            ; output: BC = 6CFH, A = 0
+            ;
+PLTST:      PUSH    HL                                           
+            LD      BC,05F0H                                             ; C=port (Pallet Write), B=count
+            LD      HL,PLTDT                                             ; Data
+            OTIR                                                                          
+            XOR     A                                                                     
+            LD      BC,06CFH                                             ; Border Black
+            OUT     (C),A                                                ; Send to port.
+            POP     HL                                           
+            RET  
+
+            ; Initialization table for Palette
+            ;
+PLTDT:      DB      0,10H,20H,30H,40H    
+
+            ;-------------------------------------------------------------------------------
+            ; END OF UTILITY METHODS
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF ADDITIONAL TZFS COMMAND METHODS
+            ;-------------------------------------------------------------------------------
 
             ;
             ;       Memory correction
@@ -196,6 +305,10 @@ CLEAR1:     LD      A,D
             OR      C
             JP      NZ,CLEAR1
             RET
+
+            ;-------------------------------------------------------------------------------
+            ; END OF ADDITIONAL TZFS COMMAND METHODS
+            ;-------------------------------------------------------------------------------
 
 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this

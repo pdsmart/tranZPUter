@@ -40,7 +40,7 @@ ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms
-MZFDIR=${ROOTDIR}/software/MZF
+MZFDIR=${ROOTDIR}/software/MZF/Common
 
 # Go through list and build image.
 #
