@@ -34,7 +34,7 @@
 
 # These two variables configure which CPM images and disks to build. If only 1 CPM_RFS ROM Drive is needed,
 # remove it fro the lists.
-BUILDCPMLIST="cpm22"
+#BUILDCPMLIST="cpm22"
 #SOURCEDIRS="CPM_RFS_[1] CPM[0-9][0-9]_* CPM_MC_5 CPM_MC_C? CPM_MC_D? CPM_MC_E? CPM_MC_F? CPM[0-9][0-9]_MZ800*"
 SOURCEDIRS="CPM_RFS_[1-2] CPM[0-9][0-9]_* CPM_MC_5 CPM_MC_C? CPM_MC_D? CPM_MC_E? CPM_MC_F? CPM[0-9][0-9]_MZ800*"
 

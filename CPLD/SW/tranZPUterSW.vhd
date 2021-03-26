@@ -147,7 +147,7 @@ architecture rtl of cpld512 is
     signal MODE_CPLD_MB_VIDEOn    :       std_logic;                                     -- Mainboard video, 0 = enabled, 1 = disabled. 
     signal MODE_HOST_DEFAULT      :       std_logic;                                     -- On cold start, the host acts per original specifications until changed by programming.
     signal CPU_CFG_DATA           :       std_logic_vector(7 downto 0):=(others => '0'); -- CPU Configuration register.
-    signal CPLD_CFG_DATA          :       std_logic_vector(7 downto 0);                  -- CPLD Configuration register.
+    signal CPLD_CFG_DATA          :       std_logic_vector(7 downto 0):=(others => '0'); -- CPLD Configuration register.
     signal CPLD_INFO_DATA         :       std_logic_vector(7 downto 0);                  -- CPLD status value.
     signal VIDEOMODULE_PRESENT    :       std_logic;                                     -- Automatic flag which is set if the serializer becomes active.
 
@@ -158,7 +158,7 @@ architecture rtl of cpld512 is
     signal CS_SCK_SYSCLKn         :       std_logic;                                     -- Select for setting the Mainboard clock as the active Z80 clock.
     signal CS_SCK_RDn             :       std_logic;                                     -- Select to read which clock is active.
     signal CS_CPU_CFGn            :       std_logic;                                     -- Select to set the CPU configuration register.
-    signal CS_CPU_INFOn           :       std_logic;                                     -- Select to set the CPU information register.
+    signal CS_CPU_INFOn           :       std_logic;                                     -- Select to read the CPU information register.
     signal CS_CPLD_CFGn           :       std_logic;                                     -- Select to set the CPLD configuration register.
     signal CS_CPLD_INFOn          :       std_logic;                                     -- Select to read the CPLD information register.
     signal CS_VIDEOn              :       std_logic;                                     -- Primary select of the FPGA video logic, used to enable control signals in the memory management process.
@@ -211,6 +211,7 @@ architecture rtl of cpld512 is
   --signal REQ_WAITn            :       std_logic;
 
     -- Internal control signals.
+    signal SYSRESETn              :       std_logic;                                     -- Internal system reset pulse 1 clock period after reset, used to preset registers.
     signal Z80_HI_ADDRi           :       std_logic_vector(23 downto 16);                -- Hi address. These are the upper bank bits allowing 512K of address space. They are directly set by the K64F when accessing RAM or FPGA and set by the FPGA according to memory mode.
     signal Z80_RA_ADDRi           :       std_logic_vector(15 downto 12);                -- Row address - RAM is subdivided into 4K blocks which can be remapped as needed. This is required for the MZ80B emulation where memory changes location according to mode.
     signal CTL_BUSACKni           :       std_logic;                                     -- Buffered BUSACK signal to the K64F to indicate it has control of the bus.
@@ -279,9 +280,19 @@ architecture rtl of cpld512 is
     end function to_std_logic;
 begin
 
-    -- CPLD Configuration register.
+    -- Delayed reset process to set defaults on registers as required.
+    RESET: process( Z80_CLKi, Z80_RESETn ) begin
+        if Z80_RESETn = '0' then
+            SYSRESETn          <= '0';
+        -- First rising edge the internal system reset is cancelled.
+        elsif( rising_edge(Z80_CLKi) ) then
+            SYSRESETn          <= '1';
+        end if;
+    end process;
+
+    -- CPLD/CPU Configuration register.
     --
-    -- CPU: (NOT YET IMPLEMENTED)
+    -- CPU: (NOT YET IMPLEMENTED IN THE traznZPUter)
     -- Version 1.3-> of the tranZPUter SW-700 provides the ability to instantiate alternative soft CPU's. This register configures the FPGA to enable a soft/hard CPU and the CPLD
     -- is reconfigured to allow a CPU operation on the FPGA side rather than the physical hardware side.
     --
@@ -296,6 +307,7 @@ begin
     --               All other configurations reserved and default to Hard CPU.
     -- [7]   - R/W - CPU Reset. When active ('1'), hold the CPU in reset, when inactive, commence the reset completion and CPU run.
     --
+    -- CPLD:
     -- The mode can be changed by a Z80 transaction write into the register and it is acted upon if the mode switches between differing values. The Z80 write is typically used
     -- by host software such as RFS.
     --
@@ -321,7 +333,7 @@ begin
     --*[7]   - R/W - Preserve configuration over reset (=1) or set to default on reset (=0).
     -- * = SW700 v1.3 only, not used in other CPLD versions.
     --
-    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_CFG_DATA, CS_CPLD_INFOn, Z80_DATA )
+    MACHINEMODE: process( Z80_CLKi, Z80_RESETn, SYSRESETn, CS_CPU_CFGn, CS_CPLD_CFGn, CPLD_CFG_DATA, CS_CPLD_INFOn, Z80_DATA )
     begin
 
         if(Z80_RESETn = '0') then
@@ -331,16 +343,26 @@ begin
             MODE_640x200                      <= '1';
             MODE_320x200                      <= '0';
          --   MODE_HOST_DEFAULT                 <= '0';
-            if CPLD_CFG_DATA(7) = '0' then
-                -- On MZ-800 hardware, reset the mode to MZ800 as it may be in MZ700 mode prior to reset.
-                if CPLD_HOST_HW = MODE_MZ800 then
-                    CPLD_CFG_DATA             <= "10001101";                            -- Enable Sharp MZ-800 host setting, mainboard video unused, wait state unused.
-                else
-                    -- Default to MZ-80A
-                    CPLD_CFG_DATA             <= "10000011";                            -- Default to Sharp MZ80A
-                end if;
-                MODE_HOST_DEFAULT             <= '1';                                   -- Host runs as original until features enabled.
+--            if CPLD_CFG_DATA(7) = '0' then
+--                -- On MZ-800 hardware, reset the mode to MZ800 as it may be in MZ700 mode prior to reset.
+--                if CPLD_HOST_HW = MODE_MZ800 then
+--                    CPLD_CFG_DATA             <= "10001101";                            -- Enable Sharp MZ-800 host setting, mainboard video unused, wait state unused.
+--                else
+--                    -- Default to MZ-80A
+--                    CPLD_CFG_DATA             <= "10000011";                            -- Default to Sharp MZ80A
+--                end if;
+--                MODE_HOST_DEFAULT             <= '1';                                   -- Host runs as original until features enabled.
+--            end if;
+
+        elsif SYSRESETn = '0' and CPLD_CFG_DATA(7) = '0' then
+            -- On MZ-800 hardware, reset the mode to MZ800 as it may be in MZ700 mode prior to reset.
+            if CPLD_HOST_HW = MODE_MZ800 then
+                CPLD_CFG_DATA             <= "10001101";                            -- Enable Sharp MZ-800 host setting, mainboard video unused, wait state unused.
+            else
+                -- Default to MZ-80A
+                CPLD_CFG_DATA             <= "10000011";                            -- Default to Sharp MZ80A
             end if;
+            MODE_HOST_DEFAULT             <= '1';                                   -- Host runs as original until features enabled.
 
         elsif(rising_edge(Z80_CLKi)) then
 
@@ -403,7 +425,7 @@ begin
 
     -- Memory mode latch. This latch stores the current memory mode (or Bank Paging Scheme) according to the running software.
     --
-    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, CS_MEM_CFGn, Z80_IORQn, Z80_WRn, Z80_ADDR, Z80_DATA, CPLD_CFG_DATA, MODE_640x200 )
+    MEMORYMODE: process( Z80_CLKi, Z80_RESETn, SYSRESETn, CS_MEM_CFGn, Z80_IORQn, Z80_WRn, Z80_ADDR, Z80_DATA, CPLD_CFG_DATA, MODE_640x200 )
         variable mz700_LOWER_RAM      : std_logic;
         variable mz700_UPPER_RAM      : std_logic;
         variable mz700_INHIBIT        : std_logic;
@@ -411,15 +433,15 @@ begin
     begin
 
         if(Z80_RESETn = '0') then
-            -- On power up reset, default to original configuration.
-            if CPLD_CFG_DATA(7) = '0' then
-                -- Default to MZ-700/MZ-80A
-                MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_ORIG, MEM_MODE_LATCH'length));
-
-            -- MZ-800 mode
-            --elsif CPLD_HOST_HW = MODE_MZ800 then
-            --    MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_MZ800, MEM_MODE_LATCH'length));
-            end if;
+--            -- On power up reset, default to original configuration.
+--            if CPLD_CFG_DATA(7) = '0' then
+--                -- Default to MZ-700/MZ-80A
+--                MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_ORIG, MEM_MODE_LATCH'length));
+--
+--            -- MZ-800 mode
+--            --elsif CPLD_HOST_HW = MODE_MZ800 then
+--            --    MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_MZ800, MEM_MODE_LATCH'length));
+--            end if;
             mz700_LOWER_RAM           := '0';
             mz700_UPPER_RAM           := '0';
             mz700_INHIBIT             := '0';
@@ -457,6 +479,17 @@ begin
 
             MODE_CPLD_LAST            := std_logic_vector(to_unsigned(CPLD_HOST_HW, MODE_CPLD_LAST'length));
 
+        -- On power up reset, default to original configuration.
+        elsif SYSRESETn = '0' and CPLD_CFG_DATA(7) = '0' then
+            -- Default to MZ-700/MZ-80A
+            MEM_MODE_LATCH            <= std_logic_vector(to_unsigned(TZMM_ORIG, MEM_MODE_LATCH'length));
+
+            -- MZ-800 mode
+            --elsif CPLD_HOST_HW = MODE_MZ800 then
+            --    MEM_MODE_LATCH        <= std_logic_vector(to_unsigned(TZMM_MZ800, MEM_MODE_LATCH'length));
+ 
+
+        -- A direct write to the memory latch stores the required memory mode into the latch.
         elsif (CS_MEM_CFGn = '0' and Z80_WRn = '0') then
             MEM_MODE_LATCH            <= Z80_DATA(4 downto 0);
 
@@ -745,7 +778,16 @@ begin
             -- Check for MZ700 Mode memory changes and adjust current memory mode setting.
             --
             elsif((CPLD_HOST_HW = MODE_MZ700 or CPLD_HOST_HW = MODE_MZ80A) and MODE_CPLD_MZ700 = '1' and Z80_IORQn = '0' and Z80_M1n = '1' and Z80_ADDR(7 downto 3) = "11100") then
-                
+
+                -- MZ700 memory mode switch?
+                --         0x0000:0x0FFF     0xD000:0xFFFF
+                -- 0xE0 =  DRAM
+                -- 0xE1 =                    DRAM
+                -- 0xE2 =  MONITOR
+                -- 0xE3 =                    Memory Mapped I/O
+                -- 0xE4 =  MONITOR           Memory Mapped I/O
+                -- 0xE5 =                    Inhibit
+                -- 0xE6 =                    Return to state prior to 0xE5
                 case Z80_ADDR(2 downto 0) is
                     -- 0xE0
                     when "000" =>
@@ -1248,6 +1290,7 @@ begin
     --                       uses the rom as a wait detection by toggling the ROM lines according to WAIT, the Z80 at 2MHz hasnt enough ooomph to read WAIT and action it. 
     --                   8 - Monitor ROM (0000:0FFF) on mainboard, Main RAM (1000:CFFF) in tranZPUter bank 0 and video, memory mapped I/O, User/Floppy ROM on mainboard.
     --                       NB: Main DRAM will not be refreshed so cannot be used to store data in this mode.
+    --                   9 - Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
     --                  10 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
     --                  11 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
     --                  12 - MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
@@ -1591,6 +1634,45 @@ begin
 
                 else
                     DISABLE_BUSn    <= '1';
+                    RAM_WEni        <= '1';
+                    RAM_OEni        <= '1';
+                end if;
+
+            -- Set 9 - Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
+            -- This mode is to allow a program running in tranZPUTer RAM Bank 0 - address E000:FFFF, to access host memory and I/O directly.
+            when TZMM_HOSTACCESS =>
+                if CS_VIDEOn = '0' then
+                    CS_VIDEO_MEMn   <= Z80_MREQn;
+                    DISABLE_BUSn    <= '1';
+                    RAM_CSni        <= '1';
+                    RAM_WEni        <= '1';
+                    RAM_OEni        <= '1';
+
+                -- 0000:E7FF are on the host.
+                elsif( ((unsigned(Z80_ADDR(15 downto 0)) >= X"0000" and unsigned(Z80_ADDR(15 downto 0)) <= X"E7FF") and not std_match(Z80_ADDR(15 downto 1), "11110-111111111")) ) then 
+                    Z80_HI_ADDRi    <= "00000000"; 
+                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '1';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
+                    RAM_OEni        <= '1';
+                    RAM_WEni        <= '1';
+
+                -- Upper tranZPUter RAM bank 0 address E800:FFFF execute on the tranZPUter.
+                elsif(unsigned(Z80_ADDR(15 downto 0)) >= X"E800" and unsigned(Z80_ADDR(15 downto 0)) <= X"FFFF") then
+                    Z80_HI_ADDRi    <= "00000000"; 
+                    Z80_RA_ADDRi    <= Z80_ADDR(15 downto 12);
+                    DISABLE_BUSn    <= '0';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '0';
+                    RAM_OEni        <= Z80_RDn;
+                    RAM_WEni        <= Z80_WRn;
+
+                else
+                    -- No action, defaults set to work directly on mainboard.
+                    DISABLE_BUSn    <= '1';
+                    CS_VIDEO_MEMn   <= '1';
+                    RAM_CSni        <= '1';
                     RAM_WEni        <= '1';
                     RAM_OEni        <= '1';
                 end if;

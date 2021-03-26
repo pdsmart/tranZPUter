@@ -110,6 +110,8 @@ BANKTOBANK_:JMPTOBNK
 ?SETT80:    CALLBNK SETT80,      TZMM_TZFS4
 ?SETZ80:    CALLBNK SETZ80,      TZMM_TZFS4
 ?SETZPUEVO: CALLBNK SETZPUEVO,   TZMM_TZFS4
+?TIMERTST:  CALLBNK TIMERTST,    TZMM_TZFS3
+?PTESTX:    CALLBNK PTESTX,      TZMM_TZFS3
 ?GETMODEL:  CALLBNK GETMODEL,    TZMM_TZFS3
 ?PLTST:     CALLBNK PLTST,       TZMM_TZFS3
             ;-----------------------------------------
@@ -350,7 +352,7 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DW      ?MCORX
             DB      000H | 000H | 000H | 001H
             DB      'P'                                                  ; Printer test.
-            DW      PTESTX
+            DW      ?PTESTX
             DB      000H | 000H | 000H | 001H
             DB      'R'                                                  ; Memory test.
             DW      MEMTEST
@@ -383,7 +385,7 @@ CMDTABLE:   DB      000H | 000H | 000H | 003H
             DW      ?SETT80
             DB      000H | 000H | 000H | 001H
             DB      'T'                                                  ; Timer test.
-            DW      TIMERTST
+            DW      ?TIMERTST
             DB      000H | 000H | 000H | 007H
             DB      "VBORDER"                                            ; Set VGA border colour.
             DW      ?SETVBORDER
@@ -534,11 +536,6 @@ HEXIYX:     EX      (SP),IY
 HEXIYX2:    POP     AF                                                   ; Waste the intermediate caller address
             RET    
 
-BOOTMB:     LD      A, TZMM_BOOT
-            OUT     (MMCFG),A
-            LD      HL,(EXADR)
-            JP      (HL)
-
             ; Bring in additional resources.
             USE_CMPSTRING:    EQU   1
             USE_SUBSTRING:    EQU   0
@@ -638,7 +635,7 @@ SETMODE40_1:OUT     (CPLDCFG),A                                          ;
             LD      A,(SCRNMODE)
             RES     0, A
             LD      (SCRNMODE),A                                         ; Bit 0 = 0 = 40char mode on reset.
-
+            ;
             IN      A,(CPLDINFO)                                         ; Check to see if this is an MZ700, if it is not, setup the correct frequency.
             AND     007H
             CP      MODE_MZ80A
@@ -1005,109 +1002,6 @@ SGX:        LD      A,(SWRK)
             ; END OF CMT CONTROLLER FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-            ;-------------------------------------------------------------------------------
-            ; START OF PRINTER CMDLINE TOOLS FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
-PTESTX:     LD      A,(DE)
-            CP      '&'                                                  ; plotter test
-            JR      NZ,PTST1X
-PTST0X:     INC     DE
-            LD      A,(DE)
-            CP      'L'                                                  ; 40 in 1 line
-            JR      Z,.LPTX
-            CP      'S'                                                  ; 80 in 1 line
-            JR      Z,..LPTX
-            CP      'C'                                                  ; Pen change
-            JR      Z,PENX
-            CP      'G'                                                  ; Graph mode
-            JR      Z,PLOTX
-            CP      'T'                                                  ; Test
-            JR      Z,PTRNX
-;
-PTST1X:     CALL    PMSGX
-ST1X2:      RET
-.LPTX:      LD      DE,LLPT                                              ; 01-09-09-0B-0D
-            JR      PTST1X
-..LPTX:     LD      DE,SLPT                                              ; 01-09-09-09-0D
-            JR      PTST1X
-PTRNX:      LD      A,004h                                               ; Test pattern
-            JR      LE999
-PLOTX:      LD      A,002h                                               ; Graph mode
-LE999:      CALL    LPRNTX
-            JR      PTST0X
-PENX:       LD      A,01Dh                                               ; 1 change code (text mode)
-            JR      LE999
-;
-;
-;       1 char print to $LPT
-;
-;        in: ACC print data
-;
-;
-LPRNTX:     LD      C,000h                                               ; RDAX test
-            LD      B,A                                                  ; print data store
-            CALL    RDAX
-            LD      A,B
-            OUT     (0FFh),A                                             ; data out
-            LD      A,080h                                               ; RDP high
-            OUT     (0FEh),A
-            LD      C,001h                                               ; RDA test
-            CALL    RDAX
-            XOR     A                                                    ; RDP low
-            OUT     (0FEh),A
-            RET
-;
-;       $LPT msg.
-;       in: DE data low address
-;       0D msg. end
-;
-PMSGX:      PUSH    DE
-            PUSH    BC
-            PUSH    AF
-PMSGX1:     LD      A,(DE)                                               ; ACC = data
-            CALL    LPRNTX
-            LD      A,(DE)
-            INC     DE
-            CP      00Dh                                                 ; end ?
-            JR      NZ,PMSGX1
-            POP     AF
-            POP     BC
-            POP     DE
-            RET
-
-;
-;       RDA check
-;
-;       BRKEY in to monitor return
-;       in: C RDA code
-;
-RDAX:       IN      A,(0FEh)
-            AND     00Dh
-            CP      C
-            RET     Z
-            CALL    BRKEY
-            JR      NZ,RDAX
-            LD      SP,ATRB
-            JR      ST1X2
-
-            ;    40 CHA. IN 1 LINE CODE (DATA)
-LLPT:       DB      01H                                                  ; TEXT MODE
-            DB      09H
-            DB      09H
-            DB      0BH
-            DB      0DH
-
-            ;    80 CHA. 1 LINE CODE (DATA)
-SLPT:       DB      01H                                                  ; TEXT MODE
-            DB      09H
-            DB      09H
-            DB      09H
-            DB      0DH
-
-            ;-------------------------------------------------------------------------------
-            ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
-
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
             ; causes a jump in the code dependent on the signal status. It gets around the 2MHz
             ; Z80 not being quick enough to process the signal by polling.
@@ -1252,220 +1146,6 @@ L0324:      CALL    DLY12
             ; END OF MEMORY TEST FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-            ;-------------------------------------------------------------------------------
-            ; START OF TIMER TEST FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
-
-            ; Test the 8253 Timer, configure it as per the monitor and display the read back values.
-TIMERTST:   CALL    NL
-            LD      DE,MSG_TIMERTST
-            CALL    MSG
-            CALL    NL
-            LD      DE,MSG_TIMERVAL
-            CALL    MSG
-            LD      A,01h
-            LD      DE,8000h
-            CALL    TIMERTST1
-NDE:        JP      NDE
-            JP      ST1X
-TIMERTST1:  DI      
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            LD      (AMPM),A
-            LD      A,0F0H
-            LD      (TIMFG),A
-ABCD:       LD      HL,0A8C0H
-            XOR     A
-            SBC     HL,DE
-            PUSH    HL
-            INC     HL
-            EX      DE,HL
-
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),0B0H   ; 10110000 Control Counter 2 10, Write 2 bytes 11, 000 Interrupt on Terminal Count, 0 16 bit binary
-            LD      (HL),074H   ; 01110100 Control Counter 1 01, Write 2 bytes 11, 010 Rate Generator, 0 16 bit binary
-            LD      (HL),030H   ; 00110100 Control Counter 1 01, Write 2 bytes 11, 010 interrupt on Terminal Count, 0 16 bit binary
-
-            LD      HL,CONT2    ; Counter 2
-            LD      (HL),E
-            LD      (HL),D
-
-            LD      HL,CONT1    ; Counter 1
-            LD      (HL),00AH
-            LD      (HL),000H
-
-            LD      HL,CONT0    ; Counter 0
-            LD      (HL),00CH
-            LD      (HL),0C0H
-
-;            LD      HL,CONT2    ; Counter 2
-;            LD      C,(HL)
-;            LD      A,(HL)
-;            CP      D
-;            JP      NZ,L0323H                
-;            LD      A,C
-;            CP      E
-;            JP      Z,CDEF                
-            ;
-
-L0323H:     PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),080H
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            ;CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),040H
-            LD      HL,CONT1    ; Counter 1
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            ;CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),000H
-            LD      HL,CONT0    ; Counter 0
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            ;CALL    DLY1S
-            ;
-            LD      A,0C4h      ; Move cursor left.
-            LD      E,0Eh      ; 4 times.
-L0330:      CALL    DPCT
-            DEC     E
-            JR      NZ,L0330
-            ;
-;            LD      C,20
-;L0324:      CALL    DLY12
-;            DEC     C
-;            JR      NZ,L0324
-            ;
-            POP     HL
-            POP     DE
-            POP     BC
-            POP     AF
-            ;
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CP      D
-            JP      NZ,L0323H                
-            LD      A,C
-            CP      E
-            JP      NZ,L0323H                
-            ;
-            ;
-            PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            CALL    NL
-            CALL    NL
-            CALL    NL
-            LD      DE,MSG_TIMERVAL2
-            CALL    MSG
-            POP     HL
-            POP     DE
-            POP     BC
-            POP     AF
-
-            ;
-CDEF:       POP     DE
-            LD      HL,CONT1
-            LD      (HL),00CH
-            LD      (HL),07BH
-            INC     HL
-
-L0336H:     PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),080H
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),040H
-            LD      HL,CONT1    ; Counter 1
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),000H
-            LD      HL,CONT0    ; Counter 0
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    DLY1S
-            ;
-            LD      A,0C4h      ; Move cursor left.
-            LD      E,0Eh      ; 4 times.
-L0340:      CALL    DPCT
-            DEC     E
-            JR      NZ,L0340
-            ;
-            POP     HL
-            POP     DE
-            POP     BC
-            POP     AF
-
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CP      D
-            JR      NZ,L0336H                
-            LD      A,C
-            CP      E
-            JR      NZ,L0336H                
-            CALL    NL
-            LD      DE,MSG_TIMERVAL3
-            CALL    MSG
-            POP     HL
-            POP     DE
-            POP     BC
-            EI      
-            RET   
-            ;-------------------------------------------------------------------------------
-            ; END OF TIMER TEST FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
 
 
             ; Method to print out an SDC directory entry name along with an incremental file number. The file number can be
@@ -1473,10 +1153,12 @@ L0340:      CALL    DPCT
             ;
             ; Input: HL = Address of filename.
             ;         D = File number.
+            ;         A = File type.
             ;
 PRTDIR:     PUSH    BC
             PUSH    DE
             PUSH    HL
+            LD      C,A                                                  ; Preserve the file type.
             ;
             LD      A,(SCRNMODE)
             BIT     0, A
@@ -1501,12 +1183,24 @@ PRTNOWAIT:  LD      A,E
             ;
             LD      A, D                                                 ; Print out file number and increment.
             CALL    PRTHX
-            LD      A, '.'
-            CALL    PRNT
+            LD      A,C
+            CP      OBJCD
+            LD      A, '.'                                               ; File type is MACHINE CODE program.
+            JR      Z,PRTDIR0A
+            LD      A,C
+            CP      BTX1CD
+            LD      A,'-'                                                ; File type is BASIC.
+            JR      Z,PRTDIR0A
+            LD      A,C
+            CP      BTX2CD
+            LD      A,'_'                                                ; File type is BASIC.
+            JR      Z,PRTDIR0A
+            LD      A,'+'
+PRTDIR0A:   CALL    PRNT
             POP     DE
             PUSH    DE                                                   ; Get pointer to the file name and print.
 
-            CALL    ?PRTFN                                                ; Print out the filename.
+            CALL    ?PRTFN                                               ; Print out the filename.
             ;
             LD      HL, (DSPXY)
             ;
@@ -1707,8 +1401,8 @@ LOADSD2A:   CALL    ?GETMODEL                                            ; Get m
             LD      (TMPCNT),A
             CP      008H                                                 ; Original mainboard memory is target?
             LD      A,000H                                               ; tranZPUter.
-            JR      NZ,LOADSD2B
-            INC     A                                                    ; Mainboard.
+            JR      C,LOADSD2B                                           ; MZ-80K .. MZ-2000 modes on tranZPUter.
+            INC     A                                                    ; Mainboard mode.
 LOADSD2B:   LD      (TZSVC_MEM_TARGET), A
             POP     HL
             LD      A,(TZSVC_FILE_NO)                                    ; Test to see if a file number was found, if one wasnt then a filename was given, so copy.
@@ -1740,70 +1434,149 @@ LOADSD4A:   LD      DE,MSGNOTFND
 
 LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoexecute turned off?
             CP      0FFh
-            JP      Z,LOADSD15                                           ; Go back to monitor if it has been, else execute.
-            LD      A,(ATRB)
+            JP      Z,LOADSD15                                           ; Go back to monitor if it has been turned off, else execute.
+            ;
+            LD      A,(TZSVCSECTOR+TZFS_ATRB)                            ; Fetch the CMT data from the service sector.
+            LD      HL,(TZSVCSECTOR+TZFS_EXADR)                          ; Save the execution address as it may not be in scope later on.
+            LD      DE,(TZSVCSECTOR+TZFS_DTADR)                          ; Save the data address, used to check if it was a low memory load.
+            ;
             CP      OBJCD                                                ; Standard binary file?
             JR      Z,LOADSD14A
             CP      TZOBJCD0                                             ; TZFS binary file for a particular bank?
             JR      C,LOADSD17
 
-LOADSD14A:  IN      A,(CPLDINFO)                                         ; Check hardware, if not MZ800 skip memory reconfig.
+LOADSD14A:  LD      A,(TZSVC_MEM_TARGET)                                 ; Are we loading/executing in original host memory?
+            OR      A
+            JR      NZ,ORIPRGBOOT                                        ; Yes, then need special bootstrap.      
+            ;
+            IN      A,(CPLDINFO)                                         ; Check hardware, if not MZ700/MZ800 skip memory reconfig.
             AND     07H
+            CP      MODE_MZ700
+            JR      Z, LOADSD14B                                         ; 700 mode we just check if the lower bank needs paging in.
             CP      MODE_MZ800
             JR      NZ, LOADSD14C
             ;
-            LD      A,TZMM_MZ800                                         ; Return to MZ800 memory mode.
-            OUT     (MMCFG),A
-            OUT     (MMIO4),A                                            ; Reset to known state.
-            IN      A,(MMIO1)                                            ; Remove CGROM.
-            ;
-            LD      HL,DTADR                                             ; Load address 0? If so, page out monitor ROM.
-            XOR     A
-            OR      (HL)
-            INC     HL
-            OR      (HL)
-            JR      NZ, LOADSD14B
-            OUT     (MMIO0), A                    
-            ;
-LOADSD14B:  LD      A,(TMPCNT)                                           ; Get hardware model the loaded program should execute under.
-            CP      MODE_MZ700
-            JR      Z,LOADSD14C
-            CP      MODE_MZ800                                           ; Only interested in the MZ-800 at the moment, K to 700 models dont need special settings.
+            ; DE = Load Address
+LOADSD14B:  LD      A,010H                                               ; Load address below 1000H? If so, page out monitor ROM.
+            CP      D
+            JR      C,LOADSD14C
             JR      NZ,LOADSD14C
-            OUT     (MMIO0),A                                            ; Bring in RAM to lower bank.
+            OUT     (MMIO0), A                                           ; Program loaded below 1000H so page in memory.
             ;
-            XOR     A                                            
+LOADSD14C:  LD      A,(TMPCNT)                                           ; Get hardware model the loaded program should execute under.
+            CP      MODE_MZ800                                           ; Only interested in the MZ-800 at the moment, K to 700 models dont need special settings.
+            JR      Z,LOADSD14D
+            JR      LOADSD14E
+            ;
+LOADSD14D:  XOR     A                                            
             OUT     (GDCMD),A                                            ; Set MZ 800 mode
             CALL    ?PLTST                                               ; Set the palette.
             ;
-LOADSD14C:  LD      HL,(EXADR)
-            LD      A,(TZSVC_MEM_TARGET)
-            OR      A
-            JP      NZ,BOOTMB
+            ; HL = Execution address.
+LOADSD14E:  XOR     A
             JP      (HL)                                                 ; Execution address.
 
 LOADSD15:   LD      DE,MSGCMTDATA                                        ; Indicate where the program was loaded and the execution address.
-            LD      HL,(DTADR)
+            LD      HL,(TZSVCSECTOR+TZFS_DTADR)
             PUSH    HL
-            LD      HL,(EXADR)
+            LD      HL,(TZSVCSECTOR+TZFS_EXADR)
             PUSH    HL
-            LD      BC,(SIZE)
+            LD      BC,(TZSVCSECTOR+TZFS_SIZE)
 LOADSD16:   CALL    ?PRINTMSG                                            ; Print out the filename.
             POP     BC
             POP     BC                                                   ; Remove parameters off stack.
 LOADSDX:    LD      A,0                                                  ; Non error exit.
-LOADSDX1:   LD      (RESULT),A
+            ;
+LOADSDX2:   LD      (RESULT),A
             RET
+            ;
 LOADSD17:   LD      DE,MSGNOTBIN
             CALL    ?PRINTMSG                                            ; Print out the filename.
-            JR      LOADSD16
+            LD      A,1
+            JR      LOADSDX2
 
-LOADSDERR:  LD      DE,MSGSDRERR
-            LD      BC,(TMPCNT)
-            CALL    ?PRINTMSG                                            ; Print out the filename.
-            LD      A,2
-            JR      LOADSDX1
+            ; Code to bootstrap a program residing in the host memory.
+            ; It is assumed, running in TZFS, that the memory map is of TZFS and actions taken accordingly.
+ORIPRGBOOT: LD      A,(TMPCNT)                                           ; Get requested mode before it goes out of scope and store.
+            LD      C,A
+            ;
+            LD      A,TZMM_HOSTACCESS                                    ; Page in host memory so we can read the execution address and run the program.
+            OUT     (MMCFG),A
+            EXX                                                          ; Execution and load address are stored in HL/DE from the tape header.
+            LD      DE,PRGBOOTJMP                                        ; Move the relocatable code into the safe area, in this case the upper attribute RAM.
+            LD      HL,ORIBOOTREL
+            LD      BC,ORIBOOTRELEND - ORIBOOTREL
+            LDIR
+            EXX
+            JP      PRGBOOTJMP
 
+            ; Relocatable code which operates in a safe area within original host memory. This code then switches memory mode
+            ; and executes the stored code.
+ORIBOOTREL: LD      SP,PRGBOOTJMP + (ORIBOOTRELEND - ORIBOOTREL)         ; Relative as this code block is moved.
+            ;
+            LD      A,TZMM_ORIG                                          ; Switch to original host mode.
+            OUT     (MMCFG),A
+            OUT     (MMIO4),A
+
+            ; Determine if this program is loaded below 1200h? We cant initialise monitor variables for this case ; as it may corrupt the program.
+            LD      A,D
+            CP      011H
+            JR      C,ORIBOOT1                                           ; Some programs load data in the tape header or scratch area so need to work on 1000H or below.
+            ;
+            PUSH    HL                                                   ; The loaded program may call or reference monitor api procedures and the monitor scratch area
+            LD      HL,SWPW                                              ; state will be unknown, we therefore need to zero it to ensure correct loaded program execution.
+            LD      B,BUFER - SWPW
+            XOR     A
+ORIBOOT0:   LD      (HL), A
+            INC     HL
+            DJNZ    ORIBOOT0
+            LD      A,004H
+            LD      (TEMPW),A                                            ; Set the sound tempo to default.
+            ;
+            LD      A,24                                                 ; Set the display coordinates to end of screen to not corrupt existing data.
+            LD      (DSPXY+1),A
+            POP     HL
+            ;
+ORIBOOT1:   IN      A,(CPLDINFO)                                         ; Check hardware, if not MZ700/MZ800 skip memory reconfig.
+            AND     07H
+            CP      MODE_MZ700
+            JR      Z, ORIBOOT3                                          ; 700 mode we just check if the lower bank needs paging in.
+            CP      MODE_MZ800
+            JR      NZ, ORIBOOT4
+            ;
+ORIBOOT2:   LD      A,C                                                  ; Check user requested mode, original or alternative (ie. MZ-700 mode on an MZ-800).
+            CP      09H
+            JR      Z,ORIBOOT3
+            ;
+            XOR     A                                                    ; Set the graphics display gatearray command register to enable 800 mode.
+            OUT     (GDCMD),A 
+           ;OUT     (MMIO4),A
+
+            ; Set the MZ-800 palette.
+            PUSH    HL                                           
+            LD      BC,05F0H                                             ; C=port (Pallet Write), B=count
+            LD      HL,PRGBOOTJMP + (ORIPLTDT - ORIBOOTREL)              ; Data
+            OTIR                                                                          
+            XOR     A                                                                     
+            LD      BC,06CFH                                             ; Border Black
+            OUT     (C),A                                                ; Send to port.
+            POP     HL                                           
+            ;
+ORIBOOT3:   LD      A,D                                                  ; Load address below 1000H? If so, page out monitor ROM.
+            CP      011H
+            JR      NC, ORIBOOT4
+            OUT     (MMIO0), A                                           ; Page in lower DRAM as the program executes from below 0x1000.
+            ;
+ORIBOOT4:   JP      (HL)                                                 ; Execute program.
+
+            ; Initialization table for Palette
+            ;
+ORIPLTDT:   DB      0,10H,20H,30H,40H    
+            ; Temporary stack.
+            DS      32
+ORISTACK    EQU     $
+            ;
+ORIBOOTRELEND:
 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
             ; causes a jump in the code dependent on the signal status. It gets around the 2MHz

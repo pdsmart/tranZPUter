@@ -49,6 +49,7 @@ FDCJMP1                 EQU     0F3FEH                                   ; ROM p
 FDCJMP2                 EQU     0F7FEH                                   ; ROM paged vector 2.
 FDCJMP3                 EQU     0F7FEH                                   ; ROM paged vector 3.
 FDCJMP4                 EQU     0F7FEH                                   ; ROM paged vector 4.
+PRGBOOTJMP              EQU     0CF00H                                   ; Location to load bootstrap for original host program.
 
 ;-----------------------------------------------
 ; Common character definitions.
@@ -60,6 +61,7 @@ TAB                     EQU     009H                                     ;TAB AC
 CR                      EQU     00DH
 LF                      EQU     00AH
 FF                      EQU     00CH
+CS                      EQU     0CH                                      ; Clear screen
 DELETE                  EQU     07FH
 BACKS                   EQU     008H
 SOH                     EQU     1                                        ; For XModem etc.
@@ -96,6 +98,7 @@ CTRL_Y                  EQU     019H
 CTRL_Z                  EQU     01AH
 ESC                     EQU     01BH
 CTRL_SLASH              EQU     01CH
+CTRL_LB                 EQU     01BH
 CTRL_RB                 EQU     01DH
 CTRL_CAPPA              EQU     01EH
 CTRL_UNDSCR             EQU     01FH
@@ -110,6 +113,8 @@ INSERT                  EQU     0F6H
 CLRKEY                  EQU     0F7H
 HOMEKEY                 EQU     0F8H
 BREAKKEY                EQU     0FBH
+GRAPHKEY                EQU     0FCH
+ALPHAKEY                EQU     0FDH
 
 
 ;-------------------------------------------------------
@@ -330,6 +335,7 @@ TZMM_CPM                EQU     006H + TZMM_ENIOWAIT                     ; CPM m
 TZMM_CPM2               EQU     007H + TZMM_ENIOWAIT                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
                                                                          ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_COMPAT             EQU     008H + TZMM_ENIOWAIT                     ; Original mode but with main DRAM in Bank 0 to allow bootstrapping of programs from other machines such as the MZ700.
+TZMM_HOSTACCESS         EQU     009H + TZMM_ENIOWAIT                     ; Mode to allow code running in Bank 0, address E800:FFFF to access host memory. Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
 TZMM_MZ700_0            EQU     00AH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
 TZMM_MZ700_1            EQU     00BH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_2            EQU     00CH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
@@ -382,7 +388,9 @@ ROMBANK1                EQU     1                                        ; TZFS 
 ROMBANK2                EQU     2                                        ; TZFS Bank 2 - 
 ROMBANK3                EQU     3                                        ; TZFS Bank 3 - 
 
-OBJCD                   EQU     001h                                     ; MZF contains a binary object.
+OBJCD                   EQU     001H                                     ; MZF contains a binary object.
+BTX1CD                  EQU     002H                                     ; MZF contains a BASIC program.
+BTX2CD                  EQU     005H                                     ; MZF contains a BASIC program.
 TZOBJCD0                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 0.
 TZOBJCD1                EQU     0F8H
 TZOBJCD2                EQU     0F8H

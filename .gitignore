@@ -331,4 +331,11 @@ software/CPM/1M44/DSK
 software/CPM/1M44/RAW
 software/CPM/CPM_MULTICOMP_contents.txt
 software/disks
-
+software/CPM
+software/DSK
+software/MZ800_IOCS.ref
+software/asm/new/
+software/asm/savit
+software/dz80.ini
+software/full.asm
+software.bak/

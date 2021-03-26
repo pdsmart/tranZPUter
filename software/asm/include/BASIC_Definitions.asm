@@ -230,8 +230,37 @@ CPUINFO                 EQU     06DH                                     ; Versi
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+GDCRTC                  EQU     0CFH                                     ; MZ-800 CRTC control register
+GDCMD                   EQU     0CEH                                     ; MZ-800 CRTC Mode register
+GDGRF                   EQU     0CDH                                     ; MZ-800      read format register
+GDGWF                   EQU     0CCH                                     ; MZ-800      write format register
+PALSLCTOFF              EQU     0D3H                                     ; set the palette slot Off position to be adjusted.
+PALSLCTON               EQU     0D4H                                     ; set the palette slot On position to be adjusted.
+PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
+PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
+PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
+MMIO0                   EQU     0E0H                                     ; MZ-700/MZ-800 Memory Management Set 0
+MMIO1                   EQU     0E1H                                     ; MZ-700/MZ-800 Memory Management Set 1
+MMIO2                   EQU     0E2H                                     ; MZ-700/MZ-800 Memory Management Set 2
+MMIO3                   EQU     0E3H                                     ; MZ-700/MZ-800 Memory Management Set 3
+MMIO4                   EQU     0E4H                                     ; MZ-700/MZ-800 Memory Management Set 4
+MMIO5                   EQU     0E5H                                     ; MZ-700/MZ-800 Memory Management Set 5
+MMIO6                   EQU     0E6H                                     ; MZ-700/MZ-800 Memory Management Set 6
+MMIO7                   EQU     0E7H                                     ; MZ-700/MZ-800 Memory Management Set 7
 SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
+VMBORDER                EQU     0F3H                                     ; Select VGA Border colour attributes. Bit 2 = Red, 1 = Green, 0 = Blue.
 GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
+VMPALETTE               EQU     0F5H                                     ; Select Palette:
+                                                                         ;    0xF5 sets the palette. The Video Module supports 4 bit per colour output but there is only enough RAM for 1 bit per colour so the pallette is used to change the colours output.
+                                                                         ;      Bits [7:0] defines the pallete number. This indexes a lookup table which contains the required 4bit output per 1bit input.
+                                                                         ; GPU:
+GPUPARAM                EQU     0F6H                                     ;    0xF6 set parameters. Store parameters in a long word to be used by the graphics command processor.
+                                                                         ;      The parameter word is 128 bit and each write to the parameter word shifts left by 8 bits and adds the new byte at bits 7:0.
+GPUCMD                  EQU     0F7H                                     ;    0xF7 set the graphics processor unit commands.
+GPUSTATUS               EQU     0F7H                                     ;         [7;1] - FSM state, [0] - 1 = busy, 0 = idle
+                                                                         ;      Bits [5:0] - 0 = Reset parameters.
+                                                                         ;                   1 = Clear to val. Start Location (16 bit), End Location (16 bit), Red Filter, Green Filter, Blue Filter
+                                                                         ; 
 VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
 VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
 VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
@@ -253,6 +282,28 @@ MODE_MZ2000             EQU     7                                        ; Set t
 MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
 
 ;-----------------------------------------------
+; FPGA CPU enhancement control bits.
+;-----------------------------------------------
+CPUMODE_SET_Z80         EQU     000H                                     ; Set the CPU to the hard Z80.
+CPUMODE_SET_T80         EQU     001H                                     ; Set the CPU to the soft T80.
+CPUMODE_SET_ZPU_EVO     EQU     002H                                     ; Set the CPU to the soft ZPU Evolution.
+CPUMODE_SET_AAA         EQU     004H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_BBB         EQU     008H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_CCC         EQU     010H                                     ; Place holder for a future soft CPU.
+CPUMODE_SET_DDD         EQU     020H                                     ; Place holder for a future soft CPU.
+CPUMODE_IS_Z80          EQU     000H                                     ; Status value to indicate if the hard Z80 available.
+CPUMODE_IS_T80          EQU     001H                                     ; Status value to indicate if the soft T80 available.
+CPUMODE_IS_ZPU_EVO      EQU     002H                                     ; Status value to indicate if the soft ZPU Evolution available.
+CPUMODE_IS_AAA          EQU     004H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_BBB          EQU     008H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_CCC          EQU     010H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_IS_DDD          EQU     020H                                     ; Place holder to indicate if a future soft CPU is available.
+CPUMODE_RESET_CPU       EQU     080H                                     ; Reset the soft CPU. Active high, when high the CPU is held in RESET, when low the CPU runs.
+CPUMODE_IS_SOFT_AVAIL   EQU     040H                                     ; Marker to indicate if the underlying FPGA can support soft CPU's.
+CPUMODE_IS_SOFT_MASK    EQU     0C0H                                     ; Mask to filter out the Soft CPU availability flags.
+CPUMODE_IS_CPU_MASK     EQU     03FH                                     ; Mask to filter out which soft CPU's are available.
+
+;-----------------------------------------------
 ; Video Module control bits.
 ;-----------------------------------------------
 MODE_80CHAR             EQU     008H                                     ; Enable 80 character display.
@@ -260,13 +311,13 @@ MODE_COLOUR             EQU     010H                                     ; Enabl
 SYSMODE_MZ80A           EQU     000H                                     ; System board mode MZ80A, 2MHz CPU/Bus.
 SYSMODE_MZ80B           EQU     001H                                     ; System board mode MZ80B, 4MHz CPU/Bus.
 SYSMODE_MZ700           EQU     002H                                     ; System board mode MZ700, 3.54MHz CPU/Bus.
-VMMODE_MZ80A            EQU     000H                                     ; Video mode = MZ80A
-VMMODE_MZ700            EQU     001H                                     ; Video mode = MZ700
-VMMODE_MZ800            EQU     002H                                     ; Video mode = MZ800
-VMMODE_MZ80B            EQU     003H                                     ; Video mode = MZ80B
-VMMODE_MZ80K            EQU     004H                                     ; Video mode = MZ80K
-VMMODE_MZ80C            EQU     005H                                     ; Video mode = MZ80C
-VMMODE_MZ1200           EQU     006H                                     ; Video mode = MZ1200
+VMMODE_MZ80K            EQU     000H                                     ; Video mode = MZ80K
+VMMODE_MZ80C            EQU     001H                                     ; Video mode = MZ80C
+VMMODE_MZ1200           EQU     002H                                     ; Video mode = MZ1200
+VMMODE_MZ80A            EQU     003H                                     ; Video mode = MZ80A
+VMMODE_MZ700            EQU     004H                                     ; Video mode = MZ700
+VMMODE_MZ800            EQU     005H                                     ; Video mode = MZ800
+VMMODE_MZ80B            EQU     006H                                     ; Video mode = MZ80B
 VMMODE_MZ2000           EQU     007H                                     ; Video mode = MZ2000
 VMMODE_PCGRAM           EQU     020H                                     ; Enable PCG RAM.
 VMMODE_VGA_OFF          EQU     000H                                     ; Set VGA mode off, external monitor is driven by standard internal signals.
@@ -275,11 +326,21 @@ VMMODE_VGA_1024x768     EQU     080H                                     ; Set e
 VMMODE_VGA_800x600      EQU     0C0H                                     ; Set external monitor to VGA 800x600 @ 60Hz mode.
 
 ;-----------------------------------------------
+; GPU commands.
+;-----------------------------------------------
+GPUCLEARVRAM            EQU     001H                                     ; Clear the VRAM without updating attributes.
+GPUCLEARVRAMCA          EQU     002H                                     ; Clear the VRAM/ARAM with given attribute byte,
+GPUCLEARVRAMP           EQU     003H                                     ; Clear the VRAM/ARAM with parameters.
+GPUCLEARGRAM            EQU     081H                                     ; Clear the entire Framebuffer.
+GPUCLEARGRAMP           EQU     082H                                     ; Clear the Framebuffer according to parameters.
+GPURESET                EQU     0FFH                                     ; Reset the GPU, return to idle state.
+
+;-----------------------------------------------
 ; tranZPUter SW Memory Management modes
 ;-----------------------------------------------
 TZMM_ENIOWAIT           EQU     020H                                     ; Memory management IO Wait State enable - insert a wait state when an IO operation to E0-FF is executed.
 TZMM_ORIG               EQU     000H                                     ; Original Sharp MZ80A mode, no tranZPUter features are selected except the I/O control registers (default: 0x60-063).
-TZMM_BOOT               EQU     001H + TZMM_ENIOWAIT                     ; Original mode but E800-EFFF is mapped to tranZPUter RAM so TZFS can be booted.
+TZMM_BOOT               EQU     001H                                     ; Original mode but E800-EFFF is mapped to tranZPUter RAM so TZFS can be booted.
 TZMM_TZFS               EQU     002H + TZMM_ENIOWAIT                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-FFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected.
 TZMM_TZFS2              EQU     003H + TZMM_ENIOWAIT                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 1.
 TZMM_TZFS3              EQU     004H + TZMM_ENIOWAIT                     ; TZFS main memory configuration. all memory is in tranZPUter RAM, E800-EFFF is used by TZFS, SA1510 is at 0000-1000 and RAM is 1000-CFFF, 64K Block 0 selected, F000-FFFF is in 64K Block 2.
@@ -287,11 +348,17 @@ TZMM_TZFS4              EQU     005H + TZMM_ENIOWAIT                     ; TZFS 
 TZMM_CPM                EQU     006H + TZMM_ENIOWAIT                     ; CPM main memory configuration, all memory on the tranZPUter board, 64K block 4 selected. Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_CPM2               EQU     007H + TZMM_ENIOWAIT                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
                                                                          ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+TZMM_COMPAT             EQU     008H + TZMM_ENIOWAIT                     ; Original mode but with main DRAM in Bank 0 to allow bootstrapping of programs from other machines such as the MZ700.
+TZMM_HOSTACCESS         EQU     009H + TZMM_ENIOWAIT                     ; Mode to allow code running in Bank 0, address E800:FFFF to access host memory. Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
 TZMM_MZ700_0            EQU     00AH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
 TZMM_MZ700_1            EQU     00BH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_2            EQU     00CH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_3            EQU     00DH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
 TZMM_MZ700_4            EQU     00EH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+TZMM_MZ800              EQU     00FH + TZMM_ENIOWAIT                     ; MZ800 Mode - Tracks original hardware mode offering MZ700/MZ800 configurations.
+TZMM_FPGA               EQU     015H + TZMM_ENIOWAIT                     ; Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
+TZMM_TZPUM              EQU     016H + TZMM_ENIOWAIT                     ; Everything in on mainboard, no access to tranZPUter memory.
+TZMM_TZPU               EQU     017H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU0              EQU     018H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU1              EQU     019H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 1 is selected.
 TZMM_TZPU2              EQU     01AH + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 2 is selected.

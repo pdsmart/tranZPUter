@@ -10,9 +10,12 @@
 ##                  Also useful to add headers to homegrow machine code programs.
 ##
 ## Credits:         
-## Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2018-2021 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
+##                  March 2021    - Updated to fix MZF header files. Some programs have encoded ASCII
+##                                  into the header along with other strange characters, these need to 
+##                                  be in Sharp ASCII format.
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -32,8 +35,8 @@
 # Title and Versioning.
 #
 $TITLE                  = "MZF Tool";
-$VERSION                = "0.1";
-$VERSIONDATE            = "25.09.2018";
+$VERSION                = "0.2";
+$VERSIONDATE            = "23.03.2021";
 
 # Global Modules.
 #
@@ -81,6 +84,407 @@ $errorMailFrom          = "error\@localhost";
 $errorMailSubject       = "MZF Tool Errors...";
 $PERL                   = "perl";
 $PERLFLAGS              = "";
+
+# ASCII to Sharp Display Code mapping table.
+@ASCIIToSharpCode = (
+    0xCC, #  NUL '\0' (null character)     
+    0xE0, #  SOH (start of heading)     
+    0xF2, #  STX (start of text)        
+    0xF3, #  ETX (end of text)          
+    0xCE, #  EOT (end of transmission)  
+    0xCF, #  ENQ (enquiry)              
+    0xF6, #  ACK (acknowledge)          
+    0xF7, #  BEL '\a' (bell)            
+    0xF8, #  BS  '\b' (backspace)       
+    0xF9, #  HT  '\t' (horizontal tab)  
+    0xFA, #  LF  '\n' (new line)        
+    0xFB, #  VT  '\v' (vertical tab)    
+    0xFC, #  FF  '\f' (form feed)       
+    0xFD, #  CR  '\r' (carriage ret)    
+    0xFE, #  SO  (shift out)            
+    0xFF, #  SI  (shift in)                
+    0xE1, #  DLE (data link escape)        
+    0xC1, #  DC1 (device control 1)     
+    0xC2, #  DC2 (device control 2)     
+    0xC3, #  DC3 (device control 3)     
+    0xC4, #  DC4 (device control 4)     
+    0xC5, #  NAK (negative ack.)        
+    0xC6, #  SYN (synchronous idle)     
+    0xE2, #  ETB (end of trans. blk)    
+    0xE3, #  CAN (cancel)               
+    0xE4, #  EM  (end of medium)        
+    0xE5, #  SUB (substitute)           
+    0xE6, #  ESC (escape)               
+    0xEB, #  FS  (file separator)       
+    0xEE, #  GS  (group separator)      
+    0xEF, #  RS  (record separator)     
+    0xF4, #  US  (unit separator)       
+    0x00, #  SPACE                         
+    0x61, #  !                             
+    0x62, #  "                          
+    0x63, #  #                          
+    0x64, #  $                          
+    0x65, #  %                          
+    0x66, #  &                          
+    0x67, #  '                          
+    0x68, #  (                          
+    0x69, #  )                          
+    0x6B, #  *                          
+    0x6A, #  +                          
+    0x2F, #  ,                          
+    0x2A, #  -                          
+    0x2E, #  .                          
+    0x2D, #  /                          
+    0x20, #  0                          
+    0x21, #  1                          
+    0x22, #  2                          
+    0x23, #  3                          
+    0x24, #  4                          
+    0x25, #  5                          
+    0x26, #  6                          
+    0x27, #  7                          
+    0x28, #  8                          
+    0x29, #  9                          
+    0x4F, #  :                          
+    0x2C, #  ;                          
+    0x51, #  <                          
+    0x2B, #  =                          
+    0x57, #  >                          
+    0x49, #  ?                          
+    0x55, #  @
+    0x01, #  A
+    0x02, #  B
+    0x03, #  C
+    0x04, #  D
+    0x05, #  E
+    0x06, #  F
+    0x07, #  G
+    0x08, #  H
+    0x09, #  I
+    0x0A, #  J
+    0x0B, #  K
+    0x0C, #  L
+    0x0D, #  M
+    0x0E, #  N
+    0x0F, #  O
+    0x10, #  P
+    0x11, #  Q
+    0x12, #  R
+    0x13, #  S
+    0x14, #  T
+    0x15, #  U
+    0x16, #  V
+    0x17, #  W
+    0x18, #  X
+    0x19, #  Y
+    0x1A, #  Z
+    0x52, #  [
+    0x59, #  \  '\\'
+    0x54, #  ]
+    0xBE, #  ^
+    0x3C, #  _
+    0xC7, #  `
+    0x81, #  a
+    0x82, #  b
+    0x83, #  c
+    0x84, #  d
+    0x85, #  e
+    0x86, #  f
+    0x87, #  g
+    0x88, #  h
+    0x89, #  i
+    0x8A, #  j
+    0x8B, #  k
+    0x8C, #  l
+    0x8D, #  m
+    0x8E, #  n
+    0x8F, #  o
+    0x90, #  p
+    0x91, #  q
+    0x92, #  r
+    0x93, #  s
+    0x94, #  t
+    0x95, #  u
+    0x96, #  v
+    0x97, #  w
+    0x98, #  x
+    0x99, #  y
+    0x9A, #  z
+    0xBC, #  {
+    0x80, #  |
+    0x40, #  }
+    0xA5, #  ~
+    0xC0  #  DEL
+);
+
+# Sharp Display Code to ASCII mapping tables.
+#
+@SharpCodeToASCII = (
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0x0F
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0x1F
+    0x20,
+    0x21,
+    0x22,
+    0x23,
+    0x24,
+    0x25,
+    0x26,
+    0x27,
+    0x28,
+    0x29,
+    0x2A,
+    0x2B,
+    0x2C,
+    0x2D,
+    0x2E,
+    0x2F, # 0x2F
+    0x30,
+    0x31,
+    0x32,
+    0x33,
+    0x34,
+    0x35,
+    0x36,
+    0x37,
+    0x38,
+    0x39,
+    0x3A,
+    0x3B,
+    0x3C,
+    0x3D,
+    0x3E,
+    0x3F, # 0x3F
+    0x40,
+    0x41,
+    0x42,
+    0x43,
+    0x44,
+    0x45,
+    0x46,
+    0x47,
+    0x48,
+    0x49,
+    0x4A,
+    0x4B,
+    0x4C,
+    0x4D,
+    0x4E,
+    0x4F, # 0x4F
+    0x50,
+    0x51,
+    0x52,
+    0x53,
+    0x54,
+    0x55,
+    0x56,
+    0x57,
+    0x58,
+    0x59,
+    0x5A,
+    0x5B,
+    0x5C,
+    0x5D,
+    0x5E,
+    0x5F, # 0x5F
+    0x20, # 0x60
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0x6F
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0x7F
+
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0x8F
+
+    0x20,
+    0x20,
+    0x65,
+    0x20,
+    0x20,
+    0x20,
+    0x74,
+    0x67,
+    0x68,
+    0x20,
+    0x62,
+    0x78,
+    0x64,
+    0x72,
+    0x70,
+    0x63, # 0x9F
+
+    0x71,
+    0x61,
+    0x7A,
+    0x77,
+    0x73,
+    0x75,
+    0x69,
+    0x20,
+    0x4F, # O with umlaut
+    0x6B,
+    0x66,
+    0x76,
+    0x20,
+    0x75, # u with umlaut
+    0x42, # Strasse S
+    0x6A, # 0XAF
+
+    0x6E,
+    0x20,
+    0x55, # U with umlaut
+    0x6D,
+    0x20,
+    0x20,
+    0x20,
+    0x6F,
+    0x6C,
+    0x41, # A with umlaut
+    0x6F, # o with umlaut
+    0x61, # a with umlaut
+    0x20,
+    0x79,
+    0x20,
+    0x20, # 0xBF
+
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0XCF
+
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0XDF
+
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20, # 0XEF
+
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20,
+    0x20  # 0XFF
+);
 
 
 ##################################################################################
@@ -428,10 +832,10 @@ sub argOptions
         print STDOUT "Usage: $PROGNAME <commands> [<options>]                                     \n";
         print STDOUT "           commands= --help                                                |\n";
         print STDOUT "                     --verbose                                             |\n";
-        print STDOUT "                     --command=<IDENT|ADDHEADER|DELHEADER>                 |\n";
-        print STDOUT "                     --mzffile=<file>          {IDENT|ADDHEADER|DELHEADER} |\n";
+        print STDOUT "                     --command=<IDENT|ADDHEADER|DELHEADER|FIXHEADER>       |\n";
+        print STDOUT "                     --mzffile=<file> {IDENT|ADDHEADER|DELHEADER|FIXHEADER}|\n";
         print STDOUT "                     --srcfile=<file>                        {ADDHEADER}   |\n";
-        print STDOUT "                     --dstfile=<file>                        {DELHEADER}   |\n";
+        print STDOUT "                     --dstfile=<file>              {DELHEADER|FIXHEADER}   |\n";
         print STDOUT "                     --filename=<name of tape file>          (ADDHEADER}   |\n";
         print STDOUT "                     --loadaddr=<addr tape should load @>    (ADDHEADER}   |\n";
         print STDOUT "                     --execaddr=<auto exec addr>             (ADDHEADER}   |\n";
@@ -447,6 +851,22 @@ sub argOptions
     exit( $exitCode );
 }
 
+# Method to map an ASCII standard character, as a value, into a Sharp ASCII value.
+#
+sub getSharpASCIICode
+{
+    local($matchChar) = @_;
+    $matchcnt = 0;
+    foreach (@SharpCodeToASCII)
+    {
+        if($matchChar eq $_)
+        {
+            return($matchcnt);
+        }
+        $matchcnt = $matchcnt + 1;
+    }
+    return(0xF0);
+}
 
 ##################################################################################
 # END OF GENERIC SUB-ROUTINES
@@ -487,7 +907,7 @@ $comment = "";
 GetOptions( "debug=n"               => \$debugMode,            # Debug Mode?
             "verbose"               => \$verbose,              # Show details?
             "mzffile=s"             => \$mzfFile,              # MZF file.
-            "dstfile=s"             => \$dstFile,              # Destination file (for header removal).
+            "dstfile=s"             => \$dstFile,              # Destination file (for header removal or MZF file with updated header).
             "srcfile=s"             => \$srcFile,              # Source file (for header adding).
             "filename=s"            => \$fileName,             # Filename to insert into header.
             "loadaddr=s"            => \$s_loadAddr,           # Tape load address.
@@ -522,7 +942,7 @@ if($s_tapeType ne "")
 
 # Verify command.
 #
-if($command eq "IDENT" || $command eq "ADDHEADER" || $command eq "DELHEADER")
+if($command eq "IDENT" || $command eq "ADDHEADER" || $command eq "DELHEADER" || $command eq "FIXHEADER")
 {
     1;
 }
@@ -536,10 +956,14 @@ if($command eq "ADDHEADER" && ($fileName eq "" || !defined($loadAddr) || !define
 {
     argOptions(3, "ADDHEADER command requires the following parameters to be provided: --filename, --loadaddr, --execaddr, --tapetype\n",$ERR_BADARGUMENTS);
 }
+if($command eq "FIXHEADER" && $dstFile eq "")
+{
+    argOptions(3, "FIXHEADER command requires the following parameter to be provided: --dstfile\n",$ERR_BADARGUMENTS);
+}
 
 # For ident or delete header commands, we need to open and read the mzf file.
 #
-if(($command eq "IDENT" || $command eq "DELHEADER") && defined($mzfFile) && $mzfFile ne "")
+if(($command eq "IDENT" || $command eq "DELHEADER" || $command eq "FIXHEADER") && defined($mzfFile) && $mzfFile ne "")
 {
     # If defined, can we open it?
     #
@@ -562,8 +986,10 @@ if(($command eq "IDENT" || $command eq "DELHEADER") && defined($mzfFile) && $mzf
 
     # Once the MZF is in memory, analyse the details and output.
     #
-    $mzf_header = pack('a'x128, @MZF);
-    ($mzf_type, $mzf_filename, $mzf_size, $mzf_loadaddr, $mzf_execaddr, $mzf_comment) = unpack 'c1 a17 v4 v4 v4 a104', $mzf_header;
+    $mzf_header = pack('a'x24, @MZF);
+    ($mzf_type, $mzf_filename, $mzf_size, $mzf_loadaddr, $mzf_execaddr) = unpack 'c1 a17 v4 v4 v4 a104', $mzf_header;
+    # Comment is unpacked seperately as there appears to be a perl bug where the first char becomes 0 when unpacking in the above list.
+    $mzf_comment = pack('a'x104, @MZF[24..128]);
     $mzf_filename =~ s/\r|\n//g;
 
     # Output detail if requested.
@@ -578,13 +1004,49 @@ if(($command eq "IDENT" || $command eq "DELHEADER") && defined($mzfFile) && $mzf
         printf STDOUT "Comment            : %s\n",   $mzf_comment;
     }
 
-    # For the DELHEADER command, a destination needs to be provided and opened.
-    if($command eq "DELHEADER" && defined($dstFile) && $dstFile ne "")
+    # For the DELHEADER/FIXHEADER command, a destination needs to be provided and opened.
+    if(($command eq "DELHEADER" || $command eq "FIXHEADER") && defined($dstFile) && $dstFile ne "")
     {
         if( ! open(DSTFILE, ">".$dstFile) )
         {
             argOptions(1, "Cannot open the destination file: $dstFile.\n",$ERR_BADFILENAME);
         }
+    }
+
+    # For the FIXHEADER, look at the filename and correct if it doesnt use Sharp ASCII.
+    #
+    if($command eq "FIXHEADER")
+    {
+        # Remove start and trailing space.
+        $mzf_filename = trim($mzf_filename);
+
+        # Go through the string and convert the stored filename to Sharp format.
+        $new_mzf_filename = "";
+        for $idx (0..length($mzf_filename)-1)
+        {
+            $hdrChar = substr($mzf_filename, $idx, 1);
+            $mapIdx = ord($hdrChar); 
+            if($hdrChar =~ m/[^a-z]/)
+            {
+                $new_mzf_filename = $new_mzf_filename . pack("C1", $mapIdx);
+            } else
+            {
+                $new_mzf_filename = $new_mzf_filename . pack("C1", getSharpASCIICode($mapIdx));
+            }
+        }
+
+        # Remove start and trailing space.
+        $new_mzf_filename = trim($new_mzf_filename);
+
+        # Pad to length of filename field with NULL bytes.
+        for $idx (length($new_mzf_filename)..17-1)
+        {
+            $new_mzf_filename = $new_mzf_filename . pack("C1", 0x00);
+        }
+       
+        # Repack the header with the updated filename.
+        $new_mzf_header  = pack('c1 a17 v v v', $mzf_type, $new_mzf_filename, $mzf_size, $mzf_loadaddr, $mzf_execaddr);
+        $new_mzf_header .= pack('a104', $mzf_comment) ;
     }
 } 
 elsif($command eq "ADDHEADER" && defined($mzfFile) && $mzfFile ne "") 
@@ -658,6 +1120,25 @@ elsif($command eq "DELHEADER")
 {
     my $cnt = 0;
     foreach my $byte (@MZF) { if($cnt++ >= 128) { print DSTFILE $byte; } }
+    close DSTFILE;
+}
+elsif($command eq "FIXHEADER")
+{
+    # Can we create the destination file, ie. the file containing the MZF program with a corrected header?
+    #
+    if( ! open(DSTFILE, ">".$dstFile) )
+    {
+        argOptions(1, "Cannot open the destination file: $dstFile.\n",$ERR_BADFILENAME);
+    }
+
+    # Strip off the old header.
+    splice(@MZF, 0, 128);
+  
+    # Now add the new header and source data into the destination file.
+    print DSTFILE $new_mzf_header;
+    foreach my $byte (@MZF) { print DSTFILE $byte; }
+ 
+    # All done.
     close DSTFILE;
 }
 

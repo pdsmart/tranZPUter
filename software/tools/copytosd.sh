@@ -12,7 +12,7 @@
 # OPTIONS
 #     -D<root path> = Absolute path to root of tranZPUter project dir.
 #     -M<mediapath> = Path to mounted SD card.
-#     -t<targethost>= Target host, MZ-80A, MZ-700, MZ-800, MZ-2000
+#     -t<targethost>= Target host, MZ-80K, MZ-80A, MZ-700, MZ-800, MZ-1500, MZ-2000
 #     -d            = Debug mode.
 #     -x            = Shell trace mode.
 #     -h            = This help screen.
@@ -161,7 +161,7 @@ if [ $# -gt 0 ]; then
         case $opt in
             d)     DEBUGMODE=1;;
             D)     rootdir=${OPTARG};;
-            m)     media=${OPTARG};;
+            M)     media=${OPTARG};;
             t)     target=${OPTARG};;
             x)     set -x; TRACEMODE=1;;
             h)     Usage;;
@@ -176,7 +176,7 @@ if [ ! -d "${rootdir}/${softwaredir}" ]; then
     Fatal "-D < root path > is invalid, this should be the directory where the tranZPUter project directory is located."
 fi
 if [ ! -d "${rootdir}/${softwaredir}/MZF/${target}" ]; then
-    Fatal "-t < target host> is invalid, this should be one of: MZ-80A, MZ-700, MZ-800, MZ-2000"
+    Fatal "-t < target host> is invalid, this should be one of: MZ-80K, MZ-80A, MZ-700, MZ-800, MZ-1500, MZ-2000"
 fi
 if [ ! -d "${media}" ]; then
     Fatal "-m < root path > is invalid, this should be the directory where the tranZPUter project directory is located."
@@ -209,7 +209,8 @@ cp ${rootdir}/${softwaredir}/roms/MZ800_*                         $media/TZFS/;
 cp ${rootdir}/${softwaredir}/roms/cpm22.bin                       $media/CPM/; 
 cp ${rootdir}/${softwaredir}/CPM/SDC16M/RAW/*                     $media/CPM/; 
 cp ${rootdir}/${softwaredir}/MZF/Common/*                         $media/MZF/;
-cp ${rootdir}/${softwaredir}/MZF/MZ-800/*                         $media/MZF/;
+cp ${rootdir}/${softwaredir}/MZF/${target}/*                      $media/MZF/;
+cp ${rootdir}/${softwaredir}/MZF/MZ-80K/*                         $media/MZF/;
 cp ${rootdir}/${softwaredir}/BAS/*                                $media/BAS/; 
 cp ${rootdir}/${softwaredir}/CAS/*                                $media/CAS/
 

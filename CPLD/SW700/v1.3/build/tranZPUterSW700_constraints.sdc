@@ -289,6 +289,13 @@ set_false_path -from {cpld512:cpldl512Toplevel|GRAM_PAGE_ENABLE}   -to {cpld512:
 # Set Multicycle Path
 #**************************************************************
 set_multicycle_path -from {cpld512:cpldl512Toplevel|CTL_BUSRQni} -to {cpld512:cpldl512Toplevel|CTLCLK_Q} -setup -end 2
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CTL_BUSRQni} -to {cpld512:cpldl512Toplevel|CTLCLK_Q} -hold -end 1
+
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CTL_BUSRQni} -to {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[*]} -setup -end 2
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CTL_BUSRQni} -to {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[*]} -hold -end 1
+
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]} -to {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[*]} -setup -end 2
+set_multicycle_path -from {cpld512:cpldl512Toplevel|CPU_CFG_DATA[*]} -to {cpld512:cpldl512Toplevel|MEM_MODE_LATCH[*]} -hold -end 1
 
 #**************************************************************
 # Set Maximum Delay

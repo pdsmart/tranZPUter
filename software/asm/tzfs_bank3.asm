@@ -72,38 +72,42 @@ SKIPCOM2:   LD      A,(DE)                                               ; Comma
             ; 7 = MZ-700
             ; 8 = MZ-800
             ; 2 = MZ-2000
-            ; O = Original memory load.
+            ; O = Original memory load, original machine configuration, ie. MZ-800 as an MZ-800..
+            ; o = Original memory load, alternative mode, ie. MZ-700 on MZ-800 host..
             ; Outputs:
             ;    C = Binary model number 0..7
             ;    Z = Model code valid.
             ;   NZ = Invalid code.
 CHECKMODEL: LD      C,MODE_MZ80K
-            CP      'K'
-            RET     Z
+            CP      'K'                                                   ; MZ-80K
+            RET     Z                                                     ; 0
             INC     C
-            CP      'C'
-            RET     Z
+            CP      'C'                                                   ; MZ-80C
+            RET     Z                                                     ; 1
             INC     C
-            CP      '1'
-            RET     Z
+            CP      '1'                                                   ; MZ-1200
+            RET     Z                                                     ; 2
             INC     C
-            CP      'A'
-            RET     Z
+            CP      'A'                                                   ; MZ-80A
+            RET     Z                                                     ; 3
             INC     C
-            CP      '7'
-            RET     Z
+            CP      '7'                                                   ; MZ-700
+            RET     Z                                                     ; 4
             INC     C
-            CP      '8'
-            RET     Z
+            CP      '8'                                                   ; MZ-800
+            RET     Z                                                     ; 5
             INC     C
-            CP      'B'
-            RET     Z
+            CP      'B'                                                   ; MZ-80B
+            RET     Z                                                     ; 6
             INC     C
-            CP      '2'
-            RET     Z
+            CP      '2'                                                   ; MZ-2000
+            RET     Z                                                     ; 7
             INC     C
-            CP      'O'
-            RET 
+            CP      'O'                                                   ; Original host, ie. MZ-800 as an MZ-800
+            RET     Z                                                     ; 8
+            INC     C
+            CP      'S'                                                   ; Original host, alternative mode, ie. MZ-700 mode on MZ-800 host.
+            RET                                                           ; 9?
 
             ; Get optional machine model code. Format is: CMD<param>[,][machine model code]
             ; Outputs:
@@ -116,7 +120,7 @@ GETMODEL:   CALL    SKIPCOMMA
             JR      NZ,READMODEL
             RET
 READMODEL:  IN      A,(CPLDINFO)                                         ; Get the model number from the underlying hardware.
-            AND     00FH                                                 ; Mask in the relevant bits, A = Model number.
+            AND     007H                                                 ; Mask in the relevant bits, A = Model number.
             RET
 
             ;
@@ -308,6 +312,324 @@ CLEAR1:     LD      A,D
 
             ;-------------------------------------------------------------------------------
             ; END OF ADDITIONAL TZFS COMMAND METHODS
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF TIMER TEST FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ; Test the 8253 Timer, configure it as per the monitor and display the read back values.
+TIMERTST:   CALL    NL
+            LD      DE,MSG_TIMERTST
+            CALL    MSG
+            CALL    NL
+            LD      DE,MSG_TIMERVAL
+            CALL    MSG
+            LD      A,01h
+            LD      DE,8000h
+            CALL    TIMERTST1
+NDE:        JP      NDE
+            JP      ST1X
+TIMERTST1:  DI      
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            LD      (AMPM),A
+            LD      A,0F0H
+            LD      (TIMFG),A
+ABCD:       LD      HL,0A8C0H
+            XOR     A
+            SBC     HL,DE
+            PUSH    HL
+            INC     HL
+            EX      DE,HL
+
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),0B0H   ; 10110000 Control Counter 2 10, Write 2 bytes 11, 000 Interrupt on Terminal Count, 0 16 bit binary
+            LD      (HL),074H   ; 01110100 Control Counter 1 01, Write 2 bytes 11, 010 Rate Generator, 0 16 bit binary
+            LD      (HL),030H   ; 00110100 Control Counter 1 01, Write 2 bytes 11, 010 interrupt on Terminal Count, 0 16 bit binary
+
+            LD      HL,CONT2    ; Counter 2
+            LD      (HL),E
+            LD      (HL),D
+
+            LD      HL,CONT1    ; Counter 1
+            LD      (HL),00AH
+            LD      (HL),000H
+
+            LD      HL,CONT0    ; Counter 0
+            LD      (HL),00CH
+            LD      (HL),0C0H
+
+;            LD      HL,CONT2    ; Counter 2
+;            LD      C,(HL)
+;            LD      A,(HL)
+;            CP      D
+;            JP      NZ,L0323H                
+;            LD      A,C
+;            CP      E
+;            JP      Z,CDEF                
+            ;
+
+L0323H:     PUSH    AF
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),080H
+            LD      HL,CONT2    ; Counter 2
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            CALL    PRNTS
+            ;CALL    DLY1S
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),040H
+            LD      HL,CONT1    ; Counter 1
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            CALL    PRNTS
+            ;CALL    DLY1S
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),000H
+            LD      HL,CONT0    ; Counter 0
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            ;CALL    DLY1S
+            ;
+            LD      A,0C4h      ; Move cursor left.
+            LD      E,0Eh      ; 4 times.
+L0330:      CALL    DPCT
+            DEC     E
+            JR      NZ,L0330
+            ;
+;            LD      C,20
+;L0324:      CALL    DLY12
+;            DEC     C
+;            JR      NZ,L0324
+            ;
+            POP     HL
+            POP     DE
+            POP     BC
+            POP     AF
+            ;
+            LD      HL,CONT2    ; Counter 2
+            LD      C,(HL)
+            LD      A,(HL)
+            CP      D
+            JP      NZ,L0323H                
+            LD      A,C
+            CP      E
+            JP      NZ,L0323H                
+            ;
+            ;
+            PUSH    AF
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            CALL    NL
+            CALL    NL
+            CALL    NL
+            LD      DE,MSG_TIMERVAL2
+            CALL    MSG
+            POP     HL
+            POP     DE
+            POP     BC
+            POP     AF
+
+            ;
+CDEF:       POP     DE
+            LD      HL,CONT1
+            LD      (HL),00CH
+            LD      (HL),07BH
+            INC     HL
+
+L0336H:     PUSH    AF
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),080H
+            LD      HL,CONT2    ; Counter 2
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            CALL    PRNTS
+            CALL    DLY1S
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),040H
+            LD      HL,CONT1    ; Counter 1
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            CALL    PRNTS
+            CALL    DLY1S
+            ;
+            LD      HL,CONTF    ; Control Register
+            LD      (HL),000H
+            LD      HL,CONT0    ; Counter 0
+            LD      C,(HL)
+            LD      A,(HL)
+            CALL    PRTHX
+            LD      A,C
+            CALL    PRTHX
+            ;
+            CALL    DLY1S
+            ;
+            LD      A,0C4h      ; Move cursor left.
+            LD      E,0Eh      ; 4 times.
+L0340:      CALL    DPCT
+            DEC     E
+            JR      NZ,L0340
+            ;
+            POP     HL
+            POP     DE
+            POP     BC
+            POP     AF
+
+            LD      HL,CONT2    ; Counter 2
+            LD      C,(HL)
+            LD      A,(HL)
+            CP      D
+            JR      NZ,L0336H                
+            LD      A,C
+            CP      E
+            JR      NZ,L0336H                
+            CALL    NL
+            LD      DE,MSG_TIMERVAL3
+            CALL    MSG
+            POP     HL
+            POP     DE
+            POP     BC
+            EI      
+            RET   
+            ;-------------------------------------------------------------------------------
+            ; END OF TIMER TEST FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF PRINTER CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+PTESTX:     LD      A,(DE)
+            CP      '&'                                                  ; plotter test
+            JR      NZ,PTST1X
+PTST0X:     INC     DE
+            LD      A,(DE)
+            CP      'L'                                                  ; 40 in 1 line
+            JR      Z,.LPTX
+            CP      'S'                                                  ; 80 in 1 line
+            JR      Z,..LPTX
+            CP      'C'                                                  ; Pen change
+            JR      Z,PENX
+            CP      'G'                                                  ; Graph mode
+            JR      Z,PLOTX
+            CP      'T'                                                  ; Test
+            JR      Z,PTRNX
+;
+PTST1X:     CALL    PMSGX
+ST1X2:      RET
+.LPTX:      LD      DE,LLPT                                              ; 01-09-09-0B-0D
+            JR      PTST1X
+..LPTX:     LD      DE,SLPT                                              ; 01-09-09-09-0D
+            JR      PTST1X
+PTRNX:      LD      A,004h                                               ; Test pattern
+            JR      LE999
+PLOTX:      LD      A,002h                                               ; Graph mode
+LE999:      CALL    LPRNTX
+            JR      PTST0X
+PENX:       LD      A,01Dh                                               ; 1 change code (text mode)
+            JR      LE999
+;
+;
+;       1 char print to $LPT
+;
+;        in: ACC print data
+;
+;
+LPRNTX:     LD      C,000h                                               ; RDAX test
+            LD      B,A                                                  ; print data store
+            CALL    RDAX
+            LD      A,B
+            OUT     (0FFh),A                                             ; data out
+            LD      A,080h                                               ; RDP high
+            OUT     (0FEh),A
+            LD      C,001h                                               ; RDA test
+            CALL    RDAX
+            XOR     A                                                    ; RDP low
+            OUT     (0FEh),A
+            RET
+;
+;       $LPT msg.
+;       in: DE data low address
+;       0D msg. end
+;
+PMSGX:      PUSH    DE
+            PUSH    BC
+            PUSH    AF
+PMSGX1:     LD      A,(DE)                                               ; ACC = data
+            CALL    LPRNTX
+            LD      A,(DE)
+            INC     DE
+            CP      00Dh                                                 ; end ?
+            JR      NZ,PMSGX1
+            POP     AF
+            POP     BC
+            POP     DE
+            RET
+
+;
+;       RDA check
+;
+;       BRKEY in to monitor return
+;       in: C RDA code
+;
+RDAX:       IN      A,(0FEh)
+            AND     00Dh
+            CP      C
+            RET     Z
+            CALL    BRKEY
+            JR      NZ,RDAX
+            LD      SP,ATRB
+            JR      ST1X2
+
+            ;    40 CHA. IN 1 LINE CODE (DATA)
+LLPT:       DB      01H                                                  ; TEXT MODE
+            DB      09H
+            DB      09H
+            DB      0BH
+            DB      0DH
+
+            ;    80 CHA. 1 LINE CODE (DATA)
+SLPT:       DB      01H                                                  ; TEXT MODE
+            DB      09H
+            DB      09H
+            DB      09H
+            DB      0DH
+
+            ;-------------------------------------------------------------------------------
+            ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
 
