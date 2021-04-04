@@ -10,7 +10,7 @@
 ;-                  I/O processor in the K64F/ZPU.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         May 2020  - Branch taken from RFS v2.0 and adapted for the tranZPUter SW.
 ;-                  July 2020 - Updates to accommodate v2.1 of the tranZPUter board.
@@ -137,8 +137,12 @@ BRKEY                   EQU     0001Eh
 MELDY                   EQU     00030h
 ?TMST                   EQU     00033h
 MONIT:                  EQU     00000h
+;SS:                     EQU     00089h
+;ST1:                    EQU     00095h
 HLHEX                   EQU     00410h
 _2HEX                   EQU     0041Fh
+;?MODE:                  EQU     0074DH
+;?KEY                    EQU     008CAh
 PRNT3                   EQU     0096Ch
 ?ADCN                   EQU     00BB9h
 ?DACN                   EQU     00BCEh
@@ -149,9 +153,13 @@ PRTHL:                  EQU     003BAh
 PRTHX:                  EQU     003C3h
 HEX:                    EQU     003F9h
 DPCT:                   EQU     00DDCh
+;DLY12:                  EQU     00DA7h
+;DLY12A:                 EQU     00DAAh
 ?RSTR1:                 EQU     00EE6h
+;MOTOR:                  EQU     006A3H
 CKSUM:                  EQU     0071AH
 GAP:                    EQU     0077AH
+;WTAPE:                  EQU     00485H
 MSTOP:                  EQU     00700H
 
                         ; ROM location differences between the MZ80A and MZ-700.
@@ -178,7 +186,7 @@ DLY12:                  EQU     00996H
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
-; Memory mapped ports in hardware.1G
+; Memory mapped ports in hardware.
 ;-----------------------------------------------
 SCRN:                   EQU     0D000H
 ARAM:                   EQU     0D800H

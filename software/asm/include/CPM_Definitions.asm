@@ -7,7 +7,7 @@
 ;-                  Definitions for the Sharp MZ80A CPM v2.23 OS used in the RFS
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Jan 2020 - Initial version.
 ;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
