@@ -23,12 +23,13 @@
 ; Original source is: (C) 1978 Microsoft
 ; Updates (some reversed out): Grant Searle, http://searle.hostei.com/grant/index.html
 ;                                            eMail: home.micros01@btinternet.com
-; All other updates (C) Philip Smart, 2020. http://www.eaw.app philip.smart\@net2net.org
+; All other updates (C) Philip Smart, 2020-21. http://www.eaw.app philip.smart\@net2net.org
 ;-----------------------------------------------------------------------------------------------
 
 
             ; Bring in additional resources.
-            INCLUDE "BASIC_Definitions.asm"
+            INCLUDE "MSBASIC_BuildVersion.asm"
+            INCLUDE "MSBASIC_Definitions.asm"
             INCLUDE "Macros.asm"
 
             ; Sharp MZ-80A Tape Format Header - used by all software including RFS/TZFS 
@@ -38,24 +39,32 @@
 
             DB      01h                                                                                     ; Code Type, 01 = Machine Code.
 HEADER1:    IF BUILD_MZ80A = 1
-            DB      "MZ80A BASIC V1.1", 0DH                                                                 ; Title/Name (17 bytes).
+            DB      "MS-BASIC(MZ-80A)", 0DH                                                                 ; Title/Name (17 bytes).
             DW      CODEEND - CODESTART                                                                     ; Size of program.
             DW      CODESTART                                                                               ; Load address of program.
             DW      CODESTART                                                                               ; Exec address of program.
             ENDIF
 
-HEADER2:    IF BUILD_RFS = 1
-            DB      "RFS BASIC V1.1" , 0DH, 0DH, 0DH                                                        ; Title/Name (17 bytes).
-            DW      (CODEEND - CODESTART) + (RELOCEND - RELOC) + (RELOCRFS2END - RELOCRFS2)                 ; Size of program.
-            DW      01200H                                                                                  ; Load address of program.
-            DW      RELOCRFS                                                                                ; Exec address of program.
-            ENDIF
-
-HEADER3:    IF BUILD_TZFS = 1
-            DB      "TZFS BASIC V1.3", 0DH, 0DH                                                             ; Title/Name (17 bytes).
+HEADER2:    IF BUILD_MZ700 = 1
+            DB      "MS-BASIC(MZ700)", 0DH, 0DH, 0DH, 0DH                                                   ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
+            ENDIF
+
+HEADER3:    IF BUILD_TZFS = 1
+             IF BUILD_80C = 0
+              DB      "MS-BASIC(TZFS40)", 0DH                                                                 ; Title/Name (17 bytes).
+              DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
+              DW      01200H                                                                                  ; Load address of program.
+              DW      RELOC                                                                                   ; Exec address of program.
+             ELSE
+              IF BUILD_80C = 1
+              DB      "MS-BASIC(TZFS80)", 0DH                                                                 ; Title/Name (17 bytes).
+              DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
+              DW      01200H                                                                                  ; Load address of program.
+              DW      RELOC                                                                                   ; Exec address of program.
+             ENDIF
             ENDIF
 
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h          ; Comment (104 bytes).
@@ -68,11 +77,15 @@ HEADER3:    IF BUILD_TZFS = 1
 
             ; Load address of this program when first loaded.
             ;
-BUILD1:     IF BUILD_MZ80A = 1
+BUILD1:     IF BUILD_MZ80A = 1 
             ORG     1200H
             ENDIF
 
-BUILD2:     IF BUILD_TZFS+BUILD_RFS > 0
+BUILD2:     IF BUILD_MZ700 = 1 
+            ORG     0000H
+            ENDIF
+
+BUILD3:     IF BUILD_TZFS = 1
             ORG     0000H
             ENDIF
 
@@ -88,7 +101,7 @@ STARTB:
             DW      ABPASS               ; Return integer in AB
 
 
-VECTORS:    IF BUILD_TZFS+BUILD_RFS > 0
+VECTORS:    IF BUILD_MZ700+BUILD_TZFS > 1
             ALIGN   0038H
             ORG     0038H
 INTVEC:     DS      3                    ; Space for the Interrupt vector.
@@ -102,7 +115,7 @@ CSTART:     DI                           ; Disable Interrupts and sat mode. NB. 
             IM      1
             LD      SP,STACK             ; Start of workspace RAM
 
-MEMSW0:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW0:     IF BUILD_MZ700+BUILD_TZFS > 1
             LD      A,TZMM_MZ700_0       ; Ensure the top part of RAM is set to use the mainboard as we need to configure hardware.
             OUT     (MMCFG),A
             ENDIF
@@ -122,6 +135,12 @@ INIT1:      LD      (HL),D               ; Clear variable memory including stack
             JR      NZ,INIT1
             ;
             CALL    MODE                 ; Configure 8255 port C, set Motor Off, VGATE to 1 (off) and INTMSK to 0 (interrupts disabled).
+            LD      A,000H               ; Clear the screen buffer.
+            LD      HL,SCRN
+            CALL    CLR8
+            LD      A,017H               ; Blue background, white characters in colour mode.
+            LD      HL,ARAM
+            CALL    CLR8
             LD      A,004H
             LD      (TEMPW),A            ; Setup the tempo for sound output.
 
@@ -145,34 +164,45 @@ INIT3:      ; Setup keyboard buffer control.
             LD      A,080H               ; Cursor on (Bit D7=1).
             LD      (FLASHCTL),A
 
-INIT80CHAR: IF BUILD_VIDEOMODULE = 1
-            IN      A, (CPLDINFO)        ; Get hardware information.
-            BIT     3,A
-            JR      Z, INIT40CHAR        ; If no video module present then need to use 40 char mode.
-            AND     007H
-            LD      D, A
-            OR      MODE_VIDEO_FPGA      ; Ensure the video hardware is enabled.
-            OUT     (CPLDCFG),A
-            LD      A, D
-            OR      MODE_80CHAR          ; Enable 80 char display.
-            LD      C, A
-            IN      A, (VMCTRL)          ; Get current graphics mode and vga mode.
-            AND     0C0H                 ; Mask out all but VGA mode.
-            OR      C                    ; Add in new hardware/80char mode.
-            OUT     (VMCTRL),A           ; Activate.
-            LD      A, D
-            CP      MODE_MZ80A           ; Check to see if this is the MZ80A, if so, change BUS speed.
-            JR      NZ, INIT80END
-            LD      A, SYSMODE_MZ80B     ; Set bus and default CPU speed to 4MHz
-            OUT     (SYSCTRL),A          ; Activate.            
-            JR      INIT80END
+INIT80CVM:  IF BUILD_VIDEOMODULE = 1
+              IN    A, (CPLDINFO)        ; Get hardware information.
+              BIT   3,A
+              JR    Z, INIT80CHAR        ; If no video module present then need to use 40 char mode.
+              AND   007H
+              LD    D, A
+              OR    MODE_VIDEO_FPGA      ; Ensure the video hardware is enabled.
+              OUT   (CPLDCFG),A
+              LD    A, D
+              OR    MODE_80CHAR          ; Enable 80 char display.
+              LD    C, A
+              IN    A, (VMCTRL)          ; Get current graphics mode and vga mode.
+              AND   0C0H                 ; Mask out all but VGA mode.
+              OR    C                    ; Add in new hardware/80char mode.
+              OUT   (VMCTRL),A           ; Activate.
+              LD    A, D
+              CP    MODE_MZ80A           ; Check to see if this is the MZ80A, if so, change BUS speed.
+              JR    NZ, INIT80END
+              LD    A, SYSMODE_MZ80B     ; Set bus and default CPU speed to 4MHz
+              OUT   (SYSCTRL),A          ; Activate.            
+              JR    INIT80END
 
-INIT40CHAR: LD      A, 40                ; Set BASIC to 40 column width.
-            LD      (INITABW),A
+            ; If no Video module installed but 80C configured, attempt to initialise the 40/80 Colour Card.
+INIT80CHAR:  IF BUILD_80C = 1
+              ; Change to 80 character mode.
+              LD    HL,DSPCTL            ; Setup address of display control register latch.
+              LD    A, 128               ; 80 char mode.
+              LD    E,(HL)               ; Dummy operation to enable latch write via multivibrator.
+              LD    (HL), A
+             ENDIF
+
             ELSE
-            ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
-            LD      A, 128               ; 80 char mode.
-            LD      (DSPCTL), A
+
+            ; Default falls through to 40 column mode.
+INIT40CHAR:   LD    A, 40                ; Set BASIC to 40 column width.
+              LD    (INITABW),A
+              XOR   A                    ; As we call RFS for SD services, specifically DIR listing, we have to ensure RFS is configured for 40 column output mode.
+              LD    (SCRNMODE), A
+              LD    (SPAGE), A               
             ENDIF
             ;
 INIT80END:  LD      A,000H               ; Clear the screen buffer.
@@ -182,13 +212,15 @@ INIT80END:  LD      A,000H               ; Clear the screen buffer.
             LD      HL,ARAM
             CALL    CLR8
             ;
+            LD      A,COLW
+            LD      (LWIDTH),A           ; Setup the initial terminal width.
             CALL    MLDSP
             CALL    BEL                  ; Beep to indicate startup - for cases where screen is slow to startup.
             LD      A,0FFH
             LD      (SWRK),A
 
 INITANSI:   IF INCLUDE_ANSITERM = 1      ; If the ansi terminal emulator is builtin, enable it as default.
-            LD      (ANSIENABLE),A
+              LD    (ANSIENABLE),A
             ENDIF
 
             ; Setup timer interrupts
@@ -201,18 +233,18 @@ INITANSI:   IF INCLUDE_ANSITERM = 1      ; If the ansi terminal emulator is buil
             LD      A,05H                ; Enable interrupts at hardware level, this must be done before switching memory mode.
             LD      (KEYPF),A
             ;
-MEMSW1:     IF BUILD_TZFS+BUILD_RFS > 0
-            LD      A,TZMM_MZ700_2       ; Enable the full 64K memory range before starting BASIC initialisation.
-            OUT     (MMCFG),A
+MEMSW1:     IF BUILD_MZ700+BUILD_TZFS > 0
+              LD    A,TZMM_MZ700_2       ; Enable the full 64K memory range before starting BASIC initialisation.
+              OUT   (MMCFG),A
             ENDIF
 
             ; Clear memory
             LD      HL,WRKSPC
 MEMSZ1:     IF BUILD_MZ80A = 1
-            LD      BC,MAXMEM - WRKSPC   ; Clear to top of physical RAM.
+              LD    BC,MAXMEM - WRKSPC   ; Clear to top of physical RAM.
             ENDIF
-MEMSZ2:     IF BUILD_TZFS+BUILD_RFS > 0
-            LD      BC,10000H - WRKSPC   ; Clear to top of physical RAM.
+MEMSZ2:     IF BUILD_MZ700+BUILD_TZFS > 0
+              LD    BC,10000H - WRKSPC   ; Clear to top of physical RAM.
             ENDIF
             LD      E,00H
 INIT4:      LD      (HL),E
@@ -347,16 +379,18 @@ OPTIONS0:   IF BUILD_TZFS = 1
               DB    'D'+80H,"IR"         ; 0xa8  
               DB    'C'+80H,"D"          ; 0xa9 
             ENDIF
-            IF BUILD_RFS = 1
-              DB    'C'+80H,"LOAD"       ; 0xa3
-              DB    'C'+80H,"SAVE"       ; 0xa4
+OPTIONS1:   IF BUILD_MZ700 = 1
+             ;DB    'C'+80H,"LOAD"       ; 0xa3
+             ;DB    'C'+80H,"SAVE"       ; 0xa4
+              DB    'R'+80H,"EM"         ; 0xa3  
+              DB    'R'+80H,"EM"         ; 0xa4  
               DB    'R'+80H,"EM"         ; 0xa5  
               DB    'R'+80H,"EM"         ; 0xa6  
               DB    'R'+80H,"EM"         ; 0xa7  
               DB    'R'+80H,"EM"         ; 0xa8  
               DB    'R'+80H,"EM"         ; 0xa9  
             ENDIF
-            IF BUILD_MZ80A = 1
+OPTIONS2:   IF BUILD_MZ80A = 1
               DB    'C'+80H,"LOAD"       ; 0xa3
               DB    'C'+80H,"SAVE"       ; 0xa4
               DB    'R'+80H,"EM"         ; 0xa5  
@@ -477,7 +511,7 @@ WORDTB:     DW      PEND
             DW      SETANSITERM          ; Enable/disable the ANSI Terminal Emulator.
 
             ; Optional commands to be builtin when a tranZPUter board is present.
-OPTIONS1:   IF BUILD_TZFS = 1
+OPTIONS1A:  IF BUILD_TZFS = 1
             DW      CLOADTZ              ; Load tokenised BASIC program.
             DW      CSAVETZ              ; Save tokenised BASIC program.
             DW      LOAD                 ; Load ASCII text BASIC program.
@@ -486,7 +520,7 @@ OPTIONS1:   IF BUILD_TZFS = 1
             DW      DIRSDCARD            ; List out the SD directory.
             DW      SETDIR               ; Change directory for all load and save operations.
             ENDIF
-OPTIONS2:   IF BUILD_RFS = 1
+OPTIONS2A:  IF BUILD_MZ700 = 1
             DW      CLOAD80A             ; Load tokenised BASIC program from tape.
             DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
@@ -495,7 +529,7 @@ OPTIONS2:   IF BUILD_RFS = 1
             DW      REM
             DW      REM
             ENDIF
-OPTIONS3:   IF BUILD_MZ80A = 1
+OPTIONS3A:  IF BUILD_MZ80A = 1
             DW      CLOAD80A             ; Load tokenised BASIC program from tape.
             DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
@@ -652,7 +686,11 @@ INITAB:     JP      WARMST               ; Warm start jump
 
             DB      1                    ; POS (x) number (1)
 INITABW:    DB      COLW                 ; Terminal width
-            DB      28                   ; Width for commas (3 columns)
+            IF BUILD_80C = 1
+              DB    28                   ; Width for commas (3 columns)
+            ELSE
+              DB    14                   ; Width for commas (3 columns)
+            ENDIF
             DB      0                    ; No nulls after input bytes
             DB      0                    ; Output enabled (^O off)
 
@@ -1077,6 +1115,7 @@ ECHDEL:     DEC     B                    ; Count bytes in buffer
 
 DELCHR:     DEC     B                    ; Count bytes in buffer
             DEC     HL                   ; Back space buffer
+            JR      Z,GETLIN             ; End of buffer, start again
             CALL    OUTC                 ; Output character in A
             JP      NZ,MORINP            ; Not end - Get more
 OTKLN:      CALL    OUTC                 ; Output character in A
@@ -1091,7 +1130,7 @@ TTYLIN:     LD      HL,BUFFER            ; Get a line by character
 MORINP:     CALL    CLOTST               ; Get character and test ^O
             LD      C,A                  ; Save character in C
             CP      DELETE               ; Delete character?
-            JP      Z,DODEL              ; Yes - Process it
+            JP      Z,DELCHR ;DODEL      ; Yes - Process it
             LD      A,(NULFLG)           ; Get null flag
             OR      A                    ; Test null flag status
             JP      Z,PROCES             ; Reset - Process character
@@ -5240,9 +5279,9 @@ FREQDEF:    DB      "Set to default.",                                         C
             ENDIF                                                        ; End of optional commands for use when a tranZPUter board is present.
 
             ;----------------------------------------
-            ; RFS Commands.
+            ; MZ-700 Commands.
             ;----------------------------------------
-OPTIONS2C:  IF BUILD_RFS = 1
+OPTIONS2C:  IF BUILD_MZ700 = 1
 
 
             ;--------------------------------------
@@ -5270,19 +5309,20 @@ RFSMSGLOAD: DB      "Loading",                                                 N
 RFSMSGOK:   DB      "Saved",                                                   CR,     NUL
 
             ;----------------------------------------
-            ; End of Options2 Code - RFS Build
+            ; End of Options2 Code - MZ-700 Build
             ;----------------------------------------
             ENDIF                                                        ; End of optional commands for use when a tranZPUter board is present.
 
             ;----------------------------------------
             ; MZ80A Commands.
             ;----------------------------------------
-OPTIONS3C:  IF BUILD_MZ80A+BUILD_RFS > 0
+OPTIONS3C:  IF BUILD_MZ80A+BUILD_MZ700 > 0
 
             ; Method to load a cassette image (tokenised basic script).
             ;
-CLOAD80A:   LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
-CLOAD0:     LD      (TPFLAG),A
+CLOAD80A:   CALL    CURSOROFF
+            LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
+            LD      (TPFLAG),A
             LD      A,(HL)               ; Get byte after "CLOAD"
        ;    CP      ZTIMES               ; "*" token? ("CLOAD*")
        ;    JP      Z,ARRLD1             ; Yes - Array load
@@ -5307,7 +5347,7 @@ CLOAD0:     LD      (TPFLAG),A
             CALL    EVAL                 ; Evaluate expression
             CALL    GTFLNM               ; Get file name
             ;
-CLOAD80A_0: LD      HL,NAME              ; Set the filename to be loaded.
+            LD      HL,NAME              ; Set the filename to be loaded.
             LD      A,(TMSTPL)                                   
             CP      TZSVCFILESZ          ; Check size of filename, cant be more than an MZF name of 17 chars.
             JP      NC,CMTFNTG
@@ -5324,6 +5364,10 @@ CLOAD80A_2: CALL    CLRPTR               ; Initialise memory to NEW state ready 
             ;
             CALL    ?RDI
             JP      C,CMTLDER
+            LD      A,(ATRB)
+            CP      ATR_BASIC_MSCAS      ; Verify this is a NASCOM Cassette BASIC image.
+            JP      NZ,CMTATER
+            ;
             LD      DE,CMTMSGLOAD        ; Show we are loading a program.
             CALL    MONPRTSTR
             LD      DE,NAME
@@ -5350,11 +5394,13 @@ CLOAD80A_2: CALL    CLRPTR               ; Initialise memory to NEW state ready 
 CMTVERF:
 CMTLOADE:   LD      HL,OKMSG             ; "Ok" message
             CALL    PRS                  ; Output string
+            CALL    CURSORON
             JP      SETPTR               ; Set up line pointers
 
             ; Method to save a cassette image (tokenised basic script).
             ;
-CSAVE80A:   LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
+CSAVE80A:   CALL    CURSOROFF
+            LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
             LD      (TPFLAG),A
             ;
             LD      B,1                  ; Flag "CSAVE"
@@ -5377,7 +5423,7 @@ CSAVE80A_1: LD      A,(DE)               ; Copy filename into service record.
             XOR     A
             LD      (HL),A               ; Terminate filename.
             ;
-            LD      A,ATR_BASIC_PROG     ; Set attribute: BASIC
+            LD      A,ATR_BASIC_MSCAS    ; Set attribute: MS BASIC Cassette
             LD      (ATRB),A
             LD      HL,(PROGND)          ; Get the actual program size.
             LD      BC,(BASTXT)          ; Get start of program memory.
@@ -5395,6 +5441,7 @@ CSAVE80A_1: LD      A,(DE)               ; Copy filename into service record.
             JR      C,CMTSVER
             LD      HL,CMTMSGOK         ; 'OK!'
             CALL    PRS
+            CALL    CURSORON
             POP     DE
             POP     HL
             RET
@@ -5408,11 +5455,14 @@ OPTIONS3B:  IF BUILD_MZ80A = 1
             ;--------------------------------------
 CMTNONAM:   LD      HL,CMTBADFN          ; Must give a name for SD card load and save.
 CMTERR:     CALL    PRS
+            CALL    CURSORON
             POP     AF                   ; Waste return address.
             JP      ERRIN
 CMTFNTG:    LD      HL,CMTFNTOOG
             JR      CMTERR
 CMTLDER:    LD      HL,CMTLOADERR
+            JR      CMTERR
+CMTATER:    LD      HL,CMTATTRERR
             JR      CMTERR
 CMTSVER:    LD      HL,CMTSAVEERR
             JR      CMTERR
@@ -5424,6 +5474,7 @@ CMTBADFN:   DB      "Filename missing!",                                       C
 CMTFNTOOG:  DB      "Filename too long!",                                      CR,     NUL
 CMTLOADERR: DB      "File loading error!",                                     CR,     NUL
 CMTSAVEERR: DB      "File save error!",                                        CR,     NUL
+CMTATTRERR: DB      "Not an MS-BASIC cassette file error!",                    CR,     NUL
 CMTMSGLOAD: DB      "Loading \"",                                              NUL
 CMTMSGLOAD2:DB      "\"",                                                      CR,     NUL
 CMTMSGOK:   DB      "Saved",                                                   CR,     NUL
@@ -5435,7 +5486,7 @@ CMTMSGOK:   DB      "Saved",                                                   C
 
 
 MONITR:     
-MONITR2     IF BUILD_TZFS+BUILD_RFS > 0
+MONITR2     IF BUILD_MZ700+BUILD_TZFS > 0 
             ; Switch memory back to TZFS mode.
             LD      A, TZMM_TZFS 
             OUT     (MMCFG),A 
@@ -5456,7 +5507,7 @@ TIMIN:      LD      (SPISRSAVE),SP                                       ; Use a
             PUSH    DE
             PUSH    HL
             ;
-MEMSW2:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW2:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_0                                       ; We meed to be in memory mode 10 to process the interrupts as this allows us access to the hardware.
             OUT     (MMCFG),A
             ENDIF
@@ -5688,7 +5739,7 @@ ISRKEYRPT:  LD      A,(KEYCOUNT)                                         ; Get c
             LD      (KEYWRITE),HL                                        ; Store updated pointer.
             ;
 ISREXIT:    
-MEMSW3:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW3:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
             OUT     (MMCFG),A
             ENDIF
@@ -6212,7 +6263,7 @@ ISRKEYRPT:  LD      A,(KEYCOUNT)                                         ; Get c
             LD      (KEYWRITE),HL                                        ; Store updated pointer.
             ;
 ISREXIT
-MEMSW3:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW3:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
             OUT     (MMCFG),A
             ENDIF
@@ -6633,6 +6684,7 @@ KTBLC:      ; CONTROL CODE
             ;-------------------------------------------------------------------------------
             ; SERVICE COMMAND METHODS
             ;-------------------------------------------------------------------------------
+SVC_CMD:    IF BUILD_TZFS = 1
 
             ; Method to send a command to the I/O processor and verify it is being acted upon.
             ; THe method, after sending the command, polls the service structure result to see if the I/O processor has updated it. If it doesnt update the result
@@ -6645,7 +6697,7 @@ KTBLC:      ; CONTROL CODE
             ;      A = 0 - Success, command being processed.
             ;      A = 1 - Failure, no contact with I/O processor.
             ;      A = 2 - Failure, no result from I/O processor, it could have crashed or SD card removed!
-SVC_CMD:    PUSH    BC
+            PUSH    BC
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             LD      A,TZSVC_STATUS_REQUEST
             LD      (TZSVCRESULT),A                                      ; Set the service structure result to REQUEST, if this changes then the K64 is processing.
@@ -6705,6 +6757,7 @@ SVC_CMD6:   XOR     A                                                    ; Succe
             POP     BC
             RET
 
+            ENDIF
             ;-------------------------------------------------------------------------------
             ; END OF SERVICE COMMAND METHODS
             ;-------------------------------------------------------------------------------
@@ -6989,14 +7042,14 @@ TIMESET:    LD      (TIMESEC),HL                                         ; Load 
 TIMESET1:   IF BUILD_MZ80A = 1
             LD      (01039H),IX
             ENDIF
-TIMESET2:   IF BUILD_TZFS+BUILD_RFS > 0
+TIMESET2:   IF BUILD_MZ700+BUILD_TZFS > 0
             LD      (00039H),IX
             ENDIF
             RET    
 
             ; Time Read;
             ; Returns BC:DE:HL where HL is lower 16bits, DE is middle 16bits and BC is upper 16bits of milliseconds since 01/01/1980.
-TIMEREAD:  LD      HL,(TIMESEC+4)
+TIMEREAD:   LD      HL,(TIMESEC+4)
             PUSH    HL
             POP     BC
             LD      HL,(TIMESEC+2)
@@ -7317,29 +7370,33 @@ L098C:      SUB     00AH
             ; Delete a character on screen.
 DELETECHR:  LD      A,0C7H
             CALL    DPCT
-            JR      PRNT1
+            JP      PRNT1
 
 NEWLINE:    CALL    NL
-            JR      PRNT1
+            JP      PRNT1
 
             ;
             ; Function to disable the cursor display.
             ;
-CURSOROFF:  DI
+CURSOROFF:  PUSH    HL
+            DI
             CALL    CURSRSTR                                             ; Restore character under the cursor.
             LD      HL,FLASHCTL                                          ; Indicate cursor is now off.
             RES     7,(HL)
             EI
+            POP     HL
             RET
 
             ;
             ; Function to enable the cursor display.
             ;
-CURSORON:   DI
+CURSORON:   PUSH    HL
+            DI
             CALL    DSPXYTOADDR                                          ; Update the screen address for where the cursor should appear.
             LD      HL,FLASHCTL                                          ; Indicate cursor is now on.
             SET     7,(HL)
             EI
+            POP     HL
             RET
 
             ;
@@ -7393,7 +7450,7 @@ PRNT:       DI
             LD      (SPISRSAVE),SP                                       ; Share the interrupt stack for banked access as the BASIC stack goes out of scope.
             LD      SP,ISRSTACK                                          ; Interrupts are disabled so we can safely use this stack.
             ;
-MEMSW4:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW4:     IF BUILD_MZ700+BUILD_TZFS > 0
             PUSH    AF
             LD      A,TZMM_MZ700_0                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
@@ -7408,7 +7465,7 @@ MEMSW4:     IF BUILD_TZFS+BUILD_RFS > 0
             CP      07FH
             JR      Z,DELETECHR
             CP      BACKS
-            JR      Z,DELETECHR
+            JP      Z,DELETECHR
             PUSH    BC
             LD      C,A
             LD      B,A
@@ -7417,7 +7474,7 @@ MEMSW4:     IF BUILD_TZFS+BUILD_RFS > 0
             POP     BC
 PRNT1:      CALL    DSPXYTOADDR
             ;
-MEMSW5:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW5:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_2                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -7436,7 +7493,10 @@ PRNTSTR:    LD      A,(DE)
             CALL    CURSRSTR                                             ; Restore char under cursor.
             CP      00DH
             JR      NZ,PRNTSTR2
-PRNTSTR1:   LD      A,0CDH
+PRNTSTR1:   LD      A,(DPRNT)
+            OR      A
+            JR      Z,PRNTSTR5
+            LD      A,0CDH
             CALL    DPCT
             JR      PRNTSTR5
 PRNTSTR2:   CP      00AH
@@ -7611,14 +7671,15 @@ CLRS:       LD      HL,MANG
             LD      B,01BH
             CALL    CLER
             LD      HL,SCRN
+           ;PUSH    HL
             CALL    CLR8Z
-            IF      MODE80C = 0
-              LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+           ;POP     HL
+            IF      BUILD_80C = 0
+              LD    A,071H                                                  ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
             ELSE
-              LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+              LD    A,071H                                                  ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
             ENDIF
             CALL    CLR8                                                    ; D800H-DFFFH CLEAR
-
 CLRS1:      LD      A,(SCLDSP)
 HOM0:       LD      HL,00000H
             JP      CURS3
@@ -8128,7 +8189,7 @@ WTAP3:      POP     HL
             LD      BC,00080H
             LD      HL,IBUFE
 RD1:        DI
-MEMSWRT0:   IF BUILD_TZFS+BUILD_RFS > 0
+MEMSWRT0:   IF BUILD_MZ700+BUILD_TZFS > 0
             LD      (SPISRSAVE),SP                                       ; Share the interrupt stack whilst accessing hardware as the BASIC stack goes out of scope.
             LD      SP,ISRSTACK                                          ; Interrupts are disabled so we can safely use this stack.
             LD      A,TZMM_MZ700_0                                       ; We meed to be in memory mode 10 to access the tape hardware.
@@ -8177,7 +8238,7 @@ RTP2:       CALL    EDGE
 RTP3:       CALL    RBYTE
             JP      C,RTP6
             ; For TZFS/RFS page in top bank of memory for potential data store.
-MEMSWRT1:   IF BUILD_TZFS+BUILD_RFS > 0
+MEMSWRT1:   IF BUILD_MZ700+BUILD_TZFS > 0
             EX      AF,AF'
             LD      A,TZMM_MZ700_2
             OUT     (MMCFG),A
@@ -8207,7 +8268,7 @@ MEMSWRT1:   IF BUILD_TZFS+BUILD_RFS > 0
             JP      NZ,RTP5
 RTP8:       XOR     A
 RET2:       CALL    MSTOP
-MEMSWRT4:   IF BUILD_TZFS+BUILD_RFS > 0
+MEMSWRT4:   IF BUILD_MZ700+BUILD_TZFS > 0
             EX      AF,AF'
             LD      A,TZMM_MZ700_2                                       ; Return to the full 64K memory mode.
             OUT     (MMCFG),A
@@ -9019,7 +9080,7 @@ CALC3:      POP     DE
             ;    BC = length
 CLRSCRN:    DI
             ;
-MEMSW6:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW6:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_0                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -9044,7 +9105,7 @@ MEMSW6:     IF BUILD_TZFS+BUILD_RFS > 0
             LD      (HL),A
             LDIR
 
-MEMSW7:     IF BUILD_TZFS+BUILD_RFS > 0
+MEMSW7:     IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_MZ700_2                                       ; Enable access to the hardware by paging out the upper bank.
             OUT     (MMCFG),A
             ENDIF
@@ -9228,7 +9289,7 @@ COLOUR      EQU     0
 
 
 REBOOT:     DI
-REBOOTTZ:   IF BUILD_TZFS +BUILD_RFS > 0
+REBOOTTZ:   IF BUILD_MZ700+BUILD_TZFS > 0
             LD      A,TZMM_TZFS
             OUT     (MMCFG),A
             ENDIF
@@ -9259,9 +9320,21 @@ REBOOT80A:  IF BUILD_MZ80A = 1
             ;--------------------------------------
 
 BFREE:      DB      " Bytes free",CR,LF,0,0
-SIGNON:     DB      "MZ-80A BASIC Ver 4.7b",CR,LF
-            DB      "Copyright ",40,"C",41
-            DB      " 1978 by Microsoft",CR,LF,0,0
+SIGNON:     IF BUILD_TZFS = 1
+              DB    "Microsoft Basic (TZFS) Ver 4.7b",CR,LF
+              DB    "Copyright ",40,"C",41
+              DB    " 1978 by Microsoft",CR,LF,0,0
+            ENDIF
+            IF BUILD_MZ700 = 1
+              DB    "Microsoft Basic (MZ-700) Ver 4.7b",CR,LF
+              DB    "Copyright ",40,"C",41
+              DB    " 1978 by Microsoft",CR,LF,0,0
+            ENDIF
+            IF BUILD_MZ80A = 1
+              DB    "Microsoft Basic (MZ-80A) Ver 4.7b",CR,LF
+              DB    "Copyright ",40,"C",41
+              DB    " 1978 by Microsoft",CR,LF,0,0
+            ENDIF
 SVCRESPERR: DB      "I/O Response Error, time out!",                           CR,     NUL
 SVCIOERR:   DB      "I/O Error, time out!",                                    CR,     NUL
 MSGRECORD:  DB      CR, "Press RECORD+PLAY",                                   CR,     NUL
@@ -9459,7 +9532,7 @@ CODEEND:
 
 
             ; For TZFS builds the image needs to be relocated from 0x1200 to 0x0000 on startup after switching the memory mode.
-RELOCSTART: IF BUILD_TZFS+BUILD_RFS > 0
+RELOCSTART: IF BUILD_MZ700+BUILD_TZFS > 0
             ORG     $ + 1200H
 
             ; Switch memory.
@@ -9473,50 +9546,50 @@ RELOC:      LD      A, TZMM_MZ700_0                                      ; Switc
             LDIR
             JP      0000H
 
-              ; For RFS builds a two stage relocation is needed, a) relocate to tranzputer RAM, b) run the TZFS relocation code.
-RELOC_RFS:    IF BUILD_RFS = 1
-
-              ; Switch memory.
-RELOCRFS:     LD    A, TZMM_BOOT                                         ; Go to boot mode, copy the relocation code to EC80H and execute.
-              OUT   (MMCFG),A 
-
-              ; Move the relocation code to EC80H.
-              LD    DE, 0EC80H
-              LD    HL, RELOCRFS2
-              LD    BC, RELOCRFS2END - RELOCRFS2
-              LDIR
-              JP    0EC80H                                               ; Run the relocation code.
-
-              ENDIF
+;              ; For RFS builds a two stage relocation is needed, a) relocate to tranzputer RAM, b) run the TZFS relocation code.
+;RELOC_RFS:    IF BUILD_RFS = 1
+;
+;              ; Switch memory.
+;RELOCRFS:     LD    A, TZMM_BOOT                                         ; Go to boot mode, copy the relocation code to EC80H and execute.
+;              OUT   (MMCFG),A 
+;
+;              ; Move the relocation code to EC80H.
+;              LD    DE, 0EC80H
+;              LD    HL, RELOCRFS2
+;              LD    BC, RELOCRFS2END - RELOCRFS2
+;              LDIR
+;              JP    0EC80H                                               ; Run the relocation code.
+;
+;              ENDIF
 RELOCEND:   
-
-RELOCRFS2:  ; Move the image down into tranZPUter memory and then start the real relocation.
-            LD      HL, 01200H
-            LD      BC, (CODEEND - CODESTART) + (RELOCEND - RELOC)       ; Size of program.
-
-            ; Fetch a byte from main DRAM and write it into Bank 0 same location.
-RELOCRFS2_1:LD      A,TZMM_BOOT
-            OUT     (MMCFG),A 
-            LD      A,(HL)
-            ;
-            EX      AF,AF'
-            LD      A,TZMM_TZFS
-            OUT     (MMCFG),A 
-            EX      AF,AF'
-            ;
-            LD      (HL),A
-            INC     HL
-            DEC     BC
-            LD      A,B
-            OR      C
-            JR      NZ, RELOCRFS2_1
-            ;
-            LD      DE, 00000H                                            ; Copy the reboot handler into Bank 0 at 00000H.
-            LD      HL, 0EC80H + (REBOOTRFS - RELOCRFS2)
-            LD      BC, RELOCRFS2END - REBOOTRFS
-            LDIR
-            ;
-            JP      RELOC                                                 ; Jump into the original TZFS relocation code.
+;
+;RELOCRFS2:  ; Move the image down into tranZPUter memory and then start the real relocation.
+;            LD      HL, 01200H
+;            LD      BC, (CODEEND - CODESTART) + (RELOCEND - RELOC)       ; Size of program.
+;
+;            ; Fetch a byte from main DRAM and write it into Bank 0 same location.
+;RELOCRFS2_1:LD      A,TZMM_BOOT
+;            OUT     (MMCFG),A 
+;            LD      A,(HL)
+;            ;
+;            EX      AF,AF'
+;            LD      A,TZMM_TZFS
+;            OUT     (MMCFG),A 
+;            EX      AF,AF'
+;            ;
+;            LD      (HL),A
+;            INC     HL
+;            DEC     BC
+;            LD      A,B
+;            OR      C
+;            JR      NZ, RELOCRFS2_1
+;            ;
+;            LD      DE, 00000H                                            ; Copy the reboot handler into Bank 0 at 00000H.
+;            LD      HL, 0EC80H + (REBOOTRFS - RELOCRFS2)
+;            LD      BC, RELOCRFS2END - REBOOTRFS
+;            LDIR
+;            ;
+;            JP      RELOC                                                 ; Jump into the original TZFS relocation code.
 
             ; Reboot handler for RFS mode. This code is transferred into RAM bank 0 at 0000H as this is not used for BASIC
             ; and executed when a return to the Monitor ROM is needed. Location 004AH in the Monitor ROM is the startup vector.
@@ -9541,7 +9614,12 @@ KEYREAD:    DS      virtual 2                                            ; Point
 KEYLAST:    DS      virtual 1                                            ; Last key value
 KEYRPT:     DS      virtual 1                                            ; Key repeat counter
 
+MONVARSTRT: EQU     $
 
+            ; For MZ80A or MZ80A with RFS we share the original monitor variable space.
+            IF BUILD_MZ80A > 0
+              ORG   010F0H
+            ENDIF
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
 ATRB:       DS      virtual 1                                            ; ATTRIBUTE
@@ -9565,17 +9643,26 @@ ROLEND:     DS      virtual 1                                            ; ROLL 
 FLASH:      DS      virtual 1                                            ; FLASHING DATA
 SFTLK:      DS      virtual 1                                            ; SHIFT LOCK
 REVFLG:     DS      virtual 1                                            ; REVERSE FLAG
+SPAGE:      DS      virtual 1                                            ; PAGE CHANGE
 FLSDT:      DS      virtual 1                                            ; CURSOR DATA
 STRGF:      DS      virtual 1                                            ; STRING FLAG
 DPRNT:      DS      virtual 1                                            ; TAB COUNTER
 TMCNT:      DS      virtual 2                                            ; TAPE MARK COUNTER
 SUMDT:      DS      virtual 2                                            ; CHECK SUM DATA
 CSMDT:      DS      virtual 2                                            ; FOR COMPARE SUM DATA
+AMPM:       DS      virtual 1                                            ; AMPM DATA
+TIMFG:      DS      virtual 1                                            ; TIME FLAG
 SWRK:       DS      virtual 1                                            ; KEY SOUND FLAG
 TEMPW:      DS      virtual 1                                            ; TEMPO WORK
 ONTYO:      DS      virtual 1                                            ; ONTYO WORK
 OCTV:       DS      virtual 1                                            ; OCTAVE WORK
 RATIO:      DS      virtual 2                                            ; ONPU RATIO
+
+            ; Remaining variables inside MS-BASIC variable space.
+            IF BUILD_MZ80A > 0
+              ORG   MONVARSTRT
+            ENDIF
+
 DSPXYADDR:  DS      virtual 2                                            ; Address of last known position.
 
 FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.

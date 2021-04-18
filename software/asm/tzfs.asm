@@ -23,6 +23,7 @@
 ;-                  Mar 2021  - Bug fixes - MZ-700/MZ-80A address differences.
 ;-                            - Added optional machine model code on load command to enable 700/800
 ;-                              programs to be loaded without changing the MZ800 mode switch.
+;-                  Apr 2021  - Added 40/80 Colour Card control. Reorganised to free up space.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -145,7 +146,8 @@ MONITOR:    LD      A, (SCRNMODE)
             OR      MODE_VIDEO_FPGA                                      ; Set the tranZPUter CPLD hardware to enable FPGA video.
             OUT     (CPLDCFG),A                                 
             ;
-MONITOR1:   LD      A, C                                                 ; Recall screen mode.
+MONITOR1:   LD      HL,DSPCTL                                            ; Control register address for the 40/80 Colour Card.
+            LD      A, C                                                 ; Recall screen mode.
             BIT     0, A
             JR      NZ, SET80CHAR
             ;
@@ -168,13 +170,19 @@ SET40CHAR:  IN      A,(CPLDINFO)                                         ; Get c
 SET40_0:    AND     0C0H
             OR      D
             OUT     (VMCTRL),A                                           ; Activate.
-SET40_1:    LD      A, 0
+            JR      SET40_2
+            ;
+SET40_1:    XOR     A                                                    ; 40 char mode.
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
+            ;
+SET40_2:    XOR     A
             LD      (SPAGE), A                                           ; Allow MZ80A scrolling
             JR      SIGNON
             ;
 SET80CHAR:  IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
             BIT     3,A
-            JR      Z,SET40_1                                            ; No hardware so cannot set 80 char mode.
+            JR      Z,SET80_1                                            ; No FPGA hardware so try and set set 80 char mode on the assumption the 40/80 Colour Card is installed.
             ;
             AND     007H
             OR      MODE_80CHAR                                          ; Set 80 char flag.
@@ -197,8 +205,13 @@ SET80_0:    AND     0C0H                                                 ; Get t
             LD      A, C                                                 ; Indicate we are using the FPGA video hardware.
             SET     1, A
             LD      (SCRNMODE), A
+            JR      SET80_2
             ;
-SET80_1:    LD      A, 0FFH
+SET80_1:    LD      A, 128                                               ; 80 char mode.
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
+            ;
+SET80_2:    LD      A, 0FFH
             LD      (SPAGE), A                                           ; MZ80K Scrolling in 80 column mode for time being.
             ;
 SIGNON:     LD      A,0C4h                                               ; Move cursor left to overwrite part of SA-1510/monitor banner.
@@ -269,142 +282,6 @@ CMDCMP3:    LD      A,(HL)                                               ; Comma
 CMDNOCMP:   LD      DE,MSGBADCMD
             CALL    ?PRINTMSG
 CMDCMPEND:  JP      ST1X
-
-            ; Monitor command table. This table contains the list of recognised commands along with the 
-            ; handler function and bank in which it is located.
-            ;
-            ;         7     6     5:3    2:0
-            ;        END  MATCH  UNUSED  SIZE 
-CMDTABLE:   DB      000H | 000H | 000H | 003H
-            DB      "40A"                                                ; Switch to the 40char Sharp MZ-80A compatbile mode.
-            DW      SETMODE40A
-            DB      000H | 000H | 000H | 003H
-            DB      "80A"                                                ; Switch to the 80char Sharp MZ-80A compatbile mode.
-            DW      SETMODE80A
-            DB      000H | 000H | 000H | 003H
-            DB      "80B"                                                ; Switch to the Sharp MZ-80B compatbile mode.
-            DW      SETMODE80B
-            DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
-            DB      '4'                                                  ; 40 Char screen mode.
-            DW      SETMODE40
-            DB      000H | 000H | 000H | 001H
-            DB      '8'                                                  ; 80 Char screen mode.
-            DW      SETMODE80
-            DB      000H | 000H | 000H | 004H
-            DB      "7008"                                               ; Switch to 80 column MZ700 mode.
-            DW      SETMODE7008
-            DB      000H | 000H | 000H | 003H
-            DB      "700"                                                ; Switch to 40 column MZ700 mode.
-            DW      SETMODE700
-            DB      000H | 000H | 000H | 005H
-            DB      "BASIC"                                              ; Load and run BASIC SA-5510.
-            DW      LOADBASIC
-            DB      000H | 000H | 000H | 001H
-            DB      'B'                                                  ; Bell.
-            DW      SGX
-            DB      000H | 000H | 000H | 003H
-            DB      "CPM"                                                ; Load and run CPM.
-            DW      LOADCPM
-            DB      000H | 000H | 000H | 001H
-            DB      'C'                                                  ; Clear Memory.
-            DW      ?INITMEMX
-            DB      000H | 000H | 000H | 001H
-            DB      'D'                                                  ; Dump Memory.
-            DW      ?DUMPX
-            DB      000H | 000H | 000H | 002H
-            DB      "EC"                                                 ; Erase file.
-            DW      ERASESD
-            DB      000H | 000H | 000H | 002H
-            DB      "EX"                                                 ; Exit out of TZFS to original Monitor.
-            DW      EXITTZFS 
-            DB      000H | 000H | 000H | 004H
-            DB      "FREQ"                                               ; Set or change the CPU frequency.
-            DW      ?SETFREQ
-            DB      000H | 000H | 000H | 001H
-            DB      'F'                                                  ; RFS Floppy boot code.
-            DW      FLOPPY
-            DB      000H | 000H | 000H | 001H
-            DB      'H'                                                  ; Help screen.
-            DW      ?HELP
-            DB      000H | 000H | 000H | 002H
-            DB      "IC"                                                 ; List SD Card directory.
-            DW      DIRSDCARD
-            DB      000H | 000H | 000H | 001H
-            DB      'J'                                                  ; Jump to address.
-            DW      GOTOX
-            DB      000H | 000H | 000H | 004H
-            DB      "LTNX"                                               ; Load from CMT without auto execution.
-            DW      LOADTAPENX
-            DB      000H | 000H | 000H | 002H
-            DB      "LT"                                                 ; Load from CMT
-            DW      LOADTAPE
-            DB      000H | 000H | 000H | 004H
-            DB      "LCNX"                                               ; Load from SDCARD without auto execution.
-            DW      LOADSDCARDX
-            DB      000H | 000H | 000H | 002H
-            DB      "LC"                                                 ; Load from SD CARD
-            DW      LOADSDCARD
-            DB      000H | 000H | 000H | 001H
-            DB      "L"                                                  ; Original Load from CMT
-            DW      LOADTAPE
-            DB      000H | 000H | 000H | 001H
-            DB      'M'                                                  ; Edit Memory.
-            DW      ?MCORX
-            DB      000H | 000H | 000H | 001H
-            DB      'P'                                                  ; Printer test.
-            DW      ?PTESTX
-            DB      000H | 000H | 000H | 001H
-            DB      'R'                                                  ; Memory test.
-            DW      MEMTEST
-            DB      000H | 000H | 000H | 004H
-            DB      "SD2T"                                               ; Copy SD Card to Tape.
-            DW      SD2TAPE
-            DB      000H | 000H | 000H | 003H
-            DB      "SDD"                                                ; SD Card Directory change command.
-            DW      CHGSDDIR
-            DB      000H | 000H | 000H | 002H
-            DB      "SC"                                                 ; Save to SD CARD
-            DW      SAVESDCARD
-            DB      000H | 000H | 000H | 002H
-            DB      "ST"                                                 ; Save to CMT
-            DW      SAVEX
-            DB      000H | 000H | 000H | 001H
-            DB      'S'                                                  ; Save to CMT
-            DW      SAVEX
-            DB      000H | 000H | 000H | 004H
-            DB      "TEST"                                               ; A test function used in debugging.
-            DW      LOCALTEST
-            DB      000H | 000H | 000H | 005H
-            DB      "T2SDB"                                              ; Copy Tape to SD Card in bulk mode.
-            DW      TAPE2SDBULK
-            DB      000H | 000H | 000H | 004H
-            DB      "T2SD"                                               ; Copy Tape to SD Card.
-            DW      TAPE2SD
-            DB      000H | 000H | 000H | 003H
-            DB      "T80"                                                ; Switch to soft T80 CPU.
-            DW      ?SETT80
-            DB      000H | 000H | 000H | 001H
-            DB      'T'                                                  ; Timer test.
-            DW      ?TIMERTST
-            DB      000H | 000H | 000H | 007H
-            DB      "VBORDER"                                            ; Set VGA border colour.
-            DW      ?SETVBORDER
-            DB      000H | 000H | 000H | 005H
-            DB      "VMODE"                                              ; Set VGA mode.
-            DW      ?SETVMODE
-            DB      000H | 000H | 000H | 003H
-            DB      "VGA"                                                ; Set VGA mode.
-            DW      ?SETVGAMODE
-            DB      000H | 000H | 000H | 001H
-            DB      'V'                                                  ; Verify CMT Save.
-            DW      VRFYX
-            DB      000H | 000H | 000H | 003H
-            DB      "Z80"                                                ; Switch to soft Z80 CPU.
-            DW      ?SETZ80
-            DB      000H | 000H | 000H | 003H
-            DB      "ZPU"                                                ; Switch to soft ZPU Evolution CPU.
-            DW      ?SETZPUEVO
-            DB      000H | 000H | 000H | 001H
 
 
             ;-------------------------------------------------------------------------------
@@ -2188,9 +2065,10 @@ LOCALTEST:  LD      A,0
             OUT     (C),A
             RET
 
-            ; Quick load program names.
-CPMFILENAME:DB      "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
-BASICFILENM:DB      "BASIC SA-5510", 000H
+            ; Quick load prgram names.
+CPMFILENAME:DB      0 ; "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
+BASICFILENM:DB      0 ; "BASIC SA-5510", 000H
+
 
             ; Error tone.
 ERRTONE:    DB      "A0", 0D7H, "ARA", 0D7H, "AR", 00DH
@@ -2200,6 +2078,143 @@ DSKID:      DB      002H, "IPLPRO"
 
             ; Parameter block to indicate configuration and load area.
 PRMBLK:     DB      000H, 000H, 000H, 000H, 001H, 000H, 0CEH, 000H, 000H, 000H, 000H
+
+            ; Monitor command table. This table contains the list of recognised commands along with the 
+            ; handler function and bank in which it is located.
+            ;
+            ;         7     6     5:3    2:0
+            ;        END  MATCH  UNUSED  SIZE 
+CMDTABLE:   DB      000H | 000H | 000H | 003H
+            DB      "40A"                                                ; Switch to the 40char Sharp MZ-80A compatbile mode.
+            DW      SETMODE40A
+            DB      000H | 000H | 000H | 003H
+            DB      "80A"                                                ; Switch to the 80char Sharp MZ-80A compatbile mode.
+            DW      SETMODE80A
+            DB      000H | 000H | 000H | 003H
+            DB      "80B"                                                ; Switch to the Sharp MZ-80B compatbile mode.
+            DW      SETMODE80B
+            DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
+            DB      '4'                                                  ; 40 Char screen mode.
+            DW      SETMODE40
+            DB      000H | 000H | 000H | 001H
+            DB      '8'                                                  ; 80 Char screen mode.
+            DW      SETMODE80
+            DB      000H | 000H | 000H | 004H
+            DB      "7008"                                               ; Switch to 80 column MZ700 mode.
+            DW      SETMODE7008
+            DB      000H | 000H | 000H | 003H
+            DB      "700"                                                ; Switch to 40 column MZ700 mode.
+            DW      SETMODE700
+            DB      000H | 000H | 000H | 005H
+            DB      "BASIC"                                              ; Load and run BASIC SA-5510.
+            DW      LOADBASIC
+            DB      000H | 000H | 000H | 001H
+            DB      'B'                                                  ; Bell.
+            DW      SGX
+            DB      000H | 000H | 000H | 003H
+            DB      "CPM"                                                ; Load and run CPM.
+            DW      LOADCPM
+            DB      000H | 000H | 000H | 002H
+            DB      "CD"                                                 ; SD Card Directory change command.
+            DW      CHGSDDIR
+            DB      000H | 000H | 000H | 001H
+            DB      'C'                                                  ; Clear Memory.
+            DW      ?INITMEMX
+            DB      000H | 000H | 000H | 003H
+            DB      "DIR"                                                ; List SD Card directory.
+            DW      DIRSDCARD
+            DB      000H | 000H | 000H | 001H
+            DB      'D'                                                  ; Dump Memory.
+            DW      ?DUMPX
+            DB      000H | 000H | 000H | 002H
+            DB      "EC"                                                 ; Erase file.
+            DW      ERASESD
+            DB      000H | 000H | 000H | 002H
+            DB      "EX"                                                 ; Exit out of TZFS to original Monitor.
+            DW      EXITTZFS 
+            DB      000H | 000H | 000H | 004H
+            DB      "FREQ"                                               ; Set or change the CPU frequency.
+            DW      ?SETFREQ
+            DB      000H | 000H | 000H | 001H
+            DB      'F'                                                  ; RFS Floppy boot code.
+            DW      FLOPPY
+            DB      000H | 000H | 000H | 001H
+            DB      'H'                                                  ; Help screen.
+            DW      ?HELP
+            DB      000H | 000H | 000H | 001H
+            DB      'J'                                                  ; Jump to address.
+            DW      GOTOX
+            DB      000H | 000H | 000H | 004H
+            DB      "LTNX"                                               ; Load from CMT without auto execution.
+            DW      LOADTAPENX
+            DB      000H | 000H | 000H | 002H
+            DB      "LT"                                                 ; Load from CMT
+            DW      LOADTAPE
+            DB      000H | 000H | 000H | 004H
+            DB      "LCNX"                                               ; Load from SDCARD without auto execution.
+            DW      LOADSDCARDX
+            DB      000H | 000H | 000H | 002H
+            DB      "LC"                                                 ; Load from SD CARD
+            DW      LOADSDCARD
+            DB      000H | 000H | 000H | 001H
+            DB      "L"                                                  ; Original Load from CMT
+            DW      LOADTAPE
+            DB      000H | 000H | 000H | 001H
+            DB      'M'                                                  ; Edit Memory.
+            DW      ?MCORX
+            DB      000H | 000H | 000H | 001H
+            DB      'P'                                                  ; Printer test.
+            DW      ?PTESTX
+            DB      000H | 000H | 000H | 001H
+            DB      'R'                                                  ; Memory test.
+            DW      MEMTEST
+            DB      000H | 000H | 000H | 004H
+            DB      "SD2T"                                               ; Copy SD Card to Tape.
+            DW      SD2TAPE
+            DB      000H | 000H | 000H | 002H
+            DB      "SC"                                                 ; Save to SD CARD
+            DW      SAVESDCARD
+            DB      000H | 000H | 000H | 002H
+            DB      "ST"                                                 ; Save to CMT
+            DW      SAVEX
+            DB      000H | 000H | 000H | 001H
+            DB      'S'                                                  ; Save to CMT
+            DW      SAVEX
+            DB      000H | 000H | 000H | 004H
+            DB      "TEST"                                               ; A test function used in debugging.
+            DW      LOCALTEST
+            DB      000H | 000H | 000H | 005H
+            DB      "T2SDB"                                              ; Copy Tape to SD Card in bulk mode.
+            DW      TAPE2SDBULK
+            DB      000H | 000H | 000H | 004H
+            DB      "T2SD"                                               ; Copy Tape to SD Card.
+            DW      TAPE2SD
+            DB      000H | 000H | 000H | 003H
+            DB      "T80"                                                ; Switch to soft T80 CPU.
+            DW      ?SETT80
+            DB      000H | 000H | 000H | 001H
+            DB      'T'                                                  ; Timer test.
+            DW      ?TIMERTST
+            DB      000H | 000H | 000H | 007H
+            DB      "VBORDER"                                            ; Set VGA border colour.
+            DW      ?SETVBORDER
+            DB      000H | 000H | 000H | 005H
+            DB      "VMODE"                                              ; Set VGA mode.
+            DW      ?SETVMODE
+            DB      000H | 000H | 000H | 003H
+            DB      "VGA"                                                ; Set VGA mode.
+            DW      ?SETVGAMODE
+            DB      000H | 000H | 000H | 001H
+            DB      'V'                                                  ; Verify CMT Save.
+            DW      VRFYX
+            DB      000H | 000H | 000H | 003H
+            DB      "Z80"                                                ; Switch to soft Z80 CPU.
+            DW      ?SETZ80
+            DB      000H | 000H | 000H | 003H
+            DB      "ZPU"                                                ; Switch to soft ZPU Evolution CPU.
+            DW      ?SETZPUEVO
+            DB      000H | 000H | 000H | 001H
+
 
 
             ;-------------------------------------------------------------------------------

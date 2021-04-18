@@ -258,33 +258,37 @@ INIT3:      ; Setup keyboard buffer control.
             LD      A,080H                                               ; Cursor on (Bit D7=1).
             LD      (FLASHCTL),A
 
-INIT80CHAR: IF BUILD_VIDEOMODULE = 1
-            IN      A, (CPLDINFO)                                        ; Get hardware information.
-            BIT     3,A
-            JR      Z, INIT40CHAR                                        ; If no video module present then need to use 40 char mode.
-            AND     007H
-            LD      D, A
-            OR      MODE_VIDEO_FPGA                                      ; Ensure the video hardware is enabled.
-            OUT     (CPLDCFG),A
-            LD      A, D
-            OR      MODE_80CHAR                                          ; Enable 80 char display.
-            LD      C, A
-            IN      A, (VMCTRL)                                          ; Get current graphics mode and vga mode.
-            AND     0C0H                                                 ; Mask out all but VGA mode.
-            OR      C                                                    ; Add in new hardware/80char mode.
-            OUT     (VMCTRL),A                                           ; Activate.
-            LD      A, D
-            CP      MODE_MZ80A                                           ; Check to see if this is the MZ80A, if so, change BUS speed.
-            JR      NZ, INIT80END
-          ; LD      A, SYSMODE_MZ80B                                     ; Set bus and default CPU speed to 4MHz
-          ; OUT     (SYSCTRL),A                                          ; Activate.            
-            JR      INIT80END
-INIT40CHAR:                                                              ; Currently nothing to do!
-            ELSE
-            ; Change to 80 character mode on the 40/80 Char Colour board v1.0.
-            LD      A, 128                                               ; 80 char mode.
-            LD      (DSPCTL), A
+            ; Initialise the display, either the Video Module, 40/80 Colour Card or standard 40 column display.
+            IF BUILD_VIDEOMODULE = 1
+              IN    A, (CPLDINFO)                                        ; Get hardware information.
+              BIT   3,A
+              JR    Z, INIT80CHAR                                        ; If no video module present then see if the 40/80 column board installed else need to use 40 char mode.
+              AND   007H
+              LD    D, A
+              OR    MODE_VIDEO_FPGA                                      ; Ensure the video hardware is enabled.
+              OUT   (CPLDCFG),A
+              LD    A, D
+              OR    MODE_80CHAR                                          ; Enable 80 char display.
+              LD    C, A
+              IN    A, (VMCTRL)                                          ; Get current graphics mode and vga mode.
+              AND   0C0H                                                 ; Mask out all but VGA mode.
+              OR    C                                                    ; Add in new hardware/80char mode.
+              OUT   (VMCTRL),A                                           ; Activate.
+              LD    A, D
+              CP    MODE_MZ80A                                           ; Check to see if this is the MZ80A, if so, change BUS speed.
+              JR    NZ, INIT80END
+          ;   LD    A, SYSMODE_MZ80B                                     ; Set bus and default CPU speed to 4MHz
+          ;   OUT   (SYSCTRL),A                                          ; Activate.            
+              JR    INIT80END
             ENDIF
+INIT80CHAR: IF BUILD_80C = 1
+              LD    HL,DSPCTL                                            ; Setup address of display control register latch.
+              LD    A, 128                                               ; 80 char mode.
+              LD    E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+              LD    (HL), A
+            ENDIF
+            ;
+            ; If no video module and no 40/80 Colour Card then the default will be 40 column display.
             ;
 INIT80END:  LD      A,016H
             CALL    PRNT
@@ -306,34 +310,37 @@ INIT80END:  LD      A,016H
             LD      (IOBYT),A
             LD      (CDISK),A            
 
+            ; DRVAVAIL flag definition. Version 1.25 - removed ROM Drives and RAM drives as they provided no speed or use benefit compared with SD drives.
+            ;
+            ; 1 = Active.
+            ;
+            ; 7 6 5 4 3 2 1 0
+            ; ^ ^ ^ ^ ^ ^ ^ ^
+            ; | | | | | | | |-- Floppy Drive Present
+            ; | | | | | | |---- ROM Drive Present
+            ; | | | | | |------ SD Card Present
+            ; | | | | |-------- RAM Drive Present
+            ; | | | |----------          
+            ; | | |------------
+            ; | |--------------
+            ; |---------------- Drives present                
             ;
             ; Initialise the disk subsystem.
             ;
             LD      A,0                                                  ; No drives yet detected so zero available mask.
             SET     2,A                                                  ; The SD Card is always present on the I/O processor, we cant run without it..
             ;
-            PUSH    AF                                                   ; Output indicator that SDC drives are available.
             LD      DE,SDAVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
-            LD      (DRVAVAIL),A
+            CALL    PRTSTRTMSG
+
             ;
             CALL    DSKINIT                                              ; Initialise the floppy disk subsystem.
             JR      NZ,STRT5
             LD      A,(DRVAVAIL)
             SET     0,A                                                  ; Indicate Floppy drives are available.
 
-            PUSH    AF                                                   ; Output indicator that FDC drives are available.
-            BIT     7,A
-            JR      Z,STRT4 
-            LD      A,','
-            CALL    PRNT
-STRT4:      LD      DE,FDCAVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
-            LD      (DRVAVAIL),A
+            LD      DE,FDCAVAIL                                          ; Output indicator that FDC drives are available.
+            CALL    PRTSTRTMSG
             ;
 STRT5:      LD      DE,CBIOSIGNEND                                       ; Terminate the signon message which now includes list of drives detected.
             CALL    MONPRTSTR
@@ -347,63 +354,18 @@ STRT5:      LD      DE,CBIOSIGNEND                                       ; Termi
             LD      (CDIRBUF),A
             LD      HL,CSVALVMEM
             LD      (CDIRBUF+1),HL
-            ;
-            ; 16MB SD Card Drives.
-            ;
-            LD      BC,0                                                 ; Setup CSV/ALV parameters for a 16MB SD Card drive.
-            LD      (CDIRBUF+3),BC
-            LD      BC,257    ; 2048/8 + 1
-            LD      (CDIRBUF+5),BC
-            LD      BC,DPB4
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
-STRT7:      LD      A,(CDIRBUF)
-            CP      MAXDISKS - 2                                         ; Make sure we have parameter table entries available to add further drives, ensuring slots for the FDC.
-            JR      Z,STRT8
-            ;
-            LD      (TZSVC_FILE_NO),A                                    ; Indicate the drive number the file will be attached to.
-            LD      A,TZSVC_CMD_ADDSDDRIVE                               ; I/O processor command to attach a CPM drive to the file number given.
-            CALL    SVC_CMD
-            OR      A
-            JP      NZ, STRT8                                            ; No drive available, skip.
-            ;
-            CALL    COPYDPB                                              ; Copy parameters for this disk.
-            ;
-            ; Now add as many additional SD drives as we have RAM
-            ; and config tables available within the CBIOS.
-            ;
-            LD      BC,(CDIRBUF+1)
-            LD      HL,CSVALVEND - 2048/8 + 1                            ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
-            OR      A
-            SBC     HL,BC
-            JR      C,STRT8                                              ; If there is no more space, exit.
-            JR      STRT7                                                ; Add another, keep on adding until there is no more ALV Memory free.
-            ;
+
+            ; Add as many SD Drives as RAM permits.
+STRT6:      CALL    ADDSDDRIVE                                           ; Add a drive, NZ return means error, memory limit or max disks reached.
+            JR      NZ,STRT8
+            JR      STRT6
+
             ; Setup the 1.44MB Floppy Disk Drives.
             ;
-STRT8:      LD      A,(DRVAVAIL)
-            BIT     0,A
-            JR      Z,STRT10                                              ; No Floppy drives available then skip.
+STRT8:      CALL    ADDFLPYDRV
+            CALL    ADDFLPYDRV                                           ; No Floppy drives available then skip.
             ;
-            LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
-            LD      (CDIRBUF+3),BC
-            LD      BC,91   ; 720/8 + 1
-            LD      (CDIRBUF+5),BC
-            LD      BC,DPB3
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
-STRT9:      LD      A,(CDIRBUF)
-            CP      MAXDISKS                                             ; Use the disk count to ensure we only add upto 2 FDC drives.
-            JR      Z,STRT10
-            ;
-            LD      BC,(CDIRBUF+1)                                       ; Make sure there is memory available for the FDC drives.
-            LD      HL,CSVALVEND - 720/8 + 1
-            OR      A
-            SBC     HL,BC
-            JR      C,STRT10                                             ; If there is no more space, exit.
-            ;
-            CALL    COPYDPB                                              ; Setup the FDC.
-            JR      STRT9
-            ;
-STRT10:     LD      A,(CDIRBUF)
+            LD      A,(CDIRBUF)
             LD      (NDISKS),A                                           ; Setup max number of system disks found on this boot up.
          
             ; Setup timer interrupts
@@ -460,6 +422,84 @@ CPMINIT2:   CALL    SETDRVMAP                                            ; Refre
             LD      C, A                                                 ; C = current User/Disk for CCP jump (UUUUDDDD)
             JP      BOOT_                                                ; Cold boot CPM now that most initialisation is complete. This is a direct jump to the fixed bios area 0xF000
 
+            ; Method to add an SD drive into the CPM disk definitions.
+            ; If the SD controller hasnt been detected the routine exits without configuration.
+ADDSDDRIVE: LD      A,(DRVAVAIL)
+            BIT     2,A
+            JR      Z,ADDSDDRVEX                                         ; No SD interface so skip.
+            ;
+            ; 16MB SD Card Drives.
+            ;
+            LD      BC,0                                                 ; Setup CSV/ALV parameters for a 16MB SD Card drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,257    ; 2048/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPB4
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+
+            LD      A,(CDIRBUF)
+            CP      MAXDISKS - 2                                         ; Make sure we have parameter table entries available to add further drives, ensuring slots for the FDC.
+            JR      Z,ADDSDDRVEX
+            ;
+            LD      (TZSVC_FILE_NO),A                                    ; Indicate the drive number the file will be attached to.
+            LD      A,TZSVC_CMD_ADDSDDRIVE                               ; I/O processor command to attach a CPM drive to the file number given.
+            CALL    SVC_CMD
+            OR      A
+            JR      NZ,ADDSDDRVEX                                        ; No drive available, skip.
+            ;
+            ; Check that RAM is available to add this drive.
+            ;
+            LD      BC,(CDIRBUF+1)
+            LD      HL,CSVALVEND - 2048/8 + 1                            ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
+            OR      A
+            SBC     HL,BC
+            JR      C,ADDSDDRVEX                                         ; If there is no more space, exit.
+
+            CALL    COPYDPB                                              ; Add in an SD drive.
+            XOR     A
+            RET
+ADDSDDRVEX: LD      A,1
+            OR      A
+            RET
+
+            ; Method to add a Floppy drive into the CPM disk definitions table.
+            ; If the Floppy controller hasnt been detected then skip without configuration.
+ADDFLPYDRV: LD      A,(DRVAVAIL)
+            BIT     0,A
+            JR      Z,ADDSDDRVEX                                         ; No Floppy drives available then skip.
+
+            LD      A,(CDIRBUF)
+            CP      MAXDISKS                                             ; Use the disk count to ensure we only add upto 2 FDC drives.
+            JR      Z,ADDSDDRVEX
+
+            LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,91   ; 720/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPB3
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+
+            LD      BC,(CDIRBUF+1)                                       ; Make sure there is memory available for the FDC drives.
+            LD      HL,CSVALVEND - 720/8 + 1
+            OR      A
+            SBC     HL,BC
+            JR      C,ADDSDDRVEX                                         ; If there is no more space, exit.
+            CALL    COPYDPB                                              ; Add in a floppy drive.
+
+            XOR     A
+            RET
+
+            ; Helper method to print a message with a comma if Bit 7 of A is set.
+PRTSTRTMSG: PUSH    AF
+            BIT     7,A
+            JR      Z,PRTCOMMA1
+            LD      A,','
+            CALL    PRNT
+PRTCOMMA1:  CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
+            LD      (DRVAVAIL),A
+            RET
 
             ;-------------------------------------------------------------------------------
             ;  WBOOT                                                                       
@@ -2066,15 +2106,18 @@ REBOOT:     LD      A,TZMM_TZFS
 
             ; Switch machine back to default state.
             IF BUILD_VIDEOMODULE = 1
-            IN      A,(VMCTRL)                                           ; Get current display mode.
-            AND     ~MODE_80CHAR                                         ; Disable 80 char display.
-            OUT     (VMCTRL),A                                           ; Activate.
-         ;  LD      A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
-         ;  OUT     (SYSCTRL),A                                          ; Activate.
+              IN    A,(VMCTRL)                                           ; Get current display mode.
+              AND   ~MODE_80CHAR                                         ; Disable 80 char display.
+              OUT   (VMCTRL),A                                           ; Activate.
+           ;  LD    A, SYSMODE_MZ80A                                     ; Set bus and default CPU speed to 2MHz
+           ;  OUT   (SYSCTRL),A                                          ; Activate.
             ELSE
-            ; Change to 40 character mode on the 40/80 Char Colour board v1.0.
-            LD      A, 0                                                 ; 40 char mode.
-            LD      (DSPCTL), A
+              ; Change to 40 character mode on the 40/80 Char Colour board v1.0.
+              LD    (DSPCTL), A
+              LD    HL,DSPCTL                                            ; Setup address of display control register latch.
+              LD    A, 0                                                 ; 40 char mode.
+              LD    E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+              LD    (HL), A
             ENDIF
             ;
             JP      MROMADDR                                             ; Now restart in the SA1510 monitor.
@@ -2146,8 +2189,10 @@ PRCKY6:     CP      DBLZERO                                              ; 00
             JR      PRCKYX
 PRCKY7:     CP      BREAKKEY                                             ; Break key processing.
             JR      NZ,PRCKY8
-
-PRCKY8:
+            JR      PRCKYE
+PRCKY8:     CP      DELETE
+            JR      NZ,PRCKYX
+            LD      A,BACKS                                              ; Map DELETE to BACKSPACE, BACKSPACE is Rubout, DELETE is echo in CPM.
 PRCKYX:    
 PRCKYE:    
             POP     HL
@@ -2188,7 +2233,7 @@ PRCKYE:
             LDIR    
             LD      B,COLW                                               ; ONE LINE
             EX      DE,HL
-            IF      MODE80C = 0
+            IF      BUILD_80C = 0
               LD    A,071H                                               ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
             ELSE
               LD    A,071H                                               ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
@@ -2530,7 +2575,7 @@ CLRS:       LD      HL,MANG
             LD      HL,SCRN
             PUSH    HL
             CALL    CLR8Z
-            IF      MODE80C = 0
+            IF      BUILD_80C = 0
               LD    A,071H                                                   ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
             ELSE
               LD    A,071H                                                   ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
@@ -3577,9 +3622,22 @@ DPBTMPL:    DW      0000H, 0000H, 0000H, 0000H, CDIRBUF
             ; Test Message table
             ;--------------------------------------
 
-CBIOSSIGNON:DB      "** C-BIOS v1.10, (C) P.D. Smart, 2020. Drives:",                  NUL
-CBIOSIGNEND:DB       " **",                                                    CR,     NUL
-CPMSIGNON:  DB      "CP/M v2.23 (64K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
+CBIOSSIGNON:IF      BUILD_80C = 1
+              DB    "** CBIOS v1.12, (C) P.D. Smart, 2019-21. Drives:",                NUL
+            ELSE
+              DB    "CBIOS v1.12, (C) P.D. Smart, 2019-21.",                            CR                       
+              DB    "Drives:",                                                         NUL
+            ENDIF
+CBIOSIGNEND:IF      BUILD_80C = 1
+              DB    " **",                                                         CR, NUL
+            ELSE
+              DB                                                                   CR, NUL
+            ENDIF
+CPMSIGNON:  IF      BUILD_80C = 1
+              DB    "CP/M v2.23 (64K) Copyright(c) 1979 by Digital Research",  CR, LF, NUL
+            ELSE
+              DB    "CP/M v2.23 (c) 1979 by Digital Research",                 CR, LF, NUL
+            ENDIF
 SDAVAIL:    DB      "SD",                                                              NUL
 FDCAVAIL:   DB      "FDC",                                                             NUL
 NOBDOS:     DB      "I/O Processor failed to load BDOS, aborting!",            CR, LF, NUL

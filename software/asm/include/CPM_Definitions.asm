@@ -14,6 +14,7 @@
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
 ;                   May 2020 - Cut from the RFS version of CPM for the tranZPUter SW board.
+;-                  Apr 2021 - Updates backported from the RFS version of CPM.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -33,9 +34,59 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
-BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
-BUILD_MZ80A             EQU     0                                        ; Build for the Sharp MZ-80A base hardware.
-BUILD_MZ700             EQU     1                                        ; Build for the Sharp MZ-700 base hardware.
+                        ; CPM for MZ-700 with with Video Module and 80 Columns display.
+                        IF BUILD_VERSION = 0
+BUILD_VIDEOMODULE         EQU   1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_MZ80A               EQU   0                                        ; Build for the Sharp MZ-80A base hardware.
+BUILD_MZ700               EQU   1                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_80C                 EQU   1                                        ; Build for an 80 column (Video Module or 40/80 Colour Card) equipped machine, 0 = standard 40 column.
+                        ENDIF
+                        ; CPM for MZ-80A with with Video Module (if not present expects 40/80 Colour Board) and 80 Columns display.
+                        IF BUILD_VERSION = 1
+BUILD_VIDEOMODULE         EQU   1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_MZ80A               EQU   1                                        ; Build for the Sharp MZ-80A base hardware.
+BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_80C                 EQU   1                                        ; Build for an 80 column (Video Module or 40/80 Colour Card) equipped machine, 0 = standard 40 column.
+                        ENDIF
+                        ; CPM for MZ-80A with with standard 40 column display.
+                        IF BUILD_VERSION = 2
+BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_MZ80A               EQU   1                                        ; Build for the Sharp MZ-80A base hardware.
+BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_80C                 EQU   0                                        ; Build for an 80 column (Video Module or 40/80 Colour Card) equipped machine, 0 = standard 40 column.
+                        ENDIF
+
+;-----------------------------------------------
+; Configurable settings.
+;-----------------------------------------------
+MAXRDRETRY              EQU     002h 
+MAXWRRETRY              EQU     002h
+BLKSIZ                  EQU     4096                                     ; CP/M allocation size
+HSTSIZ                  EQU     512                                      ; host disk sector size
+HSTSPT                  EQU     32                                       ; host disk sectors/trk
+HSTBLK                  EQU     HSTSIZ/128                               ; CP/M sects/host buff
+CPMSPT                  EQU     HSTBLK * HSTSPT                          ; CP/M sectors/track
+SECMSK                  EQU     HSTBLK-1                                 ; sector mask
+WRALL                   EQU     0                                        ; write to allocated
+WRDIR                   EQU     1                                        ; write to directory
+WRUAL                   EQU     2                                        ; write to unallocated
+TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
+MTROFFMSECS             EQU     100                                      ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
+                        IF BUILD_80C = 1
+COLW                      EQU   80                                       ; Width of the display screen (ie. columns).
+                        ELSE
+COLW                      EQU   40                                       ; Width of the display screen (ie. columns).
+                        ENDIF
+ROW                     EQU     25                                       ; Number of rows on display screen.
+SCRNSZ                  EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
+SCRLW                   EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
+
+; BIOS equates
+MAXDISKS                EQU     7                                        ; Max number of Drives supported
+KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
+
+; Debugging
+ENADEBUG                EQU     1                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
@@ -46,6 +97,7 @@ CPMCCP                  EQU     CBASE                                    ; CP/M 
 CPMBDOS                 EQU     CPMCCP + 0806H                           ; BDOS entry
 CPMBIOS                 EQU     CPMCCP + 01600H                          ; Original CPM22 BIOS entry
 CBIOSSTART              EQU     CPMBIOS                                  ; Start of the actual CBIOS code.
+CPMCOPYRMSG             EQU     CBASE+8                                  ; Copyright message stored in CP/M binary.
 BOOT                    EQU     CBIOSSTART + 0
 WBOOT                   EQU     CBIOSSTART + 3
 WBOOTE                  EQU     CBIOSSTART + 3
@@ -84,36 +136,6 @@ FDCJMP2                 EQU     0F7FEH                                   ; ROM p
 
 
 ;-----------------------------------------------
-; Configurable settings.
-;-----------------------------------------------
-MAXRDRETRY              EQU     002h 
-MAXWRRETRY              EQU     002h
-BLKSIZ                  EQU     4096                                     ; CP/M allocation size
-HSTSIZ                  EQU     512                                      ; host disk sector size
-HSTSPT                  EQU     32                                       ; host disk sectors/trk
-HSTBLK                  EQU     HSTSIZ/128                               ; CP/M sects/host buff
-CPMSPT                  EQU     HSTBLK * HSTSPT                          ; CP/M sectors/track
-SECMSK                  EQU     HSTBLK-1                                 ; sector mask
-WRALL                   EQU     0                                        ; write to allocated
-WRDIR                   EQU     1                                        ; write to directory
-WRUAL                   EQU     2                                        ; write to unallocated
-TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
-MTROFFMSECS             EQU     100                                      ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
-COLW:                   EQU     80                                       ; Width of the display screen (ie. columns).
-ROW:                    EQU     25                                       ; Number of rows on display screen.
-SCRNSZ:                 EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
-SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
-MODE80C:                EQU     1
-
-
-; BIOS equates
-MAXDISKS                EQU     7                                        ; Max number of Drives supported
-KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-
-; Debugging
-ENADEBUG                EQU     1                                        ; Enable debugging logic, 1 = enable, 0 = disable
-
-;-----------------------------------------------
 ; Memory mapped ports in hardware.
 ;-----------------------------------------------
 SCRN:                   EQU     0D000H
@@ -137,6 +159,58 @@ INVDSP:                 EQU     0E014H
 NRMDSP:                 EQU     0E015H
 SCLDSP:                 EQU     0E200H
 SCLBASE:                EQU     0E2H
+
+;-----------------------------------------------
+; IO ports in hardware and values.
+;-----------------------------------------------
+MMCFG                   EQU     060H                                     ; Memory management configuration latch.
+SETXMHZ                 EQU     062H                                     ; Select the alternate clock frequency.
+SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
+CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
+SVCREQ                  EQU     068H                                     ; I/O Processor service request.
+CPUCFG                  EQU     06CH                                     ; Version 2.2 CPU configuration register.
+CPUSTATUS               EQU     06CH                                     ; Version 2.2 CPU runtime status register.
+CPUINFO                 EQU     06DH                                     ; Version 2.2 CPU information register.
+CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
+CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
+CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+GDCRTC                  EQU     0CFH                                     ; MZ-800 CRTC control register
+GDCMD                   EQU     0CEH                                     ; MZ-800 CRTC Mode register
+GDGRF                   EQU     0CDH                                     ; MZ-800      read format register
+GDGWF                   EQU     0CCH                                     ; MZ-800      write format register
+PALSLCTOFF              EQU     0D3H                                     ; set the palette slot Off position to be adjusted.
+PALSLCTON               EQU     0D4H                                     ; set the palette slot On position to be adjusted.
+PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
+PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
+PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
+MMIO0                   EQU     0E0H                                     ; MZ-700/MZ-800 Memory Management Set 0
+MMIO1                   EQU     0E1H                                     ; MZ-700/MZ-800 Memory Management Set 1
+MMIO2                   EQU     0E2H                                     ; MZ-700/MZ-800 Memory Management Set 2
+MMIO3                   EQU     0E3H                                     ; MZ-700/MZ-800 Memory Management Set 3
+MMIO4                   EQU     0E4H                                     ; MZ-700/MZ-800 Memory Management Set 4
+MMIO5                   EQU     0E5H                                     ; MZ-700/MZ-800 Memory Management Set 5
+MMIO6                   EQU     0E6H                                     ; MZ-700/MZ-800 Memory Management Set 6
+MMIO7                   EQU     0E7H                                     ; MZ-700/MZ-800 Memory Management Set 7
+;SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
+VMBORDER                EQU     0F3H                                     ; Select VGA Border colour attributes. Bit 2 = Red, 1 = Green, 0 = Blue.
+;GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
+;VMPALETTE               EQU     0F5H                                     ; Select Palette:
+;                                                                         ;    0xF5 sets the palette. The Video Module supports 4 bit per colour output but there is only enough RAM for 1 bit per colour so the pallette is used to change the colours output.
+;                                                                         ;      Bits [7:0] defines the pallete number. This indexes a lookup table which contains the required 4bit output per 1bit input.
+;                                                                         ; GPU:
+;GPUPARAM                EQU     0F6H                                     ;    0xF6 set parameters. Store parameters in a long word to be used by the graphics command processor.
+;                                                                         ;      The parameter word is 128 bit and each write to the parameter word shifts left by 8 bits and adds the new byte at bits 7:0.
+;GPUCMD                  EQU     0F7H                                     ;    0xF7 set the graphics processor unit commands.
+;GPUSTATUS               EQU     0F7H                                     ;         [7;1] - FSM state, [0] - 1 = busy, 0 = idle
+;                                                                         ;      Bits [5:0] - 0 = Reset parameters.
+;                                                                         ;                   1 = Clear to val. Start Location (16 bit), End Location (16 bit), Red Filter, Green Filter, Blue Filter
+;                                                                         ; 
+VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
+VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
+VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMGREENMASK             EQU     0FBH                                     ; Video Module Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
+VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
 
 ;-----------------------------------------------
 ; IO Registers
@@ -251,59 +325,9 @@ CT_BLOCK                EQU     008H                                     ; Block
 DSKTYP_FDC              EQU     0                                        ; Type of disk is a Floppy disk and handled by the FDC controller.
 ;DSKTYP_ROM              EQU     1                                        ; Type of disk is a ROM and handled by the ROM methods.
 DSKTYP_SDC              EQU     2                                        ; Type of disk is an SD Card and handled by the SD Card methods.
+DSKTYP_RAM              EQU     3                                        ; Type of disk is a RAM Drive handled by ROM/RAM methods.
 
-;-----------------------------------------------
-; IO ports in hardware and values.
-;-----------------------------------------------
-MMCFG                   EQU     060H                                     ; Memory management configuration latch.
-SETXMHZ                 EQU     062H                                     ; Select the alternate clock frequency.
-SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
-CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
-SVCREQ                  EQU     068H                                     ; I/O Processor service request.
-CPUCFG                  EQU     06CH                                     ; Version 2.2 CPU configuration register.
-CPUSTATUS               EQU     06CH                                     ; Version 2.2 CPU runtime status register.
-CPUINFO                 EQU     06DH                                     ; Version 2.2 CPU information register.
-CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
-CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
-CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
-GDCRTC                  EQU     0CFH                                     ; MZ-800 CRTC control register
-GDCMD                   EQU     0CEH                                     ; MZ-800 CRTC Mode register
-GDGRF                   EQU     0CDH                                     ; MZ-800      read format register
-GDGWF                   EQU     0CCH                                     ; MZ-800      write format register
-PALSLCTOFF              EQU     0D3H                                     ; set the palette slot Off position to be adjusted.
-PALSLCTON               EQU     0D4H                                     ; set the palette slot On position to be adjusted.
-PALSETRED               EQU     0D5H                                     ; set the red palette value according to the PALETTE_PARAM_SEL address.
-PALSETGREEN             EQU     0D6H                                     ; set the green palette value according to the PALETTE_PARAM_SEL address.
-PALSETBLUE              EQU     0D7H                                     ; set the blue palette value according to the PALETTE_PARAM_SEL address.
-MMIO0                   EQU     0E0H                                     ; MZ-700/MZ-800 Memory Management Set 0
-MMIO1                   EQU     0E1H                                     ; MZ-700/MZ-800 Memory Management Set 1
-MMIO2                   EQU     0E2H                                     ; MZ-700/MZ-800 Memory Management Set 2
-MMIO3                   EQU     0E3H                                     ; MZ-700/MZ-800 Memory Management Set 3
-MMIO4                   EQU     0E4H                                     ; MZ-700/MZ-800 Memory Management Set 4
-MMIO5                   EQU     0E5H                                     ; MZ-700/MZ-800 Memory Management Set 5
-MMIO6                   EQU     0E6H                                     ; MZ-700/MZ-800 Memory Management Set 6
-MMIO7                   EQU     0E7H                                     ; MZ-700/MZ-800 Memory Management Set 7
-;SYSCTRL                 EQU     0F0H                                     ; System board control register. [2:0] - 000 MZ80A Mode, 2MHz CPU/Bus, 001 MZ80B Mode, 4MHz CPU/Bus, 010 MZ700 Mode, 3.54MHz CPU/Bus.
-VMBORDER                EQU     0F3H                                     ; Select VGA Border colour attributes. Bit 2 = Red, 1 = Green, 0 = Blue.
-;GRAMMODE                EQU     0F4H                                     ; MZ80B Graphics mode.  Bit 0 = 0, Write to Graphics RAM I, Bit 0 = 1, Write to Graphics RAM II. Bit 1 = 1, blend Graphics RAM I output on display, Bit 2 = 1, blend Graphics RAM II output on display.
-;VMPALETTE               EQU     0F5H                                     ; Select Palette:
-;                                                                         ;    0xF5 sets the palette. The Video Module supports 4 bit per colour output but there is only enough RAM for 1 bit per colour so the pallette is used to change the colours output.
-;                                                                         ;      Bits [7:0] defines the pallete number. This indexes a lookup table which contains the required 4bit output per 1bit input.
-;                                                                         ; GPU:
-;GPUPARAM                EQU     0F6H                                     ;    0xF6 set parameters. Store parameters in a long word to be used by the graphics command processor.
-;                                                                         ;      The parameter word is 128 bit and each write to the parameter word shifts left by 8 bits and adds the new byte at bits 7:0.
-;GPUCMD                  EQU     0F7H                                     ;    0xF7 set the graphics processor unit commands.
-;GPUSTATUS               EQU     0F7H                                     ;         [7;1] - FSM state, [0] - 1 = busy, 0 = idle
-;                                                                         ;      Bits [5:0] - 0 = Reset parameters.
-;                                                                         ;                   1 = Clear to val. Start Location (16 bit), End Location (16 bit), Red Filter, Green Filter, Blue Filter
-;                                                                         ; 
-VMCTRL                  EQU     0F8H                                     ; Video Module control register. [2:0] - 000 (default) = MZ80A, 001 = MZ-700, 010 = MZ800, 011 = MZ80B, 100 = MZ80K, 101 = MZ80C, 110 = MZ1200, 111 = MZ2000. [3] = 0 - 40 col, 1 - 80 col.
-VMGRMODE                EQU     0F9H                                     ; Video Module graphics mode. 7/6 = Operator (00=OR,01=AND,10=NAND,11=XOR), 5=GRAM Output Enable, 4 = VRAM Output Enable, 3/2 = Write mode (00=Page 1:Red, 01=Page 2:Green, 10=Page 3:Blue, 11=Indirect), 1/0=Read mode (00=Page 1:Red, 01=Page2:Green, 10=Page 3:Blue, 11=Not used).
-VMREDMASK               EQU     0FAH                                     ; Video Module Red bit mask (1 bit = 1 pixel, 8 pixels per byte).
-VMGREENMASK             EQU     0FBH                                     ; Video Module Green bit mask (1 bit = 1 pixel, 8 pixels per byte).
-VMBLUEMASK              EQU     0FCH                                     ; Video Module Blue bit mask (1 bit = 1 pixel, 8 pixels per byte).
-VMPAGE                  EQU     0FDH                                     ; Video Module memory page register. [1:0] switches in 1 16Kb page (3 pages) of graphics ram to C000 - FFFF. Bits [1:0] = page, 00 = off, 01 = Red, 10 = Green, 11 = Blue. This overrides all MZ700/MZ80B page switching functions. [7] 0 - normal, 1 - switches in CGROM for upload at D000:DFFF.
-
+;
 ;-----------------------------------------------
 ; CPLD Configuration constants.
 ;-----------------------------------------------

@@ -7,6 +7,11 @@
 ;*                by Clark A. Calkins
 ;*
 ;**************************************************************
+
+           ; Bring in definitions and macros.
+           INCLUDE "CPM_BuildVersion.asm"
+           INCLUDE "CPM_Definitions.asm"
+           INCLUDE "Macros.asm"
 ;
 ;   Set memory limit here. This is the amount of contigeous
 ; ram starting from 0000. CP/M will reside at the end of this space.
@@ -59,12 +64,16 @@ CCPFIRS     EQU    CBASE + 8       ; Address of the first charater of the CCP in
 ;
 INBUFF: DB 127     ;length of input buffer.
     DB 0       ;current length of contents.
-    DB   "Copyright"
-    DB   " 1979 (c) by Digital Research      "
-    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    IF BUILD_80C = 1
+      DB "CP/M v2.23 (64K) Copyright(c) 1979 by Digital Research", 00DH, 00AH, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0     ; 68 chars
+    ELSE
+      DB "CP/M v2.23 (c) 1979 by Digital Research", 00DH, 00AH, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0     ; 68 chars
+    ENDIF
+   ;DB   "Copyright"
+   ;DB   " 1979 (c) by Digital Research      "
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 INPOINT:DW INBUFF+2    ;input line pointer
 NAMEPNT:DW 0       ;input line pointer used for error message. Points to
 ;           ;start of name in error.
@@ -831,7 +840,11 @@ DIRECT3:JP  Z,DIRECT9   ;terminate if no more names.
     LD  A,E     ;bump name count.
     INC E
     PUSH    DE
-    AND 03H     ;at end of line?
+    IF BUILD_80C = 1
+      AND 03H     ;at end of line?
+    ELSE
+      AND 01H     ;at end of line?
+    ENDIF
     PUSH    AF
     JP  NZ,DIRECT4
     CALL    CRLF        ;yes, end this line and start another.
@@ -3742,8 +3755,7 @@ CKSUMTBL: DB   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ;       MZ-80A CPM BIOS STUB - Main Logic in CBIOS.ASM
 ;-----------------------------------------------------------------------
 
-           INCLUDE "Macros.asm"
-           INCLUDE "CPM_Definitions.asm"
+           ; Bring in the CBIOS stub, has the bootstrap code and DPB place markers.
            INCLUDE "cpm22-bios.asm"
 
            ALIGN_NOPS        CBIOSSTART

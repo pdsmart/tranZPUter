@@ -419,14 +419,15 @@ HELPSCR:    ;       "--------- 40 column width -------------"
             DB      "B      - toggle keyboard bell.",                       00DH
             DB      "BASIC  - load BASIC SA-5510.",                         00DH
             DB      "C[b]   - clear memory $1200-$D000.",                   00DH
+            DB      "CD[d]  - switch to SD directory [d].",                 00DH
             DB      "CPM    - load CPM.",                                   00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
+            DB      "DIR[wc]- SD dir listing, wc=wildcard.",                00DH
             DB      "ECfn   - erase file, fn=No or Filename",               00DH
             DB      "EX     - exit TZFS, reset as original.",               00DH
             DB      "Fx     - boot fd drive x.",                            00DH
             DB      "FREQn  -set CPU to nKHz, 0 default.",                  00DH
             DB      "H      - this help screen.",                           00DH
-            DB      "IC[wc] - SD dir listing, wc=wildcard.",                00DH
             DB      "JXXXX  - jump to location XXXX.",                      00DH
             DB      "LTfn- load tape, fn=Filename",                         00DH
             DB      "LCfn[,M]- load from SD, fn=No or FileN",               00DH

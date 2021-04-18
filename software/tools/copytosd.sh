@@ -179,24 +179,23 @@ if [ ! -d "${rootdir}/${softwaredir}/MZF/${target}" ]; then
     Fatal "-t < target host> is invalid, this should be one of: MZ-80K, MZ-80A, MZ-700, MZ-800, MZ-1500, MZ-2000"
 fi
 if [ ! -d "${media}" ]; then
-    Fatal "-m < root path > is invalid, this should be the directory where the tranZPUter project directory is located."
+    Fatal "-M < media path > is invalid, this should be the mounted SD card directory."
 fi
 
-# Create necessary directories on the SD card.
-mkdir -p $media/TZFS/;
-mkdir -p $media/MZF/;
-mkdir -p $media/CPM/;
-mkdir -p $media/BAS;
-mkdir -p $media/CAS; 
+# Create necessary directories on the SD card and clean them out.
+#for dir in TZFS MZF MZ80K MZ80A MZ80B MZ700 MZ800 MZ1500 MZ2000 CPM MSBAS MSCAS
+for dir in TZFS MZF MZ80A MZ700 CPM MSBAS MSCAS
+do
+    # Clean out the directories to avoid old files being used.
+    if [[ "${media}x" != "x" ]]; then
+        mkdir -p $media/${dir}/;
+        if [ -d $media/${dir} ]; then
+            rm -f $media/${dir}/*;
+        fi
+    fi
+done
 
-# Clean out the directories to avoid old files being used.
-rm $media/TZFS/*;
-rm $media/MZF/*;
-rm $media/CPM/*;
-rm $media/BAS/*;
-rm $media/CAS/*; 
-
-# Copy required files.
+# Manually copy required files.
 cp ${rootdir}/${softwaredir}/roms/tzfs.rom                        $media/TZFS/; 
 cp ${rootdir}/${softwaredir}/roms/monitor_SA1510.rom              $media/TZFS/SA1510.rom; 
 cp ${rootdir}/${softwaredir}/roms/monitor_80c_SA1510.rom          $media/TZFS/SA1510-8.rom; 
@@ -209,10 +208,15 @@ cp ${rootdir}/${softwaredir}/roms/MZ800_*                         $media/TZFS/;
 cp ${rootdir}/${softwaredir}/roms/cpm22.bin                       $media/CPM/; 
 cp ${rootdir}/${softwaredir}/CPM/SDC16M/RAW/*                     $media/CPM/; 
 cp ${rootdir}/${softwaredir}/MZF/Common/*                         $media/MZF/;
-cp ${rootdir}/${softwaredir}/MZF/${target}/*                      $media/MZF/;
-cp ${rootdir}/${softwaredir}/MZF/MZ-80K/*                         $media/MZF/;
-cp ${rootdir}/${softwaredir}/BAS/*                                $media/BAS/; 
-cp ${rootdir}/${softwaredir}/CAS/*                                $media/CAS/
+#cp ${rootdir}/${softwaredir}/MZF/MZ-80K/*                         $media/MZ80K/;
+cp ${rootdir}/${softwaredir}/MZF/MZ-80A/*                         $media/MZ80A/;
+#cp ${rootdir}/${softwaredir}/MZF/MZ-80B/*                         $media/MZ80B/;
+cp ${rootdir}/${softwaredir}/MZF/MZ-700/*                         $media/MZ700/;
+#cp ${rootdir}/${softwaredir}/MZF/MZ-800/*                         $media/MZ800/;
+#cp ${rootdir}/${softwaredir}/MZF/MZ-1500/*                        $media/MZ1500/;
+#cp ${rootdir}/${softwaredir}/MZF/MZ-2000/*                        $media/MZ2000/;
+cp ${rootdir}/${softwaredir}/BAS/*                                $media/MSBAS/; 
+cp ${rootdir}/${softwaredir}/CAS/*                                $media/MSCAS/
 
 echo "Done, TZFS, CPM and host programs copied to SD card."
 exit 0

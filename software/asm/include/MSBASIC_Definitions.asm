@@ -1,6 +1,6 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
-;- Name:            BASIC_Definitions.asm
+;- Name:            MSBASIC_Definitions.asm
 ;- Created:         June 2020
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series CPM v2.23
@@ -14,6 +14,7 @@
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
 ;                   Jun 2020 - Copied and strpped from TZFS for BASIC.
+;                   Mar 2021 - Updates to backport changes from the RFS version after v2.1 hw changes.
 ;
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -33,29 +34,69 @@
 ;-----------------------------------------------
 ; Features.
 ;-----------------------------------------------
-BUILD_VIDEOMODULE       EQU     1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
-BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_MZ700             EQU     1                                        ; Build for the Sharp MZ-700 base hardware.
-BUILD_RFS               EQU     0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
-BUILD_TZFS              EQU     1                                        ; Build for TZFS where extended memory is available.
-INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ;-----------------------------------------------
 
 ;-----------------------------------------------
 ; Configurable settings.
 ;-----------------------------------------------
+; Build options. Set just one to '1' the rest to '0'.
+; NB: As there are now 4 versions and 1 or more need to be built, ie. MZ-80A and RFS version for RFS, a flag is set in the file
+; BASIC_build.asm which configures the equates below for the correct build.
+
+                        ; MZ-80A Standard Machine Configuration.
+                        IF BUILD_VERSION = 0
+BUILD_MZ80A               EQU   1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_TZFS                EQU   0                                        ; Build for TZFS where extended memory is available.
+BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_80C                 EQU   0
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
+                        ENDIF
+                        ; MZ-700 Standard Machine Configuration.
+                        IF BUILD_VERSION = 1
+BUILD_MZ80A               EQU   0
+BUILD_MZ700               EQU   1                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_TZFS                EQU   0
+BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_80C                 EQU   0
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
+                        ENDIF
+                        ; TZFS Enhanced MZ-80A with no video card upgrade.
+                        IF BUILD_VERSION = 2
+BUILD_MZ80A               EQU   0
+BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_TZFS                EQU   1
+BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_80C                 EQU   0
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
+                        ENDIF
+                        ; TZFS Enhanced MZ-80A/MZ-700 with VideoModule (or 40/80 Colour Board on MZ-80A).
+                        IF BUILD_VERSION = 3
+BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
+BUILD_MZ80A               EQU   0
+BUILD_TZFS                EQU   1
+BUILD_VIDEOMODULE         EQU   1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
+BUILD_80C                 EQU   1
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
+                        ENDIF
+                        IF BUILD_80C = 1
+COLW:                     EQU   80                                       ; Width of the display screen (ie. columns).
+                        ELSE
+COLW:                     EQU   40                                       ; Width of the display screen (ie. columns).
+                        ENDIF
 TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
-COLW:                   EQU     80                                       ; Width of the display screen (ie. columns).
 ROW:                    EQU     25                                       ; Number of rows on display screen.
 SCRNSZ:                 EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
 SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
-MODE80C:                EQU     1
 
 ; BIOS equates
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
-;MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+                        IF BUILD_MZ80A = 1
+MAXMEM                    EQU   0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+                        ELSE                        
+MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+                        ENDIF
 
 ; Tape load/save modes. Used as a flag to enable common code.
 TAPELOAD                EQU     1
@@ -74,8 +115,12 @@ ATR_BASIC_PROG          EQU     2
 ATR_BASIC_DATA          EQU     3
 ATR_SRC_FILE            EQU     4
 ATR_RELOC_FILE          EQU     5
+ATR_BASIC_MSCAS         EQU     07EH
+ATR_BASIC_MSTXT         EQU     07FH
 ATR_PASCAL_PROG         EQU     0A0H
 ATR_PASCAL_DATA         EQU     0A1H
+CMTATRB                 EQU     010F0H
+CMTNAME                 EQU     010F1H
 
 ;-------------------------------------------------------
 ; Function entry points in the standard SA-1510 Monitor.

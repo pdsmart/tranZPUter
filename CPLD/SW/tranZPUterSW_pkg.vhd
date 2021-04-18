@@ -12,6 +12,11 @@
 --
 -- History:         June 2020 - Initial creation.
 --                  Mar 2021  - Updated to enable better compatibility with the Sharp MZ-800.
+--                  Mar 2021 -  Many changes to cater for the MZ-800. The machine has different memory
+--                              modes and maps so extensive changes needed.
+--                  Apr 2021 -  Removed the v2.1 frequency generator as 2.1 no longer supported. Fixed
+--                              issues with adding the MZ-800 using too many resources, made 
+--                              compilation conditional.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -95,18 +100,14 @@ package tranZPUterSW_pkg is
     -- Configurable parameters.
     ------------------------------------------------------------ 
     -- Target hardware.
-    constant CPLD_HOST_HW             : integer  := MODE_MZ800;
-    --constant CPLD_HOST_HW             : integer  := MODE_MZ80A;
+    --constant CPLD_HOST_HW             : integer  := MODE_MZ800;
+    constant CPLD_HOST_HW             : integer  := MODE_MZ80A;
 
     -- Target video hardware.
     constant CPLD_HAS_FPGA_VIDEO      : std_logic := '0';
 
     -- Version of hdl.
     constant CPLD_VERSION             : integer   := 1;
-
-    -- Clock source for the secondary clock. If a K64F is installed then enable it otherwise use the onboard oscillator.
-    --
-    constant USE_K64F_CTL_CLOCK       : integer   := 1;
 
     ------------------------------------------------------------ 
     -- Function prototypes
