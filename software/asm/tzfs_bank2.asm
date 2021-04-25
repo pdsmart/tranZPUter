@@ -175,6 +175,68 @@ PRTSTRE:    POP     DE
             POP     AF
             RET     
 
+            ; Method to convert a string with Sharp ASCII codes into standard ASCII codes via map lookup.
+            ; Inputs: DE = pointer to string for conversion.
+            ;         B  = Maximum number of characters to convert if string not terminated.
+            ;
+CNVSTR_SA:  PUSH    HL
+            PUSH    DE
+            PUSH    BC
+CNVSTRSA1:  LD      A,(DE)                                                   ; Get character for conversion.
+            OR      A                                                        ; Exit at End of String (NULL, CR)
+            JR      Z,CNVSTRSAEX
+            CP      00DH
+            JR      Z,CNVSTRSAEX
+            CP      020H                                                     ; No point mapping control characters.
+            JR      C,CNVSTRSA2
+            ;
+            LD      HL,SHARPTOASC                                            ; Start of mapping table.
+            PUSH    BC
+            LD      C,A
+            LD      B,0
+            ADD     HL,BC                                                    ; Add in character offset.
+            POP     BC
+            LD      A,(HL)
+            LD      (DE),A                                                   ; Map character.
+CNVSTRSA2:  INC     DE
+            DJNZ    CNVSTRSA1
+CNVSTRSAEX: POP     BC                                                       ; Restore all registers used except AF.
+            POP     DE
+            POP     HL
+            RET
+
+            ; Method to convert a string with standard ASCII into Sharp ASCII codes via scan lookup in the mapping table.
+            ; Inputs: DE = pointer to string for conversion.
+            ;         B  = Maximum number of characters to convert if string not terminated.
+CNVSTR_AS:  PUSH    HL
+            PUSH    DE
+            PUSH    BC
+CNVSTRAS1:  LD      A,(DE)                                                   ; Get character for conversion.
+            OR      A                                                        ; Exit at End of String (NULL, CR)
+            JR      Z,CNVSTRSAEX
+            CP      00DH
+            JR      Z,CNVSTRSAEX
+            CP      020H                                                     ; No point mapping control characters.
+            JR      C,CNVSTRAS5
+
+            LD      HL,SHARPTOASC + 020H
+            PUSH    BC
+            LD      B, 0100H - 020H
+CNVSTRAS2:  CP      (HL)                                                     ; Go through table looking for a match.
+            JR      Z,CNVSTRAS3
+            INC     HL
+            DJNZ    CNVSTRAS2
+            JR      CNVSTRAS4                                                ; No match then dont convert.
+CNVSTRAS3:  LD      BC,SHARPTOASC                                            ; On match or expiration of BC subtract table starting point to arrive at index.
+            OR      A
+            SBC     HL,BC
+            LD      A,L                                                      ; Index is used as the converted character.
+CNVSTRAS4:  LD      (DE),A
+            POP     BC
+CNVSTRAS5:  INC     DE
+            DJNZ    CNVSTRAS1
+            JR      CNVSTRSAEX
+
             ; TRUE ASCII TO DISPLAY CODE TABLE
             ;
 ATBL:       DB      0CCH   ; NUL '\0' (null character)     
@@ -307,6 +369,26 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             DB      0C0H   ; DEL
 ATBLE:      EQU     $
 
+            ; Mapping table to convert between Sharp ASCII and standard ASCII.
+            ; Sharp -> ASCII : Index with Sharp value into table to obtain conversion.
+            ; ASCII -> Sharp : Scan into table looking for value, on match the idx is the conversion. NB 0x20 = 0x20.
+SHARPTOASC: DB      000H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  000H,  020H,  020H ; 0x0F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x1F
+            DB      020H,  021H,  022H,  023H,  024H,  025H,  026H,  027H,  028H,  029H,  02AH,  02BH,  02CH,  02DH,  02EH,  02FH ; 0x2F
+            DB      030H,  031H,  032H,  033H,  034H,  035H,  036H,  037H,  038H,  039H,  03AH,  03BH,  03CH,  03DH,  03EH,  03FH ; 0x3F
+            DB      040H,  041H,  042H,  043H,  044H,  045H,  046H,  047H,  048H,  049H,  04AH,  04BH,  04CH,  04DH,  04EH,  04FH ; 0x4F
+            DB      050H,  051H,  052H,  053H,  054H,  055H,  056H,  057H,  058H,  059H,  05AH,  05BH,  05CH,  05DH,  05EH,  05FH ; 0x5F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x6F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x7F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x8F
+            DB      020H,  020H,  065H,  020H,  020H,  020H,  074H,  067H,  068H,  020H,  062H,  078H,  064H,  072H,  070H,  063H ; 0x9F
+            DB      071H,  061H,  07AH,  077H,  073H,  075H,  069H,  020H,  04FH,  06BH,  066H,  076H,  020H,  075H,  042H,  06AH ; 0xAF
+            DB      06EH,  020H,  055H,  06DH,  020H,  020H,  020H,  06FH,  06CH,  041H,  06FH,  061H,  020H,  079H,  020H,  020H ; 0xBF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xCF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xDF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xEF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xFF
+
             ;-------------------------------------------------------------------------------
             ; END OF PRINT ROUTINE METHODS
             ;-------------------------------------------------------------------------------
@@ -327,66 +409,57 @@ FDCJMPL2:   JP       (IX)
             ;-------------------------------------------------------------------------------
             ;        0                                       + <- 39
             ;        -----------------------------------------
-MSGSON:     DB      "+ TZFS v1.5 ",                                                       000H                     ; Version 1.0-> first split from RFS v2.0
-MSGSONEND:  DB      " **",                                                          00DH, 000H                     ; Signon banner termination.
-MSGSONT80:  DB      "(T80)",                                                              000H                     ; T80 CPU detected.
-MSGNOTFND:  DB      "Not Found",                                                    00DH, 000H
-MSGBADCMD:  DB      "???",                                                          00DH, 000H
-MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                                           000H
-MSGSVFAIL:  DB      "Save failed.",                                                 00DH, 000H
-MSGERAFAIL: DB      "Erase failed.",                                                00DH, 000H
-MSGCDFAIL:  DB      "Directory invalid.",                                           00DH, 000H
-MSGERASEDIR:DB      "Deleted dir entry:",0FBH,                                            000H
-MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",                     0FBH, 00DH, 000H
-MSGNOTBIN:  DB      "Not binary",                                                   00DH, 000H
-MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',                                  00DH, 000H
-MSGSAVE:    DB      00DH, "Filename: ",                                                   000H
-MSGE1:      DB      00DH, "Check sum error!",                                       00DH, 000H                     ; Check sum error.
-MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"',                                 00DH, 000H
-MSGOK:      DB      00DH, "OK!",                                                    00DH, 000H
-MSGSAVEOK:  DB      "Tape image saved.",                                            00DH, 000H
-MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",                                          000H
-MSGLOADERR: DB      00DH, "Disk loading error",                                     00DH, 000H
-MSGIPLLOAD: DB      00DH, "Disk loading ",                                                000H
-MSGDSKNOTMST:DB     00DH, "This is not a boot disk",                                00Dh, 000H
-MSGINITM:   DB      "Init memory",                                                  00DH, 000H
-MSGREAD4HEX:DB      "Bad hex number",                                               00DH, 000H
-MSGT2SDERR: DB      "Copy from Tape to SD Failed",                                  00DH, 000H
-MSGSD2TERR: DB      "Copy from SD to Tape Failed",                                  00DH, 000H
-MSGT2SDOK:  DB      "Success, Tape to SD done.",                                    00DH, 000H
-MSGSD2TOK:  DB      "Success, SD to Tape done.",                                    00DH, 000H
-MSGUNKNHW:  DB      "Unknown hardware, cannot change!",                             00DH, 000H
-MSGFAILBIOS:DB      "Failed to load alternate BIOS!",                               00DH, 000H
-MSGFAILEXIT:DB      "TZFS exit failed, I/O proc error!",                            00DH, 000H
-MSGFREQERR: DB      "Error, failed to change frequency!",                           00DH, 000H
-MSGBADNUM:  DB      "Error, bad number supplied!",                                  00DH, 000H
-MSGNOFPGA:  DB      "Error, no FPGA video module!",                                 00DH, 000H
-MSGT80ERR:  DB      "Error, failed to switch to T80 CPU!",                          00DH, 000H
-MSGZ80ERR:  DB      "Error, failed to switch to Z80 CPU!",                          00DH, 000H
-MSGZPUERR:  DB      "Error, failed to switch to ZPU CPU!",                          00DH, 000H
-MSGNOSOFTCPU:DB     "No soft cpu hardware!",                                        00DH, 000H
-MSGNOT80CPU:DB      "T80 not available!",                                           00DH, 000H
-MSGNOZPUCPU:DB      "ZPU Evo not available!",                                       00DH, 000H
+MSGSON:     DB      "+ TZFS v1.5 ",                                                       NULL                     ; Version 1.0-> first split from RFS v2.0
+MSGSONEND:  DB      " **",                                                          CR,   NULL                     ; Signon banner termination.
+MSGSONT80:  DB      "(T80)",                                                              NULL                     ; T80 CPU detected.
+MSGNOTFND:  DB      "Not Found",                                                    CR,   NULL
+MSGBADCMD:  DB      "???",                                                          CR,   NULL
+MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                                           NULL
+MSGSVFAIL:  DB      "Save failed.",                                                 CR,   NULL
+MSGERAFAIL: DB      "Erase failed.",                                                CR,   NULL
+MSGCDFAIL:  DB      "Directory invalid.",                                           CR,   NULL
+MSGERASEDIR:DB      "Deleted dir entry:",0FBH,                                            NULL
+MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",                     0FBH, CR,   NULL
+MSGNOTBIN:  DB      "Not binary",                                                   CR,   NULL
+MSGLOAD:    DB      CR,   "Loading ",'"',0FAH,'"',                                  CR,   NULL
+MSGSAVE:    DB      CR,   "Filename: ",                                                   NULL
+MSGE1:      DB      CR,   "Check sum error!",                                       CR,   NULL                     ; Check sum error.
+MSGCMTWRITE:DB      CR,   "Writing ", '"',0FAH,'"',                                 CR,   NULL
+MSGOK:      DB      CR,   "OK!",                                                    CR,   NULL
+MSGSAVEOK:  DB      "Tape image saved.",                                            CR,   NULL
+MSGBOOTDRV: DB      CR,   "Floppy boot drive ?",                                          NULL
+MSGLOADERR: DB      CR,   "Disk loading error",                                     CR,   NULL
+MSGIPLLOAD: DB      CR,   "Disk loading ",                                                NULL
+MSGDSKNOTMST:DB     CR,   "This is not a boot disk",                                CR,   NULL
+MSGINITM:   DB      "Init memory",                                                  CR,   NULL
+MSGREAD4HEX:DB      "Bad hex number",                                               CR,   NULL
+MSGT2SDERR: DB      "Copy from Tape to SD Failed",                                  CR,   NULL
+MSGSD2TERR: DB      "Copy from SD to Tape Failed",                                  CR,   NULL
+MSGT2SDOK:  DB      "Success, Tape to SD done.",                                    CR,   NULL
+MSGSD2TOK:  DB      "Success, SD to Tape done.",                                    CR,   NULL
+MSGUNKNHW:  DB      "Unknown hardware, cannot change!",                             CR,   NULL
+MSGFAILBIOS:DB      "Failed to load alternate BIOS!",                               CR,   NULL
+MSGFAILEXIT:DB      "TZFS exit failed, I/O proc error!",                            CR,   NULL
+MSGFREQERR: DB      "Error, failed to change frequency!",                           CR,   NULL
+MSGBADNUM:  DB      "Error, bad number supplied!",                                  CR,   NULL
+MSGNOFPGA:  DB      "Error, no FPGA video module!",                                 CR,   NULL
+MSGT80ERR:  DB      "Error, failed to switch to T80 CPU!",                          CR,   NULL
+MSGZ80ERR:  DB      "Error, failed to switch to Z80 CPU!",                          CR,   NULL
+MSGZPUERR:  DB      "Error, failed to switch to ZPU CPU!",                          CR,   NULL
+MSGNOSOFTCPU:DB     "No soft cpu hardware!",                                        CR,   NULL
+MSGNOT80CPU:DB      "T80 not available!",                                           CR,   NULL
 ;
-OKCHECK:    DB      ", CHECK: ",                                                    00Dh, 000H
-OKMSG:      DB      " OK.",                                                         00Dh, 000H
+OKCHECK:    DB      ", CHECK: ",                                                    CR,   NULL
+OKMSG:      DB      " OK.",                                                         CR,   NULL
 DONEMSG:    DB      11h
-            DB      "RAM TEST COMPLETE.",                                           00Dh, 000H
-BITMSG:     DB      " BIT:  ",                                                      00Dh, 000H
-BANKMSG:    DB      " BANK: ",                                                      00Dh, 000H
-MSG_TIMERTST:DB     "8253 TIMER TEST",                                              00Dh, 000H
-MSG_TIMERVAL:DB     "READ VALUE 1: ",                                               00Dh, 000H
-MSG_TIMERVAL2:DB    "READ VALUE 2: ",                                               00Dh, 000H
-MSG_TIMERVAL3:DB    "READ DONE.",                                                   00Dh, 000H
+            DB      "RAM TEST COMPLETE.",                                           CR,   NULL
+BITMSG:     DB      " BIT:  ",                                                      CR,   NULL
+BANKMSG:    DB      " BANK: ",                                                      CR,   NULL
+MSG_TIMERTST:DB     "8253 TIMER TEST",                                              CR,   NULL
+MSG_TIMERVAL:DB     "READ VALUE 1: ",                                               CR,   NULL
+MSG_TIMERVAL2:DB    "READ VALUE 2: ",                                               CR,   NULL
+MSG_TIMERVAL3:DB    "READ DONE.",                                                   CR,   NULL
 
-SVCRESPERR: DB      "I/O Response Error, time out!",00DH, 000H
-SVCIOERR:   DB      "I/O Error, time out!",         00DH, 000H
-
-
-;TESTMSG:    DB      "HL is:",0FBH,    00DH,       000H
-;TESTMSG2:   DB      "DE is:",0FBH,    00DH,       000H
-;TESTMSG3:   DB      "BC is:",0FBH,    00DH,       000H
-;TESTMSG4:   DB      "4 is:",0FBH,    00DH,       000H
 
             ; The FDC controller uses it's busy/wait signal as a ROM address line input, this
             ; causes a jump in the code dependent on the signal status. It gets around the 2MHz Z80 not being quick
@@ -394,6 +467,20 @@ SVCIOERR:   DB      "I/O Error, time out!",         00DH, 000H
             ALIGN_NOPS FDCJMP2
             ORG      FDCJMP2               
 FDCJMPH2:   JP       (IY)
+
+            ; Continuation of messages after the Floppy Disk controller fixed location.
+MSGNOZPUCPU:DB      "ZPU Evo not available!",                                       CR,   NULL
+MSGNOCMTDIR:DB      "CMT has no directory.",                                        CR,   NULL
+MSGNOVERIFY:DB      "No Verify for SD drive.",                                      CR,   NULL
+
+SVCRESPERR: DB      "I/O Response Error, time out!",                                CR,   NULL
+SVCIOERR:   DB      "I/O Error, time out!",                                         CR,   NULL
+
+;TESTMSG:    DB      "HL is:",0FBH,    00DH,       000H
+;TESTMSG2:   DB      "DE is:",0FBH,    00DH,       000H
+;TESTMSG3:   DB      "BC is:",0FBH,    00DH,       000H
+;TESTMSG4:   DB      "4 is:",0FBH,    00DH,       000H
+
 
 
             ;-------------------------------------------------------------------------------

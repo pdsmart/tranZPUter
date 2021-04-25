@@ -48,7 +48,8 @@
                         IF BUILD_VERSION = 0
 BUILD_MZ80A               EQU   1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
 BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
-BUILD_TZFS                EQU   0                                        ; Build for TZFS where extended memory is available.
+BUILD_MZ80A_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-80A where extended memory is available.
+BUILD_MZ700_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-700 where extended memory is available.
 BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 BUILD_80C                 EQU   0
 INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
@@ -57,16 +58,18 @@ INCLUDE_ANSITERM          EQU   1                                        ; Inclu
                         IF BUILD_VERSION = 1
 BUILD_MZ80A               EQU   0
 BUILD_MZ700               EQU   1                                        ; Build for the Sharp MZ-700 base hardware.
-BUILD_TZFS                EQU   0
+BUILD_MZ80A_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-80A where extended memory is available.
+BUILD_MZ700_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-700 where extended memory is available.
 BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 BUILD_80C                 EQU   0
 INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
-                        ; TZFS Enhanced MZ-80A with no video card upgrade.
+                        ; TZFS Enhanced MZ-80A/MZ-700 with no video card upgrade.
                         IF BUILD_VERSION = 2
 BUILD_MZ80A               EQU   0
 BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
-BUILD_TZFS                EQU   1
+BUILD_MZ80A_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-80A where extended memory is available.
+BUILD_MZ700_TZFS          EQU   1                                        ; Build for TZFS running on an MZ-700 where extended memory is available.
 BUILD_VIDEOMODULE         EQU   0                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 BUILD_80C                 EQU   0
 INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
@@ -75,7 +78,8 @@ INCLUDE_ANSITERM          EQU   1                                        ; Inclu
                         IF BUILD_VERSION = 3
 BUILD_MZ700               EQU   0                                        ; Build for the Sharp MZ-700 base hardware.
 BUILD_MZ80A               EQU   0
-BUILD_TZFS                EQU   1
+BUILD_MZ80A_TZFS          EQU   0                                        ; Build for TZFS running on an MZ-80A where extended memory is available.
+BUILD_MZ700_TZFS          EQU   1                                        ; Build for TZFS running on an MZ-700 where extended memory is available.
 BUILD_VIDEOMODULE         EQU   1                                        ; Build for the Video Module v2 board (=1) otherwise build for the 80Char Colour Board v1.0
 BUILD_80C                 EQU   1
 INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
@@ -95,7 +99,7 @@ KEYBUFSIZE              EQU     64                                       ; Ensur
                         IF BUILD_MZ80A = 1
 MAXMEM                    EQU   0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
                         ELSE                        
-MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter
                         ENDIF
 
 ; Tape load/save modes. Used as a flag to enable common code.
@@ -443,8 +447,9 @@ TZSVCDIR_ENTSZ:         EQU     32                                       ; Size 
 TZSVCWAITIORETRIES:     EQU     500                                      ; Wait retries for IO response.
 TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
 TZSVC_FTYPE_MZF:        EQU     0                                        ; File type being handled is an MZF
-TZSVC_FTYPE_CAS:        EQU     1                                        ; File type being handled is an CASsette BASIC script.
-TZSVC_FTYPE_BAS:        EQU     2                                        ; File type being handled is an BASic script
+TZSVC_FTYPE_MZFHDR:     EQU     1                                        ; File type being handled is an MZF Header.
+TZSVC_FTYPE_CAS:        EQU     2                                        ; File type being handled is an CASsette BASIC script.
+TZSVC_FTYPE_BAS:        EQU     3                                        ; File type being handled is an BASic script
 TZSVC_FTYPE_ALL:        EQU     10                                       ; Handle any filetype.
 TZSVC_FTYPE_ALLFMT:     EQU     11                                       ; Special case for directory listings, all files but truncated and formatted.
 TZSVCCMD:               DS      virtual 1                                ; Service command.

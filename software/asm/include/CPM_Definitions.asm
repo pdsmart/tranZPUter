@@ -463,8 +463,9 @@ TZSVCDIR_ENTSZ:         EQU     32                                       ; Size 
 TZSVCWAITIORETRIES:     EQU     500                                      ; Wait retries for IO response.
 TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
 TZSVC_FTYPE_MZF:        EQU     0                                        ; File type being handled is an MZF
-TZSVC_FTYPE_CAS:        EQU     1                                        ; File type being handled is an CASsette BASIC script.
-TZSVC_FTYPE_BAS:        EQU     2                                        ; File type being handled is an BASic script
+TZSVC_FTYPE_MZFHDR:     EQU     1                                        ; File type being handled is an MZF Header.
+TZSVC_FTYPE_CAS:        EQU     2                                        ; File type being handled is an CASsette BASIC script.
+TZSVC_FTYPE_BAS:        EQU     3                                        ; File type being handled is an BASic script
 TZSVC_FTYPE_ALL:        EQU     10                                       ; Handle any filetype.
 TZSVC_FTYPE_ALLFMT:     EQU     11                                       ; Special case for directory listings, all files but truncated and formatted.
 

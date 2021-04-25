@@ -488,6 +488,8 @@ TRK0FD3:                DS      virtual 1                                ; Flopp
 TRK0FD4:                DS      virtual 1                                ; Floppy Disk 4 track 0 indicator.
 RETRIES:                DS      virtual 1                                ; Retries count for a command.
 BPARA:                  DS      virtual 1   
+CMTINACTIVE:            DS      virtual 1                                ; Flag to indicate if the CMT is inactive (1)/SD active (0) for the CMT wrapper handlers.
+CMTFILENO:              DS      virtual 1                                ; Sequential file access file number. Used when no filename is given, uses the directory entry number for the set wildcard,
                         DS      virtual (TZVARMEM + TZVARSIZE) - $       ; Top of variable area downwards is used as the working stack, SA1510 space isnt used.
 TZSTACK:                EQU     TZVARMEM + TZVARSIZE
 
@@ -507,8 +509,9 @@ TZSVCDIR_ENTSZ:         EQU     32                                       ; Size 
 TZSVCWAITIORETRIES:     EQU     5                                        ; Wait retries for IO response.
 TZSVCWAITCOUNT:         EQU     65535                                    ; Wait retries for IO request response.
 TZSVC_FTYPE_MZF:        EQU     0                                        ; File type being handled is an MZF
-TZSVC_FTYPE_CAS:        EQU     1                                        ; File type being handled is an CASsette BASIC script.
-TZSVC_FTYPE_BAS:        EQU     2                                        ; File type being handled is an BASic script
+TZSVC_FTYPE_MZFHDR:     EQU     1                                        ; File type being handled is an MZF Header.
+TZSVC_FTYPE_CAS:        EQU     2                                        ; File type being handled is an CASsette BASIC script.
+TZSVC_FTYPE_BAS:        EQU     3                                        ; File type being handled is an BASic script
 TZSVC_FTYPE_ALL:        EQU     10                                       ; Handle any filetype.
 TZSVC_FTYPE_ALLFMT:     EQU     11                                       ; Special case for directory listings, all files but truncated and formatted.
 TZSVCCMD:               DS      virtual 1                                ; Service command.

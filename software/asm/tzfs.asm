@@ -24,6 +24,9 @@
 ;-                            - Added optional machine model code on load command to enable 700/800
 ;-                              programs to be loaded without changing the MZ800 mode switch.
 ;-                  Apr 2021  - Added 40/80 Colour Card control. Reorganised to free up space.
+;-                  Apr 2021  - Updated to add ?RDI/?RDD/?WRI/?WRD/DIR/CD methods to ease conversion of
+;-                              programs from cassette storage to SD storage, first conversion being
+;-                              BASIC SA-5510.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -88,6 +91,21 @@ BANKTOBANK_:JMPTOBNK
             ALIGN   TZFSJMPTABLE
             ORG     TZFSJMPTABLE
 
+
+            ;------------------------------------------------------------------------------------------
+            ; External function Jump table.
+            ; This table is used by external (to TZFS) programs to invoke functionality as required.
+            ; The entry point is fixed, starting at TZFSJMPTABLE incrementing by 3 for each call.
+            ;------------------------------------------------------------------------------------------
+CMT_RDINF:  JP       _CMT_RDINF                                          ; UROMADDR+80H - Tape/SD intercept handler - Read Header
+CMT_RDDATA: JP       _CMT_RDDATA                                         ; UROMADDR+83H - Tape/SD intercept handler - Read Data
+CMT_WRINF:  JP       _CMT_WRINF                                          ; UROMADDR+86H - Tape/SD intercept handler - Write Header
+CMT_WRDATA: JP       _CMT_WRDATA                                         ; UROMADDR+89H - Tape/SD intercept handler - Write Data
+CMT_VERIFY: JP       _CMT_VERIFY                                         ; UROMADDR+8CH - Tape/SD intercept handler - Verify Data
+CMT_DIR:    JP       _CMT_DIR                                            ; UROMADDR+8FH - SD card directory listing command.
+CMT_CD:     JP       _CMT_CD                                             ; UROMADDR+92H - SD change directory command.
+SET_FREQ:   JP       ?SETFREQ                                            ; UROMADDR+95H - Set Frequency command.
+
             ;------------------------------------------------------------------------------------------
             ; Enhanced function Jump table.
             ; This table is generally used by a banked page to call a function within another banked
@@ -115,6 +133,7 @@ BANKTOBANK_:JMPTOBNK
 ?PTESTX:    CALLBNK PTESTX,      TZMM_TZFS3
 ?GETMODEL:  CALLBNK GETMODEL,    TZMM_TZFS3
 ?PLTST:     CALLBNK PLTST,       TZMM_TZFS3
+CNV_ATOS:   CALLBNK CNVSTR_AS,   TZMM_TZFS2                              ; 
             ;-----------------------------------------
 
 
@@ -1156,6 +1175,8 @@ GETSDDIRENT:PUSH    BC
             LD      A,(TZSVCDIRSEC)                                      ; Do we have this sector in the buffer? If we do, use it.
             CP      C
             JR      Z,GETDIRSD0
+            LD      A,TZSVC_FTYPE_MZF                                    ; Setup to filter on MZF type files.
+            LD      (TZSVC_FILE_TYPE),A 
             LD      A,C
             LD      (TZSVCDIRSEC), A                                     ; Store the directory sector we need.
             ;
@@ -1218,7 +1239,8 @@ SETWILDCARD:LD      HL, TZSVCWILDC                                       ; Locat
             ; The file number and file name are then printed out in tabular format. The file number can be used in Load/Save commands
             ; instead of the filename.
             ;
-            ; No inputs or outputs.
+            ; Inputs:
+            ;     DE = Pointer to BUFER start of wildcard if present.
             ;
 DIRSDCARD:  CALL    SETWILDCARD
             LD      A,1                                                  ; Setup screen for printing, account for the title line. TMPLINECNT is used for page pause.
@@ -1256,20 +1278,45 @@ LOADSDCP:   LD      A,0FFH
             LD      (SDAUTOEXEC),A
             JR      LOADSD2
 
+            ; Method/entry point to load a file header only. This method is for compatibility with the Sharp ?RDI/?RDD methods.
+            ;
+LOADSDINF:  LD      A,TZSVC_FTYPE_MZFHDR
+            JR      LOADSD2C
+
+            ; Method/entry point to load a file with header already preset. This method is for compatibility with the Sharp ?RDI/?RDD methods.
+            ;
+LOADSDDATA: LD      A,0FEH                                               ; Mark dont execute and dont print details.
+            LD      (SDAUTOEXEC),A
+            XOR     A
+            LD      (SDCOPY),A   
+            LD      A,TZSVC_FTYPE_MZF                                    ; Full file load.
+            LD      (TZSVC_FILE_TYPE),A
+            LD      HL,(DTADR)                                           ; Load address comes from the header as caller may have changed it, ie. BASIC.
+            LD      (TZSVC_LOADADDR),HL
+            LD      A,0FFH                                               ; Reset result code ready for new result.
+            LD      (RESULT),A
+            JR      LOADSD3A                                             ; Load program defined in CMT header.
+
             ; Load a program from the SD Card into RAM and/or execute it.
             ;
             ; DE points to a number or filename to load.
 LOADSDCARDX:LD      A,0FFH
             JR      LOADSD1
-LOADSDCARD: LD      A,000H
+
+LOADSDCARD: XOR     A
 LOADSD1:    LD      (SDAUTOEXEC),A
             XOR     A                                                    ; Clear copying flag.
 LOADSD2:    LD      (SDCOPY),A   
+            LD      A,TZSVC_FTYPE_MZF                                    ; Default to full file load.
+            ;
+            LD      HL,0FFFFH                                            ; Setup the load address to 0xFFFF = load address definded in file MZF header.
+            LD      (TZSVC_LOADADDR),HL
+            ;
+LOADSD2C:   LD      (TZSVC_FILE_TYPE),A
+            ;
+            PUSH    DE
             LD      A,0FFH                                               ; For interbank calls, save result in a memory variable.
             LD      (RESULT),A
-
-            PUSH    DE
-            LD      A,0FFh                                               ; Tag the filenumber as invalid.
             LD      (TZSVC_FILE_NO), A 
             CALL    _2HEX
             JR      C, LOADSD2A                                          ; 
@@ -1282,27 +1329,33 @@ LOADSD2A:   CALL    ?GETMODEL                                            ; Get m
             INC     A                                                    ; Mainboard mode.
 LOADSD2B:   LD      (TZSVC_MEM_TARGET), A
             POP     HL
-            LD      A,(TZSVC_FILE_NO)                                    ; Test to see if a file number was found, if one wasnt then a filename was given, so copy.
+            LD      A,(TZSVC_FILE_NO)                                    ; Test to see if a file number was found, if none then a filename was given, so copy.
             CP      0FFH
             JR      NZ,LOADSD3A
 LOADSD3:    LD      DE,TZSVC_FILENAME
             LD      BC,TZSVCFILESZ
             LDIR                                                         ; Copy in the MZF filename.
-LOADSD3A:   LD      A,TZSVC_FTYPE_MZF                                    ; Set to MZF type files.
-            LD      (TZSVC_FILE_TYPE),A
-            LD      A,TZSVC_CMD_LOADFILE
+            ;
+LOADSD3A:   LD      A,TZSVC_CMD_LOADFILE
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications with the I/O processor, returning with the required record.
             OR      A
             JR      Z, LOADSD4
             LD      A,255                                                ; Report I/O error as 255.
-            RET
+            JP      LOADSDX2
+
 LOADSD4:    LD      A,(TZSVCRESULT)
             OR      A
+            JR      NZ, LOADSD4A
+            LD      A,(TZSVC_FILE_TYPE)                                  ; Check to see if we are making a full file load, if header only then return.
+            CP      TZSVC_FTYPE_MZF
             JR      Z, LOADSD14
+            JR      LOADSDX
+
 LOADSD4A:   LD      DE,MSGNOTFND
             CALL    ?PRINTMSG                                            ; Print message that file wasnt found.
-            RET
+            LD      A,1
+            JR      LOADSDX2
 
             ; The file has been found and loaded into memory by the I/O processor.
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
@@ -1312,6 +1365,8 @@ LOADSD4A:   LD      DE,MSGNOTFND
 LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoexecute turned off?
             CP      0FFh
             JP      Z,LOADSD15                                           ; Go back to monitor if it has been turned off, else execute.
+            CP      0FEH                                                 ; Extension for ?RDD - if set to 0FEH then dont print information just return.
+            JR      Z,LOADSDX       
             ;
             LD      A,(TZSVCSECTOR+TZFS_ATRB)                            ; Fetch the CMT data from the service sector.
             LD      HL,(TZSVCSECTOR+TZFS_EXADR)                          ; Save the execution address as it may not be in scope later on.
@@ -1524,13 +1579,14 @@ SAVESDCARD: CALL    GETCMTPARM                                           ; Get t
             LD      A,C
             OR      A
             RET     NZ                                                   ; Exit if an error occurred.
-
-            XOR     A                                                    ; Disable the copy flag.
+            ;
+            LD      A,OBJCD                                              ; Set attribute: OBJ
+            LD      (ATRB),A
+            ;
+SAVESDDATA: XOR     A                                                    ; Disable the copy flag.
 SAVESD1:    LD      (SDCOPY),A
             LD      A,0FFH                                               ; Interbank calls, pass result via a memory variable. Assume failure unless updated.
             LD      (RESULT),A
-            LD      A,OBJCD                                              ; Set attribute: OBJ
-            LD      (ATRB),A
 
             ; Save the file by making a service call to the I/O processor, it will allocate a filename on the SD, read the tranZPUter memory directly based on the values in the
             ; service record.
@@ -1570,6 +1626,8 @@ CHGSDDIR:   LD      HL, TZSVC_DIRNAME                                    ; Locat
             LD      B,TZSVCDIRSZ-1                                       ; Ensure we dont overflow the buffer.
             CALL    GETSTRING
             ;
+            LD      A,TZSVC_FTYPE_MZF                                    ; Setup to filter on MZF type files.
+            LD      (TZSVC_FILE_TYPE),A 
             LD      A,TZSVC_CMD_CHANGEDIR                                ; Inform I/O processor that a directory change has taken place, allows it to cache the new dir.
             LD      (TZSVCCMD), A                                        ; Load up the command into the service record.
             CALL    SVC_CMD                                              ; And make communications wit the I/O processor, returning with the required record.
@@ -1587,6 +1645,7 @@ CHGDIR1:    LD      A,(TZSVCRESULT)
             JR      CHGDIR3
 CHGDIR2:    LD      A,0                                                  ; Success.
 CHGDIR3:    LD      (RESULT),A
+            OR      A
             RET
 
             ;-------------------------------------------------------------------------------
@@ -2057,6 +2116,168 @@ GETSTR2:    XOR     A                                                    ; Place
             ; END OF UTILITIES
             ;-------------------------------------------------------------------------------
 
+            ;-------------------------------------------------------------------------------
+            ; API METHODS - Intercept handlers to provide enhanced services to 
+            ;               existing MA-700 BIOS API functions.
+            ;-------------------------------------------------------------------------------
+
+            ; Method to check if the active drive is the CMT.
+CHECKCMT:   LD      A,(CMTINACTIVE)                                      ; Test the flag to see if the default is to use the CMT for the CMT/SD intercept handlers.
+            OR      A                                                    ; Flag set to > 0 if the CMT is not active.
+            RET
+
+            ; Convert the lower 4 bits of A into a Hex character.
+TOHEXDIGIT: AND     00FH                                                 ; Simple logic, add 30H to get 0..9, add additional 7 if value >= 10 to get digits A..F.
+            CP      00AH
+            JR      C,NOADD                 
+            ADD     A,007H
+NOADD:      ADD     A,030H
+            RET    
+
+            ; Convert a number into Hex string and store in buffer pointed to by DE.
+            ;
+TOHEX:      PUSH    DE
+            PUSH    AF                                                   ; Save AF to retrieve lower 4 bits.
+            RRCA                                                         ; Shift upper 4 bits to lower to convert to hex.
+            RRCA    
+            RRCA    
+            RRCA    
+            CALL    TOHEXDIGIT
+            LD      (DE),A                                               ; Store and convert lower 4 bits.
+            INC     DE
+            POP     AF
+            CALL    TOHEXDIGIT
+            LD      (DE),A
+            INC     DE
+            LD      A,CR                                                 ; Terminate with a CR.
+            LD      (DE),A
+            POP     DE                                                   ; DE back to start of string.
+            RET
+
+            ; Handler to intercept the CMT Read Header Information call.
+            ; DE contains a pointer to memory containing the file to load. If (DE) = NULL then
+            ; load the next sequential file from the SD card directory.
+            ; DE = Filename.
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_RDINF: CALL    CHECKCMT                                             ; If drive is set to the CMT Unit exit with Z set so that the original CMT handlers are called.
+            JP      Z,?RDI
+            LD      A,(DE)                                               ; Check to see if empty string given, if so expand the default Next file number into the buffer.
+            CP      CR
+            JR      NZ,_CMT_RDINF1
+            LD      A,(CMTFILENO)                                        ; Get next sequential number and convert to hex.
+            PUSH    AF
+            CALL    TOHEX                         
+            POP     AF
+            INC     A                                                    ; Increment number so next call retrieves the next sequential file.
+            LD      (CMTFILENO),A
+            ;
+_CMT_RDINF1:PUSH    DE
+            CALL    LOADSDINF                                            ; DE already points to the filename, call LOADSDINF to locate it on the SD card and setup the header.
+            POP     DE
+            OR      A
+            SCF
+            RET     NZ                                                   ; > 0 = fail, return with carry set.
+
+            ; Copy the filename into the Buffer provided allowing for file number to name expansion.
+            LD      HL,NAME
+            LD      BC,TZSVCFILESZ
+            LDIR
+            ;
+            OR      A
+            RET                                                          ; 0 = success, return with carry clear.
+
+            ; Handler to intercept the CMT Read Data call and insert selectable SD Card
+            ; Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_RDDATA:CALL    LOADSDDATA
+            OR      A
+            JR      NZ,_CMT_RDERR
+            RET
+_CMT_RDERR: SCF
+            RET
+
+            ; Handler to intercept the CMT Write Header Information call and insert selectable
+            ; SD Card RFS Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+            ;
+            ; At the moment, the WRINF call only creates a filename if none specified. The actual write to file occurs in WRDATA. Once I have more understanding of
+            ; how the sequential data mode works I can adapt it to be compatible.
+_CMT_WRINF: LD      DE,NAME                                              ; Caller has already setup the CMT header so we use this for processing.
+            ;
+            CALL    CHECKCMT
+            JP      Z,?WRI
+            ;
+            LD      A,(DE)                                               ; Check to see if empty string given, if so create a default name.
+            CP      CR
+            JR      NZ,_CMT_WRINF1
+            ;
+            LD      HL,DEFAULTFN
+            LD      BC,DEFAULTFNE - DEFAULTFN
+            LDIR
+            LD      A,(CMTFILENO)                                        ; Get next sequential number and convert to hex.
+            PUSH    AF
+            CALL    TOHEX                         
+            POP     AF
+            INC     A                                                    ; Increment number so next call retrieves the next sequential file.
+            LD      (CMTFILENO),A
+            ;
+_CMT_WRINF1:LD      A,0                                                  ; Always success as nothing is written.
+            OR      A
+            RET
+
+            ; Handler to intercept the CMT Write Data call and insert selectable SD Card RFS
+            ; Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_WRDATA:CALL    SAVESDDATA
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,_CMT_RDERR
+            RET
+
+            ; Handler to intercept the CMT Verify Data call and insert selectable SD Card
+            ; Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_VERIFY:CALL    CHECKCMT
+            JR      Z,_VERIFY
+            LD      DE,MSGNOVERIFY
+            JR      SD_ERRMSG
+
+_VERIFY:    JP      ?VRFY
+
+SD_NOTFND:  LD      DE,MSGNOTFND
+SD_ERRMSG:  CALL    ?PRINTMSG
+            LD      A,1
+            OR      A
+            RET
+
+            ; Method list the active directory contents.
+_CMT_DIR:   CALL    CHECKCMT                                             ; Cannot DIR tape drive so give error.
+            JP      Z,_CMT_NODIR
+            CALL    DIRSDCARD                                            ; List the directory contents with optional directory/wildcard filter.
+            RET
+_CMT_NODIR: LD      DE,MSGNOCMTDIR
+            JR      SD_ERRMSG
+
+            ; Method to set the active directory or CMT unit/SD card. ie. \BAS to change to directory \BAS on the SD card, C to switch to CMT unit.
+_CMT_CD:    LD      A,(DE)
+            CP      'C'                                                  ; Check to see if we are enabling the CMT unit.
+            JR      NZ,_CMT_CD2
+            XOR     A                                                    ; CMT is now active so clear the inactive flag.
+_CMT_CD1:   LD      (CMTINACTIVE),A
+            RET
+_CMT_CD2:   CALL    CHGSDDIR                                             ; Change directory, if not valid do not update the CMTINACTIVE flag.
+            RET     NZ
+            LD      A,1
+            JR      _CMT_CD1
+
+            ;-------------------------------------------------------------------------------
+            ; END OF API METHODS
+            ;-------------------------------------------------------------------------------
 
             ; A method used when testing hardware, scope and code will change but one of its purposes is to generate a scope signal pattern.
             ;
@@ -2068,7 +2289,8 @@ LOCALTEST:  LD      A,0
             ; Quick load prgram names.
 CPMFILENAME:DB      0 ; "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
 BASICFILENM:DB      0 ; "BASIC SA-5510", 000H
-
+DEFAULTFN:  DB      "DEFAULT"
+DEFAULTFNE: EQU     $
 
             ; Error tone.
 ERRTONE:    DB      "A0", 0D7H, "ARA", 0D7H, "AR", 00DH
