@@ -1,8 +1,7 @@
-set_parameter -name ADD_RTL 1 -to coreMZ
-set_global_assignment -name IP_TOOL_NAME "Sharp MZ Core MZ Logic"
+set_global_assignment -name IP_TOOL_NAME "Sharp MZ700 + Soft CPU Core Logic"
 set_global_assignment -name IP_TOOL_VERSION "17.1"
 set_global_assignment -name IP_GENERATED_DEVICE_FAMILY "{Cyclone IV E}"
 set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) coreMZ_pkg.vhd]
-set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) coreMZ.vhd]
-set_global_assignment -name SDC_FILE     [file join $::quartus(qip_path) coreMZ_constraints.sdc]
+set_global_assignment -name VHDL_FILE    [file join $::quartus(qip_path) coreMZ_SoftCPU.vhd]
+set_global_assignment -name SDC_FILE     [file join $::quartus(qip_path) coreMZ_SoftCPU_constraints.sdc]
 set_global_assignment -name QIP_FILE     [file join $::quartus(qip_path) PLL/Video_Clock_IV.qip]

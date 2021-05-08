@@ -313,6 +313,8 @@ CMD33                   EQU     64 + 33                                  ; ERASE
 CMD38                   EQU     64 + 38                                  ; ERASE 
 CMD55                   EQU     64 + 55                                  ; APP_CMD 
 CMD58                   EQU     64 + 58                                  ; READ_OCR 
+SD_SECSIZE              EQU     512                                      ; Default size of an SD Sector 
+SD_RETRIES              EQU     00100H                                   ; Number of retries before giving up.
 
 ; Card type flags (CardType)
 CT_MMC                  EQU     001H                                     ; MMC ver 3 

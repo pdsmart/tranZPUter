@@ -40,13 +40,13 @@ set_time_format -unit ns -decimal_places 3
 create_clock -name {altera_reserved_tck} -period 100.000 -waveform { 0.000 50.000 } [get_ports {altera_reserved_tck}]
 create_clock -name {CLOCK_50}            -period 20.000  -waveform { 0.000 10.000 } [get_ports {CLOCK_50}]
 create_clock -name {VZ80_CLK}            -period 50.000  -waveform { 0.000 25.000 } [get_ports {VZ80_CLK}]
-#create_clock -name {softT80:\CPU0:T80CPU|T80_CLK} -period 50
+create_clock -name {softT80:\CPU0:T80CPU|T80_CLK} -period 50
 
 #**************************************************************
 # Create Generated Clock
 #**************************************************************
 #derive_pll_clocks
-#create_generated_clock -name {CPUCLK_75MHZ}      -source [get_pins {COREMZPLL1|altpll_component|auto_generated|pll1|inclk[0]}] -duty_cycle 50/1 -multiply_by 3 -divide_by 2 -phase  0.00 -master_clock {CLOCK_50} [get_pins {COREMZPLL1|altpll_component|auto_generated|pll1|clk[0]}] 
+create_generated_clock -name {CPUCLK_75MHZ}      -source [get_pins {COREMZPLL1|altpll_component|auto_generated|pll1|inclk[0]}] -duty_cycle 50/1 -multiply_by 3 -divide_by 2 -phase  0.00 -master_clock {CLOCK_50} [get_pins {COREMZPLL1|altpll_component|auto_generated|pll1|clk[0]}] 
 
 
 #**************************************************************
@@ -133,8 +133,8 @@ set_clock_groups -asynchronous -group [get_clocks {altera_reserved_tck}]
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
-#set_multicycle_path -from [get_clocks {CLOCK_50}] -to [get_clocks {CPUCLK_75MHZ}] -setup -end 3
-#set_multicycle_path -from [get_clocks {CLOCK_50}] -to [get_clocks {CPUCLK_75MHZ}] -hold -end 2
+set_multicycle_path -from [get_clocks {CLOCK_50}] -to [get_clocks {CPUCLK_75MHZ}] -setup -end 3
+set_multicycle_path -from [get_clocks {CLOCK_50}] -to [get_clocks {CPUCLK_75MHZ}] -hold -end 2
 
 #**************************************************************
 # Set Maximum Delay

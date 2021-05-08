@@ -52,7 +52,7 @@ package zpu_pkg is
 
     -- Debug options.
     --
-    constant DEBUG_CPU                :     boolean          := false;                               -- Enable CPU debugging output.
+    constant DEBUG_CPU                :     boolean          := false;                                -- Enable CPU debugging output.
     constant DEBUG_LEVEL              :     integer          := 2;                                   -- Level of debugging output. 0 = Basic, such as Breakpoint, 1 =+ Executing Instructions, 2 =+ L1 Cache contents, 3 =+ L2 Cache contents, 4 =+ Memory contents, 5=+ 4Everything else.
     constant DEBUG_MAX_TX_FIFO_BITS   :     integer          := 12;                                  -- Size of UART TX Fifo for debug output.
     constant DEBUG_MAX_FIFO_BITS      :     integer          := 5;                                   -- Size of debug output data records fifo.
@@ -139,7 +139,11 @@ package zpu_pkg is
             RESET_ADDR_CPU            : integer := 0;           -- Initial start address of the CPU.
             START_ADDR_MEM            : integer := 0;           -- Start address of program memory.
             STACK_ADDR                : integer := 0;           -- Initial stack address on CPU start.            
-            CLK_FREQ                  : integer := 100000000           -- Frequency of the input clock.
+ --           EXT_MEM_START             : integer := 16#100000#;  -- Start of off chip memory needing different timing to onchip resources.
+ --           EXT_MEM_SIZE              : integer := 16#080000#;  -- Size of off chip memory.
+ --           EXT_IO_START              : integer := 16#D00000#;  -- Start of off chip I/O region needing different timing to onchip resources.
+ --           EXT_IO_SIZE               : integer := 16#200000#;  -- Size of off chip I/O region.
+            CLK_FREQ                  : integer := 100000000    -- Frequency of the input clock.
         );
         port (
             CLK                       : in  std_logic;

@@ -84,9 +84,15 @@ package softZPU_pkg is
     constant ZPU_ID_EVO_MINIMAL       :     integer    := 16#0501#;                                         -- ID for the ZPU Evo Minimal in this package.
 
     -- EVO CPU specific configuration.
-    constant MAX_EVO_L1CACHE_BITS     :     integer    := 6;                                                -- Maximum size in instructions of the Level 1 instruction cache governed by the number of bits, ie. 8 = 256 instruction cache.
+    constant MAX_EVO_L1CACHE_BITS     :     integer    := 5;                                                -- Maximum size in instructions of the Level 1 instruction cache governed by the number of bits, ie. 8 = 256 instruction cache.
     constant MAX_EVO_L2CACHE_BITS     :     integer    := 14;                                               -- Maximum bit size in bytes of the Level 2 instruction cache governed by the number of bits, ie. 8 = 256 byte cache.
     constant MAX_EVO_MXCACHE_BITS     :     integer    := 4;                                                -- Maximum size of the memory transaction cache governed by the number of bits.
+
+    -- Z80 BUS FSM memory ranges.
+    constant Z80_MEM_START            :     integer    := 16#100000#;                                      -- Start of the Z80 Memory (512KB/1MB) range.
+    constant Z80_MEM_SIZE             :     integer    := 16#080000#;                                      -- Size of the Z80 memory range.
+    constant Z80_IO_START             :     integer    := 16#D00000#;                                      -- Start of the Z80 Memory/IO mapped IO range.
+    constant Z80_IO_SIZE              :     integer    := 16#200000#;                                      -- Size of the Z80
 
     -- Settings for various IO devices.
     --

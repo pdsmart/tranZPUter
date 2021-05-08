@@ -61,7 +61,7 @@ package coreMZ_pkg is
     -- Add the Serial Flash Loader megafunction to enable programming of the EPCS64 NV FPGA Boot ROM.
     constant IMPL_SFL                 : boolean   := true;
 
-    -- Soft CPU's to embed in the core.
+    -- Soft CPU's to embed in the core for the SoftCPU build.
     --
     constant IMPL_SOFTCPU_Z80         : boolean   := true;
     constant IMPL_SOFTCPU_ZPUEVO      : boolean   := true;

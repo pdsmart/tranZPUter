@@ -66,6 +66,7 @@ package softT80_pkg is
     constant IMPL_SOFTCPU_T80         : boolean   := true;
     constant IMPL_SOFTCPU_AZ80        : boolean   := false;
     constant IMPL_SOFTCPU_NEXTZ80     : boolean   := false;
+    --constant IMPL_SOFTCPU_Z80         : boolean   := IMPL_SOFTCPU_T80 or IMPL_SOFTCPU_AZ80 or IMPL_SOFTCPU_NEXTZ80;
 
     ------------------------------------------------------------ 
     -- Function prototypes

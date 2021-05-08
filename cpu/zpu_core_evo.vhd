@@ -64,6 +64,8 @@
 --               change could see the target address changing and the fetch from the old location stored into the new.
 --  210113 v1.5  Fixed shift operators, a misunderstanding of the requirements led to the wrong design which when activated (ie. hardware
 --               options enabled at GCC compile time) failed.
+--  210506 v1.6  Added variable timing for external memory, specifically intended for the Z80 state machine, accessing 8 bit memory/IO
+--               with 32bit ZPU transactions.
 --         
 
 library ieee;
@@ -199,6 +201,10 @@ entity zpu_core_evo is
         RESET_ADDR_CPU            : integer := 0;           -- Initial start address of the CPU.
         START_ADDR_MEM            : integer := 0;           -- Start address of program memory.
         STACK_ADDR                : integer := 0;           -- Initial stack address on CPU start.
+        EXT_MEM_START             : integer := 16#100000#;  -- Start of off chip memory needing different timing to onchip resources.
+        EXT_MEM_SIZE              : integer := 16#080000#;  -- Size of off chip memory.
+        EXT_IO_START              : integer := 16#D00000#;  -- Start of off chip I/O region needing different timing to onchip resources.
+        EXT_IO_SIZE               : integer := 16#200000#;  -- Size of off chip I/O region.
         CLK_FREQ                  : integer := 100000000    -- Frequency of the input clock.
     );
     port (
@@ -549,7 +555,6 @@ architecture behave of zpu_core_evo is
     signal debugRec                        : zpu_dbg_t;                                 -- A complex register record for placing data to be serialised by the debug serialiser.
     signal debugLoad                       : std_logic;                                 -- Load a debug record into the debug serialiser fsm, 1 = load, 0 = inactive.
     signal debugReady                      : std_logic;                                 -- Flag to indicate serializer fsm is busy (0) or available (1).
-
     ---------------------------------------------
     -- Functions specific to the CPU core.
     ---------------------------------------------
@@ -617,7 +622,7 @@ begin
                                                        and 
                                                        (IMPL_USE_INSN_BUS = false or (IMPL_USE_INSN_BUS = true and unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr) >= to_unsigned(MAX_INSNRAM_SIZE, mxFifo(to_integer(mxFifoReadIdx)).addr'length)))
                                                   else '0';
-    cacheL2Full                            <= '1' when cacheL2FetchIdx(ADDR_32BIT_RANGE) - cacheL2StartAddr(ADDR_32BIT_RANGE) = MAX_L2CACHE_SIZE / 4
+    cacheL2Full                            <= '1' when cacheL2FetchIdx(ADDR_32BIT_RANGE) - cacheL2StartAddr(ADDR_32BIT_RANGE) = to_unsigned(MAX_L2CACHE_SIZE / 4, cacheL2StartAddr'length)
                                                   else '0';
     cacheL2InsnAfterPC                     <= cacheL2FetchIdx - pc when cacheL2Invalid = '0' 
                                               else to_unsigned(0, cacheL2InsnAfterPC'length);
@@ -678,20 +683,6 @@ begin
         ------------------------
         elsif falling_edge(CLK) then
     
-            -- TOS and NOS are multiplexed between an immediate result from the MXP (which is latched on the subsequent clock) and the latched value. The valid
-            -- flag indicates which to use.
---            muxTOS.valid                                     <= mxTOS.valid or TOS.valid;
---            if  mxTOS.valid = '1' then
---                muxTOS.word                                  <= mxTOS.word;
---            else
---                muxTOS.word                                  <= TOS.word;
---            end if;
---            muxNOS.valid                                     <= mxNOS.valid or NOS.valid;
---            if  mxNOS.valid = '1' then
---                muxNOS.word                                  <= mxNOS.word;
---            else
---                muxNOS.word                                  <= NOS.word;
---            end if;
 
         -----------------------
         -- RISING CLOCK EDGE --
@@ -702,15 +693,6 @@ begin
             mxTOS.valid                                      <= '0';
             mxNOS.valid                                      <= '0';
 
-            -- Memory signals are one clock width wide unless extended by a wait, if no wait, reset them to inactive to ensure this.
-            if MEM_BUSY = '0' and mxHoldCycles = 0 then
-                MEM_READ_ENABLE                              <= '0';
-                MEM_WRITE_ENABLE                             <= '0';
-
-                -- Width signals are one clock width wide unless extended by a wait signal.
-                MEM_WRITE_BYTE                               <= '0';
-                MEM_WRITE_HWORD                              <= '0';
-            end if;
 
             -- Complete any active cache memory writes.
             if cacheL2Write = '1' and mxHoldCycles = 0 then
@@ -749,532 +731,605 @@ begin
                 MEM_BUSACK                                   <= '0';
             end if;
 
+            -- Memory signals are one clock width wide unless extended by a wait, if no wait, reset them to inactive to ensure this.
+            if MEM_BUSY = '0' and (MEM_READ_ENABLE = '1' or MEM_WRITE_ENABLE = '1') and mxHoldCycles = 0 then
+                MEM_READ_ENABLE                              <= '0';
+                MEM_WRITE_ENABLE                             <= '0';
+
+                -- Width signals are one clock width wide unless extended by a wait signal.
+                MEM_WRITE_BYTE                               <= '0';
+                MEM_WRITE_HWORD                              <= '0';
+
+            -- When a bus request is made, wait until the mxp is idle, this is important as the mxp could read/write memory which gets updated by an external device.
+            elsif MEM_BUSRQ = '1' and MEM_BUSY = '0' and mxState = MemXact_Idle and mxXactSlotsUsed = 0 then
+                mxSuspend                                    <= '1';
+                MEM_BUSACK                                   <= '1';
+
             -- If the hold cycle counter is not 0, then we are holding on the current transaction until it reaches zero, so decrement
             -- ready to test next cycle. This mechanism is to prolong a memory cycle as without it, address setup and hold is 1 cycle and 
             -- valid data is expected at the end of the cycle. ie. the address and control signals are set on the current rising edge and become
             -- active and on the next rising edge the data is expected to be valid, few components (ie. register ram) can meet this timing requirement.
-            if mxHoldCycles > 0 then
-                mxHoldCycles                             <= mxHoldCycles - 1;
-            end if;
+            elsif mxHoldCycles > 0 then
+                mxHoldCycles                                 <= mxHoldCycles - 1;
 
-            -- When a bus request is made, wait until the mxp is idle, this is important as the mxp could read/write memory which gets updated by an external device.
-            if MEM_BUSRQ = '1' and MEM_BUSY = '0' and mxState = MemXact_Idle and mxXactSlotsUsed = 0 then
-                mxSuspend                                    <= '1';
-                MEM_BUSACK                                   <= '1';
-            else
+            -- If the external memory is busy (1) or the wishbone interface is active and no ACK received then we have to back off and wait till next clock cycle and check again.
+            elsif MEM_BUSY = '0' and mxSuspend = '0' and ((IMPL_USE_WB_BUS = true and ((wbXactActive = '1' and WB_ACK_I = '1') or wbXactActive = '0')) or IMPL_USE_WB_BUS = false) then
 
-                -- If the external memory is busy (1) or the wishbone interface is active and no ACK received then we have to back off and wait till next clock cycle and check again.
-                if MEM_BUSY = '0' and mxSuspend = '0' and mxHoldCycles = 0 and ((IMPL_USE_WB_BUS = true and ((wbXactActive = '1' and WB_ACK_I = '1') or wbXactActive = '0')) or IMPL_USE_WB_BUS = false) then
+                -- For external operations involving memory to cache, preset the hold/busy sample counter because it is very hard to meet a single cycle BUSY assertion.
+                --
+                if cacheL2Active = '1' then
+                   mxHoldCycles                              <= 1;
+                end if;
 
-                    -- Memory transaction processor state machine. Idle is the control state and depending upon entries in the queue, debug or L2 usage, it
-                    -- directs the FSM states accordingly. 
-                    case mxState is
+                -- Memory transaction processor state machine. Idle is the control state and depending upon entries in the queue, debug or L2 usage, it
+                -- directs the FSM states accordingly. 
+                case mxState is
 
-                        when MemXact_Idle =>
+                    when MemXact_Idle =>
     
-                            -- If there is an item on the queue and the memory system isnt busy from a previous operation, process
-                            -- the queue item.
-                            --
-                            if mxXactSlotsUsed > 0 then
+                        -- If there is an item on the queue and the memory system isnt busy from a previous operation, process
+                        -- the queue item.
+                        --
+                        if mxXactSlotsUsed > 0 then
     
-                                -- Setup the address from the queue element and process the command.
-                                if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                    WB_ADR_O(ADDR_32BIT_RANGE)          <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                    WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
-                                    WB_CTI_O                            <= "000";
-                                    WB_SEL_O                            <= "1111";
-                                    WB_WE_O                             <= '0';
-                                    WB_CYC_O                            <= '1';
-                                    WB_STB_O                            <= '1';
-                                else
-                                    MEM_ADDR(ADDR_32BIT_RANGE)          <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                    MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
-                                end if;
-                                mxHoldCycles                            <= 1;
+                            -- Setup the address from the queue element and process the command.
+                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                WB_ADR_O(ADDR_32BIT_RANGE)          <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                                WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
+                                WB_CTI_O                            <= "000";
+                                WB_SEL_O                            <= "1111";
+                                WB_WE_O                             <= '0';
+                                WB_CYC_O                            <= '1';
+                                WB_STB_O                            <= '1';
+                            else
+                                MEM_ADDR(ADDR_32BIT_RANGE)          <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                                MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
+                            end if;
+                            mxHoldCycles                            <= 1;
 
-                                case mxFifo(to_integer(mxFifoReadIdx)).cmd is
-                                    -- Read to TOS
-                                    when MX_CMD_READTOS =>
-                                        mxFifoReadIdx                   <= mxFifoReadIdx + 1;
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_TOS;
+                            case mxFifo(to_integer(mxFifoReadIdx)).cmd is
+                                -- Read to TOS
+                                when MX_CMD_READTOS =>
+                                    mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_TOS;
     
-                                    -- Read to NOS
-                                    when MX_CMD_READNOS =>
-                                        mxFifoReadIdx                   <= mxFifoReadIdx + 1;
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_NOS;
+                                -- Read to NOS
+                                when MX_CMD_READNOS =>
+                                    mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_NOS;
     
-                                    -- Read both TOS and NOS (save cycles).
-                                    when MX_CMD_READTOSNOS =>
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_TOSNOS;
+                                -- Read both TOS and NOS (save cycles).
+                                when MX_CMD_READTOSNOS =>
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_TOSNOS;
     
-                                    -- Read Byte to TOS
-                                    when MX_CMD_READBYTETOTOS =>
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_ReadByteToTOS;
+                                -- Read Byte to TOS
+                                when MX_CMD_READBYTETOTOS =>
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_ReadByteToTOS;
     
-                                    -- Read Word to TOS
-                                    when MX_CMD_READWORDTOTOS =>
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_ReadWordToTOS;
+                                -- Read Word to TOS
+                                when MX_CMD_READWORDTOTOS =>
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_ReadWordToTOS;
     
-                                    -- Read word and add to TOS
-                                    when MX_CMD_READADDTOTOS =>
-                                        mxFifoReadIdx                   <= mxFifoReadIdx + 1;
-                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            wbXactActive                <= '1';
-                                        else
-                                            MEM_READ_ENABLE             <= '1';
-                                        end if;
-                                        mxState                         <= MemXact_ReadAddToTOS;
+                                -- Read word and add to TOS
+                                when MX_CMD_READADDTOTOS =>
+                                    mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+                                    mxState                         <= MemXact_ReadAddToTOS;
     
-                                    -- Write value to address
-                                    when MX_CMD_WRITE =>
-                                        mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                -- Write value to address
+                                when MX_CMD_WRITE =>
+                                    mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        WB_DAT_O                    <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                                        WB_WE_O                     <= '1';
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_DATA_OUT                <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                                        MEM_WRITE_ENABLE            <= '1';
+                                    end if;
+
+                                    -- If the data write is to a cached location, update cache at same time.
+                                    if cacheL2MxAddrInCache = '1' then
+                                        cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
+                                        cacheL2WriteData            <= mxFifo(to_integer(mxFifoReadIdx)).data;
+
+                                        -- Initiate a cache memory write.
+                                        cacheL2Write                <= '1';
+                                    end if;
+
+                                    -- Different timing for external memory.
+                                    if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                                        or
+                                        (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                                        mxHoldCycles                <= 2;
+                                    else
+                                        mxHoldCycles                <= 1;
+                                    end if;
+                                    mxState                         <= MemXact_Idle;
+    
+                                -- Read value at address, then write data to the value's address.
+                                when MX_CMD_WRITETOINDADDR =>
+                                    if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                        WB_WE_O                     <= '0';
+                                        wbXactActive                <= '1';
+                                    else
+                                        MEM_READ_ENABLE             <= '1';
+                                    end if;
+
+                                    -- Different timing for external memory.
+                                    if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                                        or
+                                        (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                                        mxHoldCycles                <= 2;
+                                    else
+                                        mxHoldCycles                <= 1;
+                                    end if;
+                                    mxState                         <= MemXact_WriteToAddr;
+    
+                                -- To write a byte, if hardware supports it, write out to the byte aligned address with data in bits 7-0 otherwise
+                                -- we first read the 32bit word, update it and write it back.
+                                when MX_CMD_WRITEBYTETOADDR =>
+                                    -- If Hardware byte write not implemented or it is a write to the Startup ROM we have to resort
+                                    -- to a read-modify-write operation.
+                                    if IMPL_HW_BYTE_WRITE = false
+                                    then
                                         if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            WB_DAT_O                    <= mxFifo(to_integer(mxFifoReadIdx)).data;
-                                            WB_WE_O                     <= '1';
-                                            wbXactActive                <= '1';
+                                            wbXactActive            <= '1';
                                         else
-                                            MEM_DATA_OUT                <= mxFifo(to_integer(mxFifoReadIdx)).data;
-                                            MEM_WRITE_ENABLE            <= '1';
+                                            MEM_READ_ENABLE         <= '1';
+                                        end if;
+                                        cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_32BIT_RANGE)) & "00";
+                                        mxState                     <= MemXact_WriteByteToAddr;
+                                    else
+                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                            WB_DAT_O                <= (others => 'X');
+                                            case mxFifo(to_integer(mxFifoReadIdx)).addr(1 downto 0) is
+                                                when "00" =>
+                                                    WB_SEL_O        <= "1000";
+                                                    WB_DAT_O(31 downto 24) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                                                when "01" =>
+                                                    WB_SEL_O        <= "0100";
+                                                    WB_DAT_O(23 downto 16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                                                when     "10" =>
+                                                    WB_SEL_O        <= "0010";
+                                                    WB_DAT_O(15 downto 8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                                                when     "11" =>
+                                                    WB_SEL_O        <= "0001";
+                                                    WB_DAT_O(7 downto 0) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                                            end case;
+
+                                            WB_ADR_O(ADDR_32BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                                            WB_ADR_O(minAddrBit-1 downto 0)<= (others => '0');
+                                            WB_WE_O                 <= '1';
+                                            wbXactActive            <= '1';
+                                        else
+                                            MEM_ADDR(ADDR_BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_BIT_RANGE);
+                                            MEM_WRITE_ENABLE        <= '1';
+                                            MEM_DATA_OUT            <= X"000000" & mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0);
+                                            MEM_WRITE_BYTE          <= '1';
+                                        end if;
+                                        mxFifoReadIdx               <= mxFifoReadIdx + 1;
+                                        mxState                     <= MemXact_Idle;
+
+                                        -- Different timing for external memory.
+                                        if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                                            or
+                                            (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                                            mxHoldCycles            <= 2;
+                                        else
+                                            mxHoldCycles            <= 1;
                                         end if;
 
                                         -- If the data write is to a cached location, update cache at same time.
                                         if cacheL2MxAddrInCache = '1' then
-                                            cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
-                                            cacheL2WriteData            <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                                            cacheL2WriteAddr        <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
+                                            cacheL2WriteData        <= mxFifo(to_integer(mxFifoReadIdx)).data;
 
                                             -- Initiate a cache memory write.
-                                            cacheL2Write                <= '1';
+                                            cacheL2WriteByte        <= '1';
+                                            cacheL2Write            <= '1';
                                         end if;
-                                        mxState                         <= MemXact_Idle;
-                                        mxHoldCycles                    <= 2;
+                                    end if;
     
-                                    -- Read value at address, then write data to the value's address.
-                                    when MX_CMD_WRITETOINDADDR =>
+                                -- To write a word, if hardware supports it, write out to the word aligned address with data in bits 15-0 otherwise
+                                -- we first read the 32bit word, update it and write it back.
+                                when MX_CMD_WRITEHWORDTOADDR =>
+                                    -- If Hardware half-word write not implemented or it is a write to the Startup ROM we have to resort
+                                    -- to a read-modify-write operation.
+                                    if IMPL_HW_WORD_WRITE = false
+                                    then
                                         if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                            WB_WE_O                     <= '0';
-                                            wbXactActive                <= '1';
+                                            wbXactActive            <= '1';
                                         else
-                                            MEM_READ_ENABLE             <= '1';
+                                            MEM_READ_ENABLE         <= '1';
                                         end if;
-                                        mxState                         <= MemXact_WriteToAddr;
-mxHoldCycles                    <= 2;
-    
-                                    -- To write a byte, if hardware supports it, write out to the byte aligned address with data in bits 7-0 otherwise
-                                    -- we first read the 32bit word, update it and write it back.
-                                    when MX_CMD_WRITEBYTETOADDR =>
-                                        -- If Hardware byte write not implemented or it is a write to the Startup ROM we have to resort
-                                        -- to a read-modify-write operation.
-                                        if IMPL_HW_BYTE_WRITE = false
-                                        then
-                                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                                wbXactActive            <= '1';
-                                            else
-                                                MEM_READ_ENABLE         <= '1';
-                                            end if;
-                                            cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_32BIT_RANGE)) & "00";
-                                            mxState                     <= MemXact_WriteByteToAddr;
+                                        cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_32BIT_RANGE)) & "00";
+                                        mxState                     <= MemXact_WriteHWordToAddr;
+                                    else
+                                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                                            WB_DAT_O                <= (others => 'X');
+                                            case mxFifo(to_integer(mxFifoReadIdx)).addr(1) is
+                                                when '0' =>
+                                                    WB_SEL_O        <= "1100";
+                                                    WB_DAT_O(31 downto 16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
+                                                when '1' =>
+                                                    WB_SEL_O        <= "0011";
+                                                    WB_DAT_O(15 downto 0) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
+                                            end case;
+                                            WB_ADR_O(ADDR_32BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                                            WB_ADR_O(minAddrBit-1 downto 0)<= (others => '0');
+                                            WB_WE_O                 <= '1';
+                                            wbXactActive            <= '1';
                                         else
-                                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                                WB_DAT_O                <= (others => 'X');
-                                                case mxFifo(to_integer(mxFifoReadIdx)).addr(1 downto 0) is
-                                                    when "00" =>
-                                                        WB_SEL_O        <= "1000";
-                                                        WB_DAT_O(31 downto 24) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                                    when "01" =>
-                                                        WB_SEL_O        <= "0100";
-                                                        WB_DAT_O(23 downto 16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                                    when     "10" =>
-                                                        WB_SEL_O        <= "0010";
-                                                        WB_DAT_O(15 downto 8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                                    when     "11" =>
-                                                        WB_SEL_O        <= "0001";
-                                                        WB_DAT_O(7 downto 0) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                                end case;
-
-                                                WB_ADR_O(ADDR_32BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                                WB_ADR_O(minAddrBit-1 downto 0)<= (others => '0');
-                                                WB_WE_O                 <= '1';
-                                                wbXactActive            <= '1';
-                                            else
-                                                MEM_ADDR(ADDR_BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_BIT_RANGE);
-                                                MEM_WRITE_ENABLE        <= '1';
-                                                MEM_DATA_OUT            <= X"000000" & mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0);
-                                                MEM_WRITE_BYTE          <= '1';
-                                            end if;
-                                            mxFifoReadIdx               <= mxFifoReadIdx + 1;
-                                            mxState                     <= MemXact_Idle;
-                                            mxHoldCycles                <= 0;
-mxHoldCycles                    <= 2;
-
-                                            -- If the data write is to a cached location, update cache at same time.
-                                            if cacheL2MxAddrInCache = '1' then
-                                                cacheL2WriteAddr        <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
-                                                cacheL2WriteData        <= mxFifo(to_integer(mxFifoReadIdx)).data;
-
-                                                -- Initiate a cache memory write.
-                                                cacheL2WriteByte        <= '1';
-                                                cacheL2Write            <= '1';
-                                            end if;
+                                            MEM_ADDR(ADDR_BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_16BIT_RANGE) & "0";
+                                            MEM_WRITE_ENABLE        <= '1';
+                                            MEM_DATA_OUT            <= X"0000" & mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0);
+                                            MEM_WRITE_HWORD         <= '1';
                                         end if;
-    
-                                    -- To write a word, if hardware supports it, write out to the word aligned address with data in bits 15-0 otherwise
-                                    -- we first read the 32bit word, update it and write it back.
-                                    when MX_CMD_WRITEHWORDTOADDR =>
-                                        -- If Hardware half-word write not implemented or it is a write to the Startup ROM we have to resort
-                                        -- to a read-modify-write operation.
-                                        if IMPL_HW_WORD_WRITE = false
-                                        then
-                                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                                wbXactActive            <= '1';
-                                            else
-                                                MEM_READ_ENABLE         <= '1';
-                                            end if;
-                                            cacheL2WriteAddr            <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_32BIT_RANGE)) & "00";
-                                            mxState                     <= MemXact_WriteHWordToAddr;
+                                        mxFifoReadIdx               <= mxFifoReadIdx + 1;
+                                        mxState                     <= MemXact_Idle;
+
+                                        -- If the data write is to a cached location, update cache at same time.
+                                        if cacheL2MxAddrInCache = '1' then
+                                            cacheL2WriteAddr        <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
+                                            cacheL2WriteData        <= mxFifo(to_integer(mxFifoReadIdx)).data;
+
+                                            -- Initiate a cache memory write.
+                                            cacheL2WriteHword       <= '1';
+                                            cacheL2Write            <= '1';
+                                        end if;
+
+                                        -- Different timing for external memory.
+                                        if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                                            or
+                                            (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                                            mxHoldCycles            <= 2;
                                         else
-                                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                                WB_DAT_O                <= (others => 'X');
-                                                case mxFifo(to_integer(mxFifoReadIdx)).addr(1) is
-                                                    when '0' =>
-                                                        WB_SEL_O        <= "1100";
-                                                        WB_DAT_O(31 downto 16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
-                                                    when '1' =>
-                                                        WB_SEL_O        <= "0011";
-                                                        WB_DAT_O(15 downto 0) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
-                                                end case;
-                                                WB_ADR_O(ADDR_32BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                                WB_ADR_O(minAddrBit-1 downto 0)<= (others => '0');
-                                                WB_WE_O                 <= '1';
-                                                wbXactActive            <= '1';
-                                            else
-                                                MEM_ADDR(ADDR_BIT_RANGE)<= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_16BIT_RANGE) & "0";
-                                                MEM_WRITE_ENABLE        <= '1';
-                                                MEM_DATA_OUT            <= X"0000" & mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0);
-                                                MEM_WRITE_HWORD         <= '1';
-                                            end if;
-                                            mxFifoReadIdx               <= mxFifoReadIdx + 1;
-                                            mxState                     <= MemXact_Idle;
-
-                                            -- If the data write is to a cached location, update cache at same time.
-                                            if cacheL2MxAddrInCache = '1' then
-                                                cacheL2WriteAddr        <= unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(L2CACHE_BIT_RANGE));
-                                                cacheL2WriteData        <= mxFifo(to_integer(mxFifoReadIdx)).data;
-
-                                                -- Initiate a cache memory write.
-                                                cacheL2WriteHword       <= '1';
-                                                cacheL2Write            <= '1';
-                                            end if;
-                                            mxHoldCycles                <= 0;
-mxHoldCycles                    <= 2;
+                                            mxHoldCycles            <= 1;
                                         end if;
+                                    end if;
     
-                                    when others =>
-                                        mxFifoReadIdx                   <= mxFifoReadIdx + 1;
-                                        mxState                         <= MemXact_Idle;
-                                end case;
+                                when others =>
+                                    mxFifoReadIdx                   <= mxFifoReadIdx + 1;
+                                    mxState                         <= MemXact_Idle;
+                            end case;
 
-                            -- If instruction queue is empty or there are no memory transactions to process and the instruction cache isnt full,
-                            -- read the next instruction and fill the instruction cache.
-                            elsif cacheL2Active = '1' and cacheL2Full = '0' and cacheL2IncAddr = '0' then
-                                if IMPL_USE_WB_BUS = true and cacheL2FetchIdx(WB_SELECT_BIT) = '1' then
-                                    WB_ADR_O(ADDR_32BIT_RANGE)          <= std_logic_vector(cacheL2FetchIdx(ADDR_32BIT_RANGE));
-                                    WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
-                                    WB_WE_O                             <= '0';
-                                    WB_CYC_O                            <= '1';
-                                    WB_STB_O                            <= '1';
-                                    WB_CTI_O                            <= "000";
-                                    WB_SEL_O                            <= "1111";
-                                    wbXactActive                        <= '1';
-                                    mxHoldCycles                        <= 1;
-                                else
-                                    MEM_ADDR(ADDR_32BIT_RANGE)          <= std_logic_vector(cacheL2FetchIdx(ADDR_32BIT_RANGE));
-                                    MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
-                                    MEM_READ_ENABLE                     <= '1';
-                                    mxHoldCycles                        <= 1;
-                                end if;
-                                cacheL2WriteAddr                        <= cacheL2FetchIdx(L2CACHE_BIT_RANGE);
-                                mxState                                 <= MemXact_OpcodeFetch;
+                        -- If there are no memory transactions to complete, debugging is enabled and the debug outputter is active, read the memory location
+                        -- according to the given index.
+                        elsif DEBUG_CPU = true and (debugState /= Debug_Idle and debugState /= Debug_DumpL1 and debugState /= Debug_DumpL2 and debugState /= Debug_DumpMem) then
+                            if IMPL_USE_WB_BUS = true and debugPC(WB_SELECT_BIT) = '1' then
+                                WB_ADR_O(ADDR_32BIT_RANGE)          <= std_logic_vector(debugPC(ADDR_32BIT_RANGE));
+                                WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
+                                WB_WE_O                             <= '0';
+                                WB_CYC_O                            <= '1';
+                                WB_STB_O                            <= '1';
+                                WB_CTI_O                            <= "000";
+                                WB_SEL_O                            <= "1111";
+                                wbXactActive                        <= '1';
+                                mxHoldCycles                        <= 1;
+                            else
+                                MEM_ADDR(ADDR_32BIT_RANGE)          <= std_logic_vector(debugPC(ADDR_32BIT_RANGE));
+                                MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
+                                MEM_READ_ENABLE                     <= '1';
+                            end if;
+                            mxMemVal.valid                          <= '0';
+                            mxState                                 <= MemXact_MemoryFetch;
 
-                            -- If there are no memory transactions to complete, debugging is enabled and the debug outputter is active, read the memory location
-                            -- according to the given index.
-                            elsif DEBUG_CPU = true and (debugState /= Debug_Idle and debugState /= Debug_DumpL1 and debugState /= Debug_DumpL2 and debugState /= Debug_DumpMem) then
-                                if IMPL_USE_WB_BUS = true and debugPC(WB_SELECT_BIT) = '1' then
-                                    WB_ADR_O(ADDR_32BIT_RANGE)          <= std_logic_vector(debugPC(ADDR_32BIT_RANGE));
-                                    WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
-                                    WB_WE_O                             <= '0';
-                                    WB_CYC_O                            <= '1';
-                                    WB_STB_O                            <= '1';
-                                    WB_CTI_O                            <= "000";
-                                    WB_SEL_O                            <= "1111";
-                                    wbXactActive                        <= '1';
-                                    mxHoldCycles                        <= 1;
-                                else
-                                    MEM_ADDR(ADDR_32BIT_RANGE)          <= std_logic_vector(debugPC(ADDR_32BIT_RANGE));
-                                    MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
-                                    MEM_READ_ENABLE                     <= '1';
-                                end if;
-                                mxMemVal.valid                          <= '0';
-                                mxState                                 <= MemXact_MemoryFetch;
+                        -- If instruction queue is empty or there are no memory transactions to process and the instruction cache isnt full,
+                        -- read the next instruction and fill the instruction cache.
+                        elsif cacheL2Active = '1' and cacheL2Full = '0' and cacheL2IncAddr = '0' then
+                            if IMPL_USE_WB_BUS = true and cacheL2FetchIdx(WB_SELECT_BIT) = '1' then
+                                WB_ADR_O(ADDR_32BIT_RANGE)          <= std_logic_vector(cacheL2FetchIdx(ADDR_32BIT_RANGE));
+                                WB_ADR_O(minAddrBit-1 downto 0)     <= (others => '0');
+                                WB_WE_O                             <= '0';
+                                WB_CYC_O                            <= '1';
+                                WB_STB_O                            <= '1';
+                                WB_CTI_O                            <= "000";
+                                WB_SEL_O                            <= "1111";
+                                wbXactActive                        <= '1';
+                            else
+                                MEM_ADDR(ADDR_32BIT_RANGE)          <= std_logic_vector(cacheL2FetchIdx(ADDR_32BIT_RANGE));
+                                MEM_ADDR(minAddrBit-1 downto 0)     <= (others => '0');
+                                MEM_READ_ENABLE                     <= '1';
                             end if;
-    
-                        when MemXact_MemoryFetch =>
-                            if DEBUG_CPU = true then
-                                if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                    mxMemVal.word                       <= unsigned(WB_DAT_I);
-                                else
-                                    mxMemVal.word                       <= unsigned(MEM_DATA_IN);
-                                end if;
-                                mxMemVal.valid                          <= '1';
+                            cacheL2WriteAddr                        <= cacheL2FetchIdx(L2CACHE_BIT_RANGE);
+                            mxState                                 <= MemXact_OpcodeFetch;
+
+                            -- Different timing for external memory.
+                            if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                                or
+                                (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                                mxHoldCycles                        <= 2;
                             end if;
-                            mxState                                     <= MemXact_Idle;
-    
-                        when MemXact_OpcodeFetch =>
+                        end if;
+
+                    when MemXact_MemoryFetch =>
+                        if DEBUG_CPU = true then
                             if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                cacheL2WriteData                        <= WB_DAT_I;
+                                mxMemVal.word                       <= unsigned(WB_DAT_I);
                             else
-                                cacheL2WriteData                        <= MEM_DATA_IN;
+                                mxMemVal.word                       <= unsigned(MEM_DATA_IN);
                             end if;
+                            mxMemVal.valid                          <= '1';
+                        end if;
+                        mxState                                     <= MemXact_Idle;
+    
+                    when MemXact_OpcodeFetch =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            cacheL2WriteData                        <= WB_DAT_I;
+                        else
+                            cacheL2WriteData                        <= MEM_DATA_IN;
+                        end if;
 
-                            -- Initiate a cache memory write if there has been no change of PC.
-                            if cacheL2WriteAddr = cacheL2FetchIdx(L2CACHE_BIT_RANGE) then
-                                cacheL2Write                                <= '1';
-                                cacheL2IncAddr                              <= '1';
-                            end if;
-                            mxState                                     <= MemXact_Idle;
+                        -- Initiate a cache memory write if there has been no change of PC.
+                        if cacheL2WriteAddr = cacheL2FetchIdx(L2CACHE_BIT_RANGE) then
+                            cacheL2Write                            <= '1';
+                            cacheL2IncAddr                          <= '1';
+                        end if;
+                        mxState                                     <= MemXact_Idle;
 
-                        when MemXact_TOS =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                mxTOS.word                              <= unsigned(WB_DAT_I);
-                            else
-                                mxTOS.word                              <= unsigned(MEM_DATA_IN);
-                            end if;
-                            mxTOS.valid                                 <= '1';
-                            if cacheL2Active = '1' then
-                                mxHoldCycles                            <= 1;
-                            end if;
-                            mxState                                     <= MemXact_Idle;
+                    when MemXact_TOS =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            mxTOS.word                              <= unsigned(WB_DAT_I);
+                        else
+                            mxTOS.word                              <= unsigned(MEM_DATA_IN);
+                        end if;
+                        mxTOS.valid                                 <= '1';
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_NOS =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                mxNOS.word                              <= unsigned(WB_DAT_I);
-                            else
-                                mxNOS.word                              <= unsigned(MEM_DATA_IN);
-                            end if;
-                            mxNOS.valid                                 <= '1';
-                            if cacheL2Active = '1' then
-                                mxHoldCycles                            <= 1;
-                            end if;
-                            mxState                                     <= MemXact_Idle;
+                    when MemXact_NOS =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            mxNOS.word                              <= unsigned(WB_DAT_I);
+                        else
+                            mxNOS.word                              <= unsigned(MEM_DATA_IN);
+                        end if;
+                        mxNOS.valid                                 <= '1';
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_TOSNOS =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                mxTOS.word                              <= unsigned(WB_DAT_I);
-                            else
-                                mxTOS.word                              <= unsigned(MEM_DATA_IN);
-                                MEM_ADDR(ADDR_32BIT_RANGE)              <= std_logic_vector(to_unsigned(to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE))) + 1, ADDR_32BIT_SIZE));
-                                MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
-                                MEM_READ_ENABLE                         <= '1';
-                                mxHoldCycles                            <= 1;
-                            end if;
-                            mxTOS.valid                                 <= '1';
-                            mxState                                     <= MemXact_TOSNOS_2;
+                    when MemXact_TOSNOS =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            mxTOS.word                              <= unsigned(WB_DAT_I);
+                        else
+                            mxTOS.word                              <= unsigned(MEM_DATA_IN);
+                            MEM_ADDR(ADDR_32BIT_RANGE)              <= std_logic_vector(to_unsigned(to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE))) + 1, ADDR_32BIT_SIZE));
+                            MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
+                            MEM_READ_ENABLE                         <= '1';
+                            mxHoldCycles                            <= 1;
+                        end if;
+                        mxTOS.valid                                 <= '1';
+                        mxState                                     <= MemXact_TOSNOS_2;
     
-                        when MemXact_TOSNOS_2 =>
-                            if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
-                                WB_ADR_O(ADDR_32BIT_RANGE)              <= std_logic_vector(to_unsigned(to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE))) + 1, ADDR_32BIT_SIZE));
-                                WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
-                                WB_WE_O                                 <= '0';
-                                WB_CYC_O                                <= '1';
-                                WB_STB_O                                <= '1';
-                                WB_SEL_O                                <= "1111";
-                                wbXactActive                            <= '1';
-                                mxState                                 <= MemXact_TOSNOS_3;
-                            else
-                                mxNOS.word                              <= unsigned(MEM_DATA_IN);
-                                mxNOS.valid                             <= '1';
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
-                            if cacheL2Active = '1' then
-                                mxHoldCycles                            <= 1;
-                            end if;
+                    when MemXact_TOSNOS_2 =>
+                        if IMPL_USE_WB_BUS = true and mxFifo(to_integer(mxFifoReadIdx)).addr(WB_SELECT_BIT) = '1' then
+                            WB_ADR_O(ADDR_32BIT_RANGE)              <= std_logic_vector(to_unsigned(to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE))) + 1, ADDR_32BIT_SIZE));
+                            WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
+                            WB_WE_O                                 <= '0';
+                            WB_CYC_O                                <= '1';
+                            WB_STB_O                                <= '1';
+                            WB_SEL_O                                <= "1111";
+                            wbXactActive                            <= '1';
+                            mxState                                 <= MemXact_TOSNOS_3;
+                        else
+                            mxNOS.word                              <= unsigned(MEM_DATA_IN);
+                            mxNOS.valid                             <= '1';
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
 
-                        when MemXact_TOSNOS_3 =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive  = '1' then
-                                mxNOS.word                              <= unsigned(WB_DAT_I);
-                                mxNOS.valid                             <= '1';
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
+                    when MemXact_TOSNOS_3 =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive  = '1' then
+                            mxNOS.word                              <= unsigned(WB_DAT_I);
+                            mxNOS.valid                             <= '1';
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
     
-                        when MemXact_ReadByteToTOS =>
-                            mxTOS.word                                  <= (others => '0');
-                            if wbXactActive   = '1' then
-                                mxTOS.word(7 downto 0)                  <= unsigned(WB_DAT_I(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8));
-                            else
-                                mxTOS.word(7 downto 0)                  <= unsigned(MEM_DATA_IN(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8));
-                            end if;
-                            mxTOS.valid                                 <= '1';
-                            mxFifoReadIdx                               <= mxFifoReadIdx + 1;
-                            mxState                                     <= MemXact_Idle;
+                    when MemXact_ReadByteToTOS =>
+                        mxTOS.word                                  <= (others => '0');
+                        if wbXactActive   = '1' then
+                            mxTOS.word(7 downto 0)                  <= unsigned(WB_DAT_I(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8));
+                        else
+                            mxTOS.word(7 downto 0)                  <= unsigned(MEM_DATA_IN(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8));
+                        end if;
+                        mxTOS.valid                                 <= '1';
+                        mxFifoReadIdx                               <= mxFifoReadIdx + 1;
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_ReadWordToTOS =>
-                            mxTOS.word                                  <= (others => '0');
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                mxTOS.word(15 downto 0)                 <= unsigned(WB_DAT_I(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16));
-                            else
-                                mxTOS.word(15 downto 0)                 <= unsigned(MEM_DATA_IN(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16));
-                            end if;
-                            mxTOS.valid                                 <= '1';
-                            mxFifoReadIdx                               <= mxFifoReadIdx + 1;
-                            mxState                                     <= MemXact_Idle;
+                    when MemXact_ReadWordToTOS =>
+                        mxTOS.word                                  <= (others => '0');
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            mxTOS.word(15 downto 0)                 <= unsigned(WB_DAT_I(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16));
+                        else
+                            mxTOS.word(15 downto 0)                 <= unsigned(MEM_DATA_IN(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16));
+                        end if;
+                        mxTOS.valid                                 <= '1';
+                        mxFifoReadIdx                               <= mxFifoReadIdx + 1;
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_ReadAddToTOS =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                mxTOS.word                              <= muxTOS.word + unsigned(WB_DAT_I);
-                            else
-                                mxTOS.word                              <= muxTOS.word + unsigned(MEM_DATA_IN);
-                            end if;
-                            mxTOS.valid                                 <= '1';
-                            mxState                                     <= MemXact_Idle;
+                    when MemXact_ReadAddToTOS =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            mxTOS.word                              <= muxTOS.word + unsigned(WB_DAT_I);
+                        else
+                            mxTOS.word                              <= muxTOS.word + unsigned(MEM_DATA_IN);
+                        end if;
+                        mxTOS.valid                                 <= '1';
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_WriteToAddr =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                WB_ADR_O(ADDR_32BIT_RANGE)              <= WB_DAT_I(ADDR_32BIT_RANGE);
-                                WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
-                                WB_DAT_O                                <= mxFifo(to_integer(mxFifoReadIdx)).data;
-                                WB_WE_O                                 <= '1';
-                                WB_CYC_O                                <= '1';
-                                WB_STB_O                                <= '1';
-                                WB_SEL_O                                <= "1111";
-                                wbXactActive                            <= '1';
-                                cacheL2WriteAddr                        <= unsigned(WB_DAT_I(L2CACHE_BIT_RANGE));
-                            else
-                                MEM_ADDR(ADDR_32BIT_RANGE)              <= MEM_DATA_IN(ADDR_32BIT_RANGE);
-                                MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
-                                MEM_DATA_OUT                            <= mxFifo(to_integer(mxFifoReadIdx)).data;
-                                MEM_WRITE_ENABLE                        <= '1';
-                                cacheL2WriteAddr                        <= unsigned(MEM_DATA_IN(L2CACHE_BIT_RANGE));
-                            end if;
+                    when MemXact_WriteToAddr =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            WB_ADR_O(ADDR_32BIT_RANGE)              <= WB_DAT_I(ADDR_32BIT_RANGE);
+                            WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
+                            WB_DAT_O                                <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                            WB_WE_O                                 <= '1';
+                            WB_CYC_O                                <= '1';
+                            WB_STB_O                                <= '1';
+                            WB_SEL_O                                <= "1111";
+                            wbXactActive                            <= '1';
+                            cacheL2WriteAddr                        <= unsigned(WB_DAT_I(L2CACHE_BIT_RANGE));
+                        else
+                            MEM_ADDR(ADDR_32BIT_RANGE)              <= MEM_DATA_IN(ADDR_32BIT_RANGE);
+                            MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
+                            MEM_DATA_OUT                            <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                            MEM_WRITE_ENABLE                        <= '1';
+                            cacheL2WriteAddr                        <= unsigned(MEM_DATA_IN(L2CACHE_BIT_RANGE));
+                        end if;
 
-                            -- If the data write is to a cached location, update cache at same time.
-                            if cacheL2MxAddrInCache = '1' then
-                                cacheL2WriteData                        <= mxFifo(to_integer(mxFifoReadIdx)).data;
+                        -- If the data write is to a cached location, update cache at same time.
+                        if cacheL2MxAddrInCache = '1' then
+                            cacheL2WriteData                        <= mxFifo(to_integer(mxFifoReadIdx)).data;
 
-                                -- Initiate a cache memory write.
-                                cacheL2Write                            <= '1';
-                            end if;
-                            mxFifoReadIdx                               <= mxFifoReadIdx + 1;
-                            mxState                                     <= MemXact_Idle;
-mxHoldCycles                    <= 2;
+                            -- Initiate a cache memory write.
+                            cacheL2Write                            <= '1';
+                        end if;
+
+                        -- Different timing for external memory.
+                        if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                            or
+                            (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                            mxHoldCycles                            <= 2;
+                        else
+                            mxHoldCycles                            <= 1;
+                        end if;
+
+                        mxFifoReadIdx                               <= mxFifoReadIdx + 1;
+                        mxState                                     <= MemXact_Idle;
     
-                        when MemXact_WriteByteToAddr =>
-                            -- For wishbone, we need to store the data and terminate the current cycle before we can commence a write cycle.
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                WB_DAT_O                                <= WB_DAT_I;
-                                WB_DAT_O(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                cacheL2WriteData                        <= WB_DAT_I;
-                                mxState                                 <= MemXact_WriteByteToAddr2;
-                            else
-                                MEM_ADDR(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
-                                MEM_DATA_OUT                            <= MEM_DATA_IN;
-                                MEM_DATA_OUT(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
-                                MEM_WRITE_ENABLE                        <= '1';
-                                cacheL2WriteData                        <= MEM_DATA_IN;
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
-                            -- If the data write is to a cached location, we have read the original value, so update cache with modified version.
-                            if cacheL2MxAddrInCache = '1' then
-                                -- Update the data to write with the actual changed byte,
-                                cacheL2WriteData(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                    when MemXact_WriteByteToAddr =>
+                        -- For wishbone, we need to store the data and terminate the current cycle before we can commence a write cycle.
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            WB_DAT_O                                <= WB_DAT_I;
+                            WB_DAT_O(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                            cacheL2WriteData                        <= WB_DAT_I;
+                            mxState                                 <= MemXact_WriteByteToAddr2;
+                        else
+                            MEM_ADDR(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                            MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
+                            MEM_DATA_OUT                            <= MEM_DATA_IN;
+                            MEM_DATA_OUT(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
+                            MEM_WRITE_ENABLE                        <= '1';
+                            cacheL2WriteData                        <= MEM_DATA_IN;
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
 
-                                -- Initiate a cache memory write.
-                                cacheL2Write                            <= '1';
-                            end if;
-mxHoldCycles                    <= 2;
+                        -- If the data write is to a cached location, we have read the original value, so update cache with modified version.
+                        if cacheL2MxAddrInCache = '1' then
+                            -- Update the data to write with the actual changed byte,
+                            cacheL2WriteData(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8+7) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 0))))*8) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(7 downto 0));
 
-                        when MemXact_WriteByteToAddr2 =>
-                            if IMPL_USE_WB_BUS = true then
-                                WB_ADR_O(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
-                                WB_WE_O                                 <= '1';
-                                WB_CYC_O                                <= '1';
-                                WB_STB_O                                <= '1';
-                                WB_SEL_O                                <= "1111";
-                                wbXactActive                            <= '1';
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
+                            -- Initiate a cache memory write.
+                            cacheL2Write                            <= '1';
+                        end if;
+
+                        -- Different timing for external memory.
+                        if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                            or
+                            (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                            mxHoldCycles                            <= 2;
+                        else
+                            mxHoldCycles                            <= 1;
+                        end if;
+
+                    when MemXact_WriteByteToAddr2 =>
+                        if IMPL_USE_WB_BUS = true then
+                            WB_ADR_O(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                            WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
+                            WB_WE_O                                 <= '1';
+                            WB_CYC_O                                <= '1';
+                            WB_STB_O                                <= '1';
+                            WB_SEL_O                                <= "1111";
+                            wbXactActive                            <= '1';
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
     
-                        when MemXact_WriteHWordToAddr =>
-                            if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
-                                WB_DAT_O                                <= WB_DAT_I;
-                                WB_DAT_O(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
-                                cacheL2WriteData                        <= WB_DAT_I;
-                                mxState                                 <= MemXact_WriteHWordToAddr2;
-                            else
-                                MEM_ADDR(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
-                                MEM_DATA_OUT                            <= MEM_DATA_IN;
-                                MEM_DATA_OUT(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
-                                cacheL2WriteData                        <= MEM_DATA_IN;
-                                MEM_WRITE_ENABLE                        <= '1';
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
-                            -- If the data write is to a cached location, we have read the original value, so update cache with modified version.
-                            if cacheL2MxAddrInCache = '1' then
-                                -- Update the data to write with the actual changed byte,
-                                cacheL2WriteData(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
+                    when MemXact_WriteHWordToAddr =>
+                        if IMPL_USE_WB_BUS = true and wbXactActive   = '1' then
+                            WB_DAT_O                                <= WB_DAT_I;
+                            WB_DAT_O(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
+                            cacheL2WriteData                        <= WB_DAT_I;
+                            mxState                                 <= MemXact_WriteHWordToAddr2;
+                        else
+                            MEM_ADDR(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                            MEM_ADDR(minAddrBit-1 downto 0)         <= (others => '0');
+                            MEM_DATA_OUT                            <= MEM_DATA_IN;
+                            MEM_DATA_OUT(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
+                            cacheL2WriteData                        <= MEM_DATA_IN;
+                            MEM_WRITE_ENABLE                        <= '1';
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
 
-                                -- Initiate a cache memory write.
-                                cacheL2Write                            <= '1';
-                            end if;
-mxHoldCycles                    <= 2;
+                        -- If the data write is to a cached location, we have read the original value, so update cache with modified version.
+                        if cacheL2MxAddrInCache = '1' then
+                            -- Update the data to write with the actual changed byte,
+                            cacheL2WriteData(((wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16+15) downto (wordBytes-1-to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr(byteBits-1 downto 1))))*16) <= std_logic_vector(mxFifo(to_integer(mxFifoReadIdx)).data(15 downto 0));
 
-                        when MemXact_WriteHWordToAddr2 =>
-                            if IMPL_USE_WB_BUS = true then
-                                WB_ADR_O(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
-                                WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
-                                WB_WE_O                                 <= '1';
-                                WB_CYC_O                                <= '1';
-                                WB_STB_O                                <= '1';
-                                WB_SEL_O                                <= "1111";
-                                wbXactActive                            <= '1';
-                                mxFifoReadIdx                           <= mxFifoReadIdx + 1;
-                                mxState                                 <= MemXact_Idle;
-                            end if;
+                            -- Initiate a cache memory write.
+                            cacheL2Write                            <= '1';
+                        end if;
+
+                        -- Different timing for external memory.
+                        if ((to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_MEM_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_MEM_START+EXT_MEM_SIZE)
+                            or
+                            (to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) >= EXT_IO_START and to_integer(unsigned(mxFifo(to_integer(mxFifoReadIdx)).addr)) < EXT_IO_START+EXT_IO_SIZE)) then
+
+                            mxHoldCycles                            <= 2;
+                        else
+                            mxHoldCycles                            <= 1;
+                        end if;
+
+                    when MemXact_WriteHWordToAddr2 =>
+                        if IMPL_USE_WB_BUS = true then
+                            WB_ADR_O(ADDR_32BIT_RANGE)              <= mxFifo(to_integer(mxFifoReadIdx)).addr(ADDR_32BIT_RANGE);
+                            WB_ADR_O(minAddrBit-1 downto 0)         <= (others => '0');
+                            WB_WE_O                                 <= '1';
+                            WB_CYC_O                                <= '1';
+                            WB_STB_O                                <= '1';
+                            WB_SEL_O                                <= "1111";
+                            wbXactActive                            <= '1';
+                            mxFifoReadIdx                           <= mxFifoReadIdx + 1;
+                            mxState                                 <= MemXact_Idle;
+                        end if;
     
-                        when others =>
-                    end case;
-                end if;
+                    when others =>
+                end case;
             end if;
 
             -- Instruction Level 2 cache, we read upto the limit then back off until the gap between executed and read instructions
@@ -1284,7 +1339,7 @@ mxHoldCycles                    <= 2;
             if cacheL2Active = '1' then
 
                 -- If L2 fetching has been halted and the PC approaches the threshold (detault 3/4) then advance the Start Address of L2 data and re-enable L2 filling.
-                if cacheL2FetchIdx(ADDR_32BIT_RANGE) > pc(ADDR_32BIT_RANGE) and pc(ADDR_32BIT_RANGE) > cacheL2StartAddr(ADDR_32BIT_RANGE) and (pc - cacheL2StartAddr) > ((MAX_L2CACHE_SIZE/4)*3) and cacheL2Full = '1' then
+                if cacheL2FetchIdx(ADDR_32BIT_RANGE) > pc(ADDR_32BIT_RANGE) and pc(ADDR_32BIT_RANGE) > cacheL2StartAddr(ADDR_32BIT_RANGE) and (pc - cacheL2StartAddr) > to_unsigned(((MAX_L2CACHE_SIZE/4)*3), cacheL2StartAddr'length) and cacheL2Full = '1' then
                     cacheL2StartAddr                            <= cacheL2StartAddr + 16;
                 end if;
 
@@ -1301,10 +1356,10 @@ mxHoldCycles                    <= 2;
     end process;
     
     -- Use a mux to get the latest TOS/NOS values. This saves 1 clock cycle between data being retrieved and processed.
-  muxTOS.valid <= mxTOS.valid or TOS.valid;
-  muxTOS.word  <= mxTOS.word when mxTOS.valid = '1' else TOS.word;
-  muxNOS.valid <= mxNOS.valid or NOS.valid;
-  muxNOS.word  <= mxNOS.word when mxNOS.valid = '1' else NOS.word;
+    muxTOS.valid <= mxTOS.valid or TOS.valid;
+    muxTOS.word  <= mxTOS.word when mxTOS.valid = '1' else TOS.word;
+    muxNOS.valid <= mxNOS.valid or NOS.valid;
+    muxNOS.word  <= mxNOS.word when mxNOS.valid = '1' else NOS.word;
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     ------------------------------------------------------------------------------
@@ -1620,14 +1675,16 @@ mxHoldCycles                    <= 2;
           --end if;
 
             -- Debug statement to output a block of data when a specific address is reached.
-          --if DEBUG_CPU = true and debugState = Debug_Idle and pc = X"1002b67" then --cacheL1FetchIdx < cacheL1FetchIdx_last then
-          --    debugState                                                              <= Debug_Start;
-          --end if;
+          if DEBUG_CPU = true and debugState = Debug_Idle and pc = X"100076" then --cacheL1FetchIdx < cacheL1FetchIdx_last then
+              debugPC_StartAddr                                                       <= to_unsigned(16#0100200#, debugPC_StartAddr'LENGTH);
+              debugPC_EndAddr                                                         <= to_unsigned(16#0100300#, debugPC_EndAddr'LENGTH);
+              debugState                                                              <= Debug_DumpMem;
+          end if;
 
             -- In debug mode, the memory dump start and stop address are controlled by 2 vectors, preload them with defaults if uninitialised.
             if DEBUG_CPU = true and debugPC_EndAddr = 0 then
-                debugPC_StartAddr                                                       <= to_unsigned(16#1000000#, debugPC_StartAddr'LENGTH);
-                debugPC_EndAddr                                                         <= to_unsigned(16#1001000#, debugPC_EndAddr'LENGTH);
+                debugPC_StartAddr                                                       <= to_unsigned(16#0100000#, debugPC_StartAddr'LENGTH);
+                debugPC_EndAddr                                                         <= to_unsigned(16#0100100#, debugPC_EndAddr'LENGTH);
             end if;
 
             -- If the Memory Transaction processor has updated the stack parameters, update our working copy.
@@ -1676,7 +1733,6 @@ mxHoldCycles                    <= 2;
             --    debugPC_Width                                                           <= 32;
             --    debugState                                                              <= Debug_DumpMem;
             --end if;
-    
             -------------------------------------
             -- Execution Processor.
             -------------------------------------
@@ -1791,8 +1847,8 @@ mxHoldCycles                    <= 2;
 
                             -- Execution depends on the L1 having decoded instructions stored at the current PC.
                             -- As a minimum the cache must be valid and that there is at least 1 instruction in the cache. The PC is 1 byte granularity, the cache pointers are 64bit word granularity.
-                            elsif pc >= cacheL1StartAddr and pc < cacheL1FetchIdx and cacheL1StartAddr(ADDR_64BIT_RANGE) /= cacheL1FetchIdx(ADDR_64BIT_RANGE) then
-
+                            elsif pc >= cacheL1StartAddr and pc(ADDR_64BIT_RANGE) < cacheL1FetchIdx(ADDR_64BIT_RANGE) and cacheL1StartAddr(ADDR_64BIT_RANGE) /= cacheL1FetchIdx(ADDR_64BIT_RANGE) then
+                            --elsif pc >= cacheL1StartAddr and pc < cacheL1FetchIdx and cacheL1StartAddr(ADDR_64BIT_RANGE) /= cacheL1FetchIdx(ADDR_64BIT_RANGE) then
 
                                 -- Set the stack offset for current instruction from its opcode.
                                 tSpOffset(4)                                                := not cacheL1(to_integer(pc))(4);
@@ -2855,7 +2911,7 @@ mxHoldCycles                    <= 2;
                                 end if;
 
                                 -- Debug code, if enabled, writes out the current instruction.
-                                if (DEBUG_CPU = true and DEBUG_LEVEL >= 1) and tInsnExec = '1' and pc >= X"000000" then
+                                if (DEBUG_CPU = true and DEBUG_LEVEL >= 1) and tInsnExec = '1' and pc >= X"100000" then --and pc /= X"100075" then
                                     debugRec.FMT_DATA_PRTMODE                               <= "01";
                                     debugRec.FMT_PRE_SPACE                                  <= '0';
                                     debugRec.FMT_POST_SPACE                                 <= '1';
@@ -2897,7 +2953,7 @@ mxHoldCycles                    <= 2;
                                             debugState                                      <= Debug_DumpL2;
                                         end if;
                                     end if;
-                                    if (DEBUG_CPU = true and DEBUG_LEVEL >= 1) and pc >= X"000000" then
+                                    if (DEBUG_CPU = true and DEBUG_LEVEL >= 1) and pc >= X"100000" then
                                         debugRec.FMT_DATA_PRTMODE                           <= "01";
                                         debugRec.FMT_PRE_SPACE                              <= '0';
                                         debugRec.FMT_POST_SPACE                             <= '1';
@@ -3360,7 +3416,7 @@ mxHoldCycles                    <= 2;
                                 debugRec.FMT_POST_SPACE                       <= '0';
                                 debugRec.FMT_PRE_CR                           <= '1';
                                 debugRec.FMT_SPLIT_DATA                       <= "01";
-                                if debugPC = MAX_L2CACHE_SIZE-1 or debugPC(4 downto 3) = "11" then
+                                if debugPC = to_unsigned(MAX_L2CACHE_SIZE-1, debugPC'length) or debugPC(4 downto 3) = "11" then
                                     debugRec.FMT_POST_CRLF                    <= '1';
                                 else
                                     debugRec.FMT_POST_CRLF                    <= '0';
@@ -3393,7 +3449,7 @@ mxHoldCycles                    <= 2;
 
                             when Debug_DumpL2_2 =>
                                 -- Move onto next opcode in Fifo.
-                                if debugPC = MAX_L2CACHE_SIZE then
+                                if debugPC >= to_unsigned(MAX_L2CACHE_SIZE, debugPC'length) then
                                     if debugAllInfo = '1' then
                                         debugState                            <= Debug_DumpMem;
                                     else

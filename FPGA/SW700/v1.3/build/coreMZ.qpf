@@ -18,14 +18,18 @@
 #
 # Quartus Prime
 # Version 17.1.1 Internal Build 593 12/11/2017 SJ Standard Edition
-# Date created = 10:43:30  January 29, 2021
+# Date created = 19:10:10  May 08, 2021
 #
 # -------------------------------------------------------------------------- #
 
 QUARTUS_VERSION = "17.1"
-DATE = "10:43:30  January 29, 2021"
+DATE = "19:10:10  May 08, 2021"
 
 # Revisions
 
+PROJECT_REVISION = "coreMZ_SoftCPU"
 PROJECT_REVISION = "coreMZ"
+PROJECT_REVISION = "coreMZ_emuMZ"
 PROJECT_REVISION = "coreMZ_E115"
+PROJECT_REVISION = "coreMZ_E115_SoftCPU"
+PROJECT_REVISION = "coreMZ_E115_emuMZ"

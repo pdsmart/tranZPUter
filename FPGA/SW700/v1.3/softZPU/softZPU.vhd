@@ -206,6 +206,11 @@ architecture rtl of softZPU is
     signal TIMER1_CS              :       std_logic;                                     -- 0xC10-C1F
     signal SOCCFG_CS              :       std_logic;                                     -- 0xF00-F0F
 
+    -- Debug signals.
+  --signal BRAM_SELECT2           :       std_logic;
+  --signal BRAM_WREN2             :       std_logic;
+  --signal BRAM_DATA_READ2        :       std_logic_vector(WORD_32BIT_RANGE);            -- Data output from BRAM.
+
     -- BRAM
     signal BRAM_DATA_READ         :       std_logic_vector(WORD_32BIT_RANGE);            -- Data output from BRAM.
 
@@ -325,6 +330,32 @@ begin
                                     else
                                     INT_MEM_DATA_IN;
 
+
+    -- Debug code to replace the external 512K RAM with a chunk of BRAM for debugging comparisons.
+--    SOFTCPUBRAM2 : entity work.SinglePortBRAM
+--       generic map (
+--           addrbits              => 15
+--       )
+--       port map (
+--           clk                   => ZPU_CLK,
+--           memAAddr              => BRAM_ADDR(14 downto 0),
+--           memAWriteEnable       => BRAM_WREN2,
+--           memAWriteByte         => BRAM_BYTE_ENABLE,
+--           memAWriteHalfWord     => BRAM_HWORD_ENABLE,
+--           memAWrite             => BRAM_DATA_IN,
+--           memARead              => BRAM_DATA_READ2
+--       );
+--
+--    BRAM_WREN2                   <= '1'                                       when BRAM_SELECT2 = '1'                  and MEM_WRITE_ENABLE = '1'
+--                                    else
+--                                    '1'                                       when BRAM_SELECT2 = '1'                  and INT_MEM_WR_LASTn = "10"
+--                                    else '0';
+--
+--    BRAM_SELECT2                 <= '1'                                       when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(1,  maxAddrBit-WB_ACTIVE - maxZ80BusBit)) 
+--                                    else '0';
+
+
+
     ------------------------------------------------------------------------------------
     -- ZPU Evolution and SoC
     ------------------------------------------------------------------------------------    
@@ -368,6 +399,10 @@ begin
             RESET_ADDR_CPU       => SOC_RESET_ADDR_CPU,     -- Initial start address of the CPU.
             START_ADDR_MEM       => SOC_START_ADDR_MEM,     -- Start address of program memory.
             STACK_ADDR           => SOC_STACK_ADDR,         -- Initial stack address on CPU start.
+  --          EXT_MEM_START        => Z80_MEM_START,          -- Start of off chip memory needing different timing to onchip resources.
+  --          EXT_MEM_SIZE         => Z80_MEM_SIZE,           -- Size of off chip memory.
+  --          EXT_IO_START         => Z80_IO_START,           -- Start of off chip I/O region needing different timing to onchip resources.
+  --          EXT_IO_SIZE          => Z80_IO_SIZE,            -- Size of off chip I/O region.
             CLK_FREQ             => SYSCLK_FREQUENCY        -- System clock frequency.
         )
         port map (
@@ -438,6 +473,8 @@ begin
     -- Select CPU input source, memory or IO.
     MEM_DATA_READ             <= BRAM_DATA_READ       when BRAM_SELECT = '1'
                                  else
+                              -- BRAM_DATA_READ2      when BRAM_SELECT2 = '1'
+                              -- else
                                  IO_DATA_READ_INTRCTL when SOC_IMPL_INTRCTL = true and INTR0_CS = '1'
                                  else
                                  IO_DATA_READ_SOCCFG  when SOC_IMPL_SOCCFG = true  and SOCCFG_CS = '1'
@@ -710,8 +747,8 @@ begin
             ------------------------
             -- HIGH LEVEL         --
             ------------------------
-            ZPU80_RFSHn           <= '1';                                                  -- RFSHn signal to indicate dynamic memory refresh can take place.
-            ZPU80_HALTn           <= '1';                                                  -- HALTn signal indicates that the CPU has executed a "HALT" instruction.
+            ZPU80_RFSHn                <= '1';                                             -- RFSHn signal to indicate dynamic memory refresh can take place.
+            ZPU80_HALTn                <= '1';                                             -- HALTn signal indicates that the CPU has executed a "HALT" instruction.
 
             ------------------------
             -- ASYNCHRONOUS RESET --
@@ -762,7 +799,7 @@ begin
                     Z80_BUS_BUSACKn                        <= '0';
 
                 -- Start a Z80 BUS Read or Write?
-                elsif Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ((MEM_WRITE_ENABLE_LAST = "001" and MEM_WRITE_ENABLE = '1') or (MEM_READ_ENABLE_LAST = "001" and MEM_READ_ENABLE = '1')) and Z80BUS_CS = '1' and Z80_BUS_BUSACKn = '1' then
+                elsif Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ((MEM_WRITE_ENABLE_LAST = "011" and MEM_WRITE_ENABLE = '1') or (MEM_READ_ENABLE_LAST = "001" and MEM_READ_ENABLE = '1')) and Z80BUS_CS = '1' and Z80_BUS_BUSACKn = '1' then
 
                     -- Halt the ZPU, Z80 transactions take a lot more time.
                     IO_WAIT_Z80BUS                         <= '1';
@@ -850,11 +887,11 @@ begin
                         Z80_START_XACT                     <= '0';
                         IO_WAIT_Z80BUS                     <= '0';
                     end if;
-                end if;
 
                 -- Z80 bus domain. Run according to transaction target, either full speed or at the frequency of the hard/soft Z80 to correctly emulate a Z80 bus transaction.
                 --
-                if Z80_BUS_XACT_FULLSPEED = '1' or (Z80_CLK_EDGE = "001" and Z80_CLK = '1') then
+                elsif Z80_BUS_XACT_FULLSPEED = '1' or (Z80_BUS_XACT_FULLSPEED = '0' and Z80_CLK_EDGE = "001" and Z80_CLK = '1') then
+                --elsif (Z80_CLK_EDGE = "001" and Z80_CLK = '1') then
 
                     -- Edge detection of completion flag.
                     Z80_XACT_RUN_LAST                          <= Z80_XACT_RUN;
@@ -889,7 +926,8 @@ begin
                             Z80_BUS_DATA_OUT                   <= Z80_BUS_HOST_ACCESS & "0000000";
                             Z80_BUS_M1n                        <= '1';
                         else
-                            Z80_BUS_DATA_OUT                   <= (others => '0'); --Z80_ADDR(23 downto 16);
+                            --Z80_BUS_DATA_OUT                   <= (others => '0'); --Z80_ADDR(23 downto 16);
+                            Z80_BUS_DATA_OUT                   <= Z80_ADDR(23 downto 16);
                             Z80_BUS_M1n                        <= '0';
                         end if;
                         Z80_BUS_MREQn                          <= '0';
@@ -906,6 +944,8 @@ begin
                     --
                     case Z80BusFSMState is
                         when State_IDLE =>
+                            Z80_BUS_XACT_FULLSPEED             <= '0';
+                            Z80_XACT_RUN                       <= '0';
 
                         -- Setup the address and clear all lines ready for the Z80 transaction.
                         when State_SETUP =>
@@ -920,7 +960,7 @@ begin
                         when State_MEM_READ =>
                             Z80_BUS_MREQn                      <= '0';
                             Z80_BUS_RDn                        <= '0';
-                            Z80BusFSMState                     <= State_MEM_READ_2;
+                            Z80BusFSMState                     <= State_MEM_READ_1;
 
                         -- Detect and insert wait states.
                         when State_MEM_READ_1 =>
@@ -937,20 +977,21 @@ begin
                             --Z80_DATA_IN                        <= ZPU80_DATA_IN & Z80_DATA_IN(31 downto 8);
                             Z80_DATA_IN                        <= Z80_DATA_IN(23 downto 0) & ZPU80_DATA_IN;
 
+                            -- Read in upto Z80_BYTE_COUNT bytes then return to idle. When Z80_XACT_RUN is cleared the ZPU will latch the read word.
+                            --
                             if Z80_BYTE_COUNT > 1 then
                                 Z80_BYTE_COUNT                 <= Z80_BYTE_COUNT -1;
                                 Z80_BYTE_ADDR                  <= Z80_BYTE_ADDR + 1;
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                                Z80_XACT_RUN                   <= '0';
                             end if;
 
                         -- Read sets signals on 1st transaction clock edge.
                         when State_MEM_BYTE_READ =>
                             Z80_BUS_MREQn                      <= '0';
                             Z80_BUS_RDn                        <= '0';
-                            Z80BusFSMState                     <= State_MEM_BYTE_READ_2;
+                            Z80BusFSMState                     <= State_MEM_BYTE_READ_1;
 
                         -- Detect and insert wait states.
                         when State_MEM_BYTE_READ_1 =>
@@ -966,7 +1007,7 @@ begin
                             -- Single byte appears in bits 7:0
                             Z80_DATA_IN                        <= X"000000" & ZPU80_DATA_IN;
                             Z80BusFSMState                     <= State_IDLE;
-                            Z80_XACT_RUN                       <= '0';
+                     --       Z80_XACT_RUN                       <= '0';
 
                         -- Write activates MREQ and prepares data on the bus. 
                         -- Mechanism setup to write MSB Big Endian.
@@ -1003,9 +1044,9 @@ begin
                         -- Activate Write and detect and insert wait states.
                         when State_MEM_WRITE_1 =>
                             Z80_BUS_WRn                        <= '0';
-                   --       if ZPU80_WAITn = '1' or Z80_BUS_VIDEO_WRITE = '1' then
+                            if ZPU80_WAITn = '1' then -- or Z80_BUS_VIDEO_WRITE = '1' then
                                 Z80BusFSMState                 <= State_MEM_WRITE_2;
-                  --        end if;
+                            end if;
 
                         when State_MEM_WRITE_2 =>
                             Z80_BUS_MREQn                      <= '1';
@@ -1016,7 +1057,7 @@ begin
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                                Z80_XACT_RUN                   <= '0';
+                        --        Z80_XACT_RUN                   <= '0';
                             end if;
 
                         -- IO Read sets signals on 1st transaction clock edge as address already setup.
@@ -1031,9 +1072,9 @@ begin
 
                         -- Detect and insert further wait states.
                         when State_IO_READ_2 =>
-                   --         if ZPU80_WAITn = '1' then
+                            if ZPU80_WAITn = '1' then
                                 Z80BusFSMState                 <= State_IO_READ_3;
-                   --         end if;
+                            end if;
 
                         -- End of read cycle we sample and store data.
                         when State_IO_READ_3 =>
@@ -1049,7 +1090,7 @@ begin
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                                Z80_XACT_RUN                   <= '0';
+                             --   Z80_XACT_RUN                   <= '0';
                             end if;
 
                         -- IO Read sets signals on 1st transaction clock edge as address already setup.
@@ -1076,7 +1117,7 @@ begin
                             -- Single byte appears in bits 7:0
                             Z80_DATA_IN                        <= X"000000" & ZPU80_DATA_IN;
                             Z80BusFSMState                     <= State_IDLE;
-                            Z80_XACT_RUN                       <= '0';
+                    --        Z80_XACT_RUN                       <= '0';
 
                         -- Write prepares data on the bus. 
                         when State_IO_WRITE =>
@@ -1129,7 +1170,7 @@ begin
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                                Z80_XACT_RUN                   <= '0';
+                          --      Z80_XACT_RUN                   <= '0';
                             end if;
 
                         when others =>
