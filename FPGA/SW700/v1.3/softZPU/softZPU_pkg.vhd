@@ -10,9 +10,11 @@
 --                  v2.2 board in due course.
 --
 -- Credits:         
--- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+-- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         Dec 2020  - Initial creation.
+--                  May 2021  - Updates to the Z80 FSM and the tranZPUter for better interaction. The
+--                              speed still isnt ideal (ie. 6+ cycles for 32 bit access) but reliable.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -110,17 +112,20 @@ package softZPU_pkg is
     constant SOC_IMPL_INTRCTL         :     boolean    := true;                                             -- Implement the prioritised interrupt controller.
     constant SOC_INTR_MAX             :     integer    := 16;                                               -- Maximum number of interrupt inputs.
     constant SOC_IMPL_SOCCFG          :     boolean    := true;                                             -- Implement the SoC Configuration information registers.
+
     -- Main Boot BRAM on sysbus, contains startup firmware.
     constant SOC_IMPL_BRAM            :     boolean    := true;                                             -- Implement BRAM for the BIOS and initial Stack.
     constant SOC_IMPL_INSN_BRAM       :     boolean    := EVO_USE_INSN_BUS;                                 -- Implement dedicated instruction BRAM for the EVO CPU. Any addr access beyond the BRAM size goes to normal memory.
     constant SOC_MAX_ADDR_BRAM_BIT    :     integer    := 17;                                               -- Max address bit of the System BRAM ROM/Stack in bytes, ie. 15 = 32KB or 8K 32bit words. NB. For non evo CPUS you must adjust the maxMemBit parameter in zpu_pkg.vhd to be the same.
     constant SOC_ADDR_BRAM_START      :     integer    := 0;                                                -- Start address of BRAM.
     constant SOC_ADDR_BRAM_END        :     integer    := SOC_ADDR_BRAM_START+(2**SOC_MAX_ADDR_BRAM_BIT);   -- End address of BRAM = START + 2^SOC_MAX_ADDR_INSN_BRAM_BIT.
+
     -- Secondary block of sysbus RAM, typically implemented in BRAM.
     constant SOC_IMPL_RAM             :     boolean    := false;                                            -- Implement RAM using BRAM, typically for Application programs seperate to BIOS.
     constant SOC_MAX_ADDR_RAM_BIT     :     integer    := 16;                                               -- Max address bit of the System RAM.
     constant SOC_ADDR_RAM_START       :     integer    := 131072;                                           -- Start address of RAM.
     constant SOC_ADDR_RAM_END         :     integer    := SOC_ADDR_RAM_START+(2**SOC_MAX_ADDR_RAM_BIT);     -- End address of RAM =  START + 2^SOC_MAX_ADDR_INSN_BRAM_BIT.
+
     -- Instruction BRAM on sysbus, typically as a 2nd port on the main Boot BRAM (ie. dualport).
     constant SOC_MAX_ADDR_INSN_BRAM_BIT:    integer    := SOC_MAX_ADDR_BRAM_BIT;                            -- Max address bit of the dedicated instruction BRAM in bytes, ie. 15 = 32KB or 8K 32bit words.
     constant SOC_ADDR_INSN_BRAM_START :     integer    := 0;                                                -- Start address of dedicated instrution BRAM.
@@ -178,13 +183,13 @@ package softZPU_pkg is
     subtype Z80BUS_DECODE_RANGE       is natural range maxAddrBit-WB_ACTIVE-1    downto maxZ80BusBit;   -- Upper bits in memory defining the a block within the address space for the Z80 Bus.
  
     -- Potential logic state constants.
-    constant YES                      : std_logic := '1';
-    constant NO                       : std_logic := '0';
-    constant HI                       : std_logic := '1';
-    constant LO                       : std_logic := '0';
-    constant ONE                      : std_logic := '1';
-    constant ZERO                     : std_logic := '0';
-    constant HIZ                      : std_logic := 'Z';
+    constant YES                      :     std_logic  := '1';
+    constant NO                       :     std_logic  := '0';
+    constant HI                       :     std_logic  := '1';
+    constant LO                       :     std_logic  := '0';
+    constant ONE                      :     std_logic  := '1';
+    constant ZERO                     :     std_logic  := '0';
+    constant HIZ                      :     std_logic  := 'Z';
 
 
     ------------------------------------------------------------ 

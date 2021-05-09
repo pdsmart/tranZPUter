@@ -18,7 +18,7 @@
 --                  single design shared by both.
 --
 -- Credits:         
--- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+-- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         June 2020 - Initial creation.
 --                  Sep 2020  - Working first version. Slight sync issues on the VGA modes 1 & 2 as

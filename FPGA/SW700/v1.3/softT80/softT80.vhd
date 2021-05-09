@@ -10,7 +10,7 @@
 --                  v2.2 board in due course.
 --
 -- Credits:         
--- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+-- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         Dec 2020  - Initial creation.
 --                  Jan 2021  - Addition of the AZ80 and the NextZ80. The AZ80 basically works but the
@@ -170,28 +170,28 @@ begin
     -- As the Z80 clock is originating in the CPLD and it is a mux between the mainboard generated clock and the K64F variable frequency clock, we need to bring it into this soft CPU
     -- domain for better sync and timing.
     --
---    process(SYS_RESETn, Z80_CLK, Z80_CLK)
---    begin
---        if SYS_RESETn = '0' then
---            T80_CLK              <= '0';
---
---        elsif rising_edge(Z80_CLK) then
---            -- Detect the clock edges.
---            Z80_CLK_LAST         <= Z80_CLK_LAST(1 downto 0) & Z80_CLK;
---
---            --if Z80_CLK_LAST = "111" and Z80_CLK = '0' then
---            if Z80_CLK = '1' then
---                T80_CLK          <= '0';
---            end if;
---
---            --if Z80_CLK_LAST = "000" and Z80_CLK = '1' and SW_CLKEN = '1' then
---            if Z80_CLK = '0' and SW_CLKEN = '1' then
---                T80_CLK          <= '1';
---            end if;
---        end if;
---    end process;
     T80_CLK <= '1' when Z80_CLK = '1' and SW_CLKEN = '1'
                else '0';
+--  process(SYS_RESETn, Z80_CLK, Z80_CLK)
+--  begin
+--      if SYS_RESETn = '0' then
+--          T80_CLK              <= '0';
+--
+--      elsif rising_edge(Z80_CLK) then
+--          -- Detect the clock edges.
+--          Z80_CLK_LAST         <= Z80_CLK_LAST(1 downto 0) & Z80_CLK;
+--
+--          --if Z80_CLK_LAST = "111" and Z80_CLK = '0' then
+--          if Z80_CLK = '1' then
+--              T80_CLK          <= '0';
+--          end if;
+--
+--          --if Z80_CLK_LAST = "000" and Z80_CLK = '1' and SW_CLKEN = '1' then
+--          if Z80_CLK = '0' and SW_CLKEN = '1' then
+--              T80_CLK          <= '1';
+--          end if;
+--      end if;
+--  end process;
 
     -- Process to reliably reset the T80. The T80 is disabled whilst in hard CPU mode, once switched to soft CPU, the reset is 
     -- activated and held low whilst the CPLD changes its state, this is done via a count down counter, holding RESET low beyond the system

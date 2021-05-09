@@ -10,9 +10,11 @@
 --                  v2.2 board in due course.
 --
 -- Credits:         
--- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+-- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         Dec 2020  - Initial creation.
+--                  May 2021  - Updates to the Z80 FSM and the tranZPUter for better interaction. The
+--                              speed still isnt ideal (ie. 6+ cycles for 32 bit access) but reliable.
 --
 ---------------------------------------------------------------------------------------------------------
 -- This source file is free software: you can redistribute it and-or modify
@@ -332,27 +334,29 @@ begin
 
 
     -- Debug code to replace the external 512K RAM with a chunk of BRAM for debugging comparisons.
---    SOFTCPUBRAM2 : entity work.SinglePortBRAM
---       generic map (
---           addrbits              => 15
---       )
---       port map (
---           clk                   => ZPU_CLK,
---           memAAddr              => BRAM_ADDR(14 downto 0),
---           memAWriteEnable       => BRAM_WREN2,
---           memAWriteByte         => BRAM_BYTE_ENABLE,
---           memAWriteHalfWord     => BRAM_HWORD_ENABLE,
---           memAWrite             => BRAM_DATA_IN,
---           memARead              => BRAM_DATA_READ2
---       );
+    -- Debug runs are then made with external 8bit RAM accessed by the FSM and internal BRAM and compared
+    -- to locate timing issues or tranZPUter instruction issues.
+--  SOFTCPUBRAM2 : entity work.SinglePortBRAM
+--     generic map (
+--         addrbits              => 15
+--     )
+--     port map (
+--         clk                   => ZPU_CLK,
+--         memAAddr              => BRAM_ADDR(14 downto 0),
+--         memAWriteEnable       => BRAM_WREN2,
+--         memAWriteByte         => BRAM_BYTE_ENABLE,
+--         memAWriteHalfWord     => BRAM_HWORD_ENABLE,
+--         memAWrite             => BRAM_DATA_IN,
+--         memARead              => BRAM_DATA_READ2
+--     );
 --
---    BRAM_WREN2                   <= '1'                                       when BRAM_SELECT2 = '1'                  and MEM_WRITE_ENABLE = '1'
---                                    else
---                                    '1'                                       when BRAM_SELECT2 = '1'                  and INT_MEM_WR_LASTn = "10"
---                                    else '0';
+--  BRAM_WREN2                   <= '1'                                       when BRAM_SELECT2 = '1'                  and MEM_WRITE_ENABLE = '1'
+--                                  else
+--                                  '1'                                       when BRAM_SELECT2 = '1'                  and INT_MEM_WR_LASTn = "10"
+--                                  else '0';
 --
---    BRAM_SELECT2                 <= '1'                                       when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(1,  maxAddrBit-WB_ACTIVE - maxZ80BusBit)) 
---                                    else '0';
+--  BRAM_SELECT2                 <= '1'                                       when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(1,  maxAddrBit-WB_ACTIVE - maxZ80BusBit)) 
+--                                  else '0';
 
 
 
@@ -399,10 +403,10 @@ begin
             RESET_ADDR_CPU       => SOC_RESET_ADDR_CPU,     -- Initial start address of the CPU.
             START_ADDR_MEM       => SOC_START_ADDR_MEM,     -- Start address of program memory.
             STACK_ADDR           => SOC_STACK_ADDR,         -- Initial stack address on CPU start.
-  --          EXT_MEM_START        => Z80_MEM_START,          -- Start of off chip memory needing different timing to onchip resources.
-  --          EXT_MEM_SIZE         => Z80_MEM_SIZE,           -- Size of off chip memory.
-  --          EXT_IO_START         => Z80_IO_START,           -- Start of off chip I/O region needing different timing to onchip resources.
-  --          EXT_IO_SIZE          => Z80_IO_SIZE,            -- Size of off chip I/O region.
+            EXT_MEM_START        => Z80_MEM_START,          -- Start of off chip memory needing different timing to onchip resources.
+            EXT_MEM_SIZE         => Z80_MEM_SIZE,           -- Size of off chip memory.
+            EXT_IO_START         => Z80_IO_START,           -- Start of off chip I/O region needing different timing to onchip resources.
+            EXT_IO_SIZE          => Z80_IO_SIZE,            -- Size of off chip I/O region.
             CLK_FREQ             => SYSCLK_FREQUENCY        -- System clock frequency.
         )
         port map (
@@ -503,15 +507,6 @@ begin
                                  '1'                  when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(14, maxAddrBit-WB_ACTIVE - maxZ80BusBit))      -- 1MByte address space, normally 0xE00000:EFFFFF
                                  else '0';
 
---    BRAM_SELECT               <= '1'                  when (MEM_ADDR >= std_logic_vector(to_unsigned(SOC_ADDR_BRAM_START, MEM_ADDR'LENGTH)) and MEM_ADDR < std_logic_vector(to_unsigned(SOC_ADDR_BRAM_END, MEM_ADDR'LENGTH)))
---                                 else
---                                 '1'                  when MEM_ADDR(23 downto 17) = "1101000"
---                                 else '0';
---    Z80BUS_CS                 <= --'1'                  when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(13, maxAddrBit-WB_ACTIVE - maxZ80BusBit))      -- 1MByte address space, normally 0xD00000:DFFFFF
---                                 '1'                  when MEM_ADDR(23 downto 19) = "11011"
---                                 else
---                                 '1'                  when MEM_ADDR(Z80BUS_DECODE_RANGE) = std_logic_vector(to_unsigned(14, maxAddrBit-WB_ACTIVE - maxZ80BusBit))      -- 1MByte address space, normally 0xE00000:EFFFFF
---                                 else '0';
 
     -- Debug output loop through. If the ZPU debugger is enabled, feed the serial output stream to the output, if not enabled, feed the loop input to the output.
     --
@@ -590,16 +585,6 @@ begin
                                  else '0';
     VIDEO_8BIT_CS             <= '1'                                when MEM_ADDR(23 downto 16) = "11001000"                                         -- 8 bit region of video controller where registers are accessed 8bit at a time for read operations.
                                  else '0';
---    VIDEO_ADDR                <= "00001000" & MEM_ADDR(17 downto 2) when VIDEO_8BIT_CS = '1'  and VIDEO_RDn = '0'                                    -- In the 8 bit region, reads are 32bit but the address is x4 so a shift right by 2 will yield a byte level address, 32bits will be return with the top 3 bytes zeroed.
---                                 else
---                                 "0000"     & MEM_ADDR(19 downto 0);
---    VIDEO_DATA_OUT            <= MEM_DATA_WRITE;
---    VIDEO_WRn                 <= '0'                                when (VIDEO_CS = '1'       and MEM_WRITE_ENABLE = '1')
---                                 else '1';
---    VIDEO_RDn                 <= '0'                                when (VIDEO_CS = '1'       and MEM_READ_ENABLE = '1')
---                                 else '1';
---    VIDEO_WR_BYTE             <= MEM_WRITE_BYTE_ENABLE;
---    VIDEO_WR_HWORD            <= MEM_WRITE_HWORD_ENABLE;
 
     -- A process to match the timing requirements of the Video Controller, which in itself is trying to adapt between a variable low frequency (2-24MHz) multicycle
     -- Z80 bus and the ZPU bus which runs at 75-100MHz and can complete in a single cycle.
@@ -774,51 +759,51 @@ begin
             elsif rising_edge(ZPU_CLK) then
 
                 -- Detect the Z80 Clock edge and use it to synchronise with the Z80 Bus.
-                Z80_CLK_EDGE                               <= Z80_CLK_EDGE(1 downto 0) & Z80_CLK;
+                Z80_CLK_EDGE                                   <= Z80_CLK_EDGE(1 downto 0) & Z80_CLK;
 
                 -- If the start of transaction has been acknowledged, clear the flag ready for next request.
                 --
                 if Z80_START_XACT = '1' and Z80_XACT_RUN = '1' then
-                    Z80_START_XACT                         <= '0';
+                    Z80_START_XACT                             <= '0';
                 end if;
 
                 -- Read operations, detect end of transaction and copy to ZPU, then release ZPU from wait state.
                 -- Write operations, just release the ZPU from wait state.
                 if Z80_START_XACT = '0' and Z80_XACT_RUN = '0' then --and Z80_XACT_RUN_LAST = '1' then
-                    IO_WAIT_Z80BUS                         <= '0';
-                    Z80_ADDR                               <= (others => '0');
+                    IO_WAIT_Z80BUS                             <= '0';
+                    Z80_ADDR                                   <= (others => '0');
                 end if;
 
                 -- When a BUS request goes inactive, reset acknowledge and processing commences next cycle.
                 if ZPU80_BUSRQn = '1' then
-                    Z80_BUS_BUSACKn                        <= '1';
+                    Z80_BUS_BUSACKn                            <= '1';
                 end if;
 
                 -- If the bus is requested, wait until the Z80 bus FSM is idle then halt operations.
                 if Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ZPU80_BUSRQn = '0' then
-                    Z80_BUS_BUSACKn                        <= '0';
+                    Z80_BUS_BUSACKn                            <= '0';
 
                 -- Start a Z80 BUS Read or Write?
                 elsif Z80_START_XACT = '0' and Z80_XACT_RUN = '0' and ((MEM_WRITE_ENABLE_LAST = "011" and MEM_WRITE_ENABLE = '1') or (MEM_READ_ENABLE_LAST = "001" and MEM_READ_ENABLE = '1')) and Z80BUS_CS = '1' and Z80_BUS_BUSACKn = '1' then
 
                     -- Halt the ZPU, Z80 transactions take a lot more time.
-                    IO_WAIT_Z80BUS                         <= '1';
+                    IO_WAIT_Z80BUS                             <= '1';
 
                     -- Store the ZPU data, detaching it for 2 purposes, timing and ability to read/write data other than the ZPU required transaction.
-                    Z80_ADDR                               <= "00000" & MEM_ADDR(18 downto 0);
+                    Z80_ADDR                                   <= "00000" & MEM_ADDR(18 downto 0);
 
                     -- Store the write signals for write operations.
                     if MEM_WRITE_ENABLE = '1' then
-                        Z80_DATA_OUT                       <= MEM_DATA_WRITE;
-                        Z80_WRITE_BYTE                     <= MEM_WRITE_BYTE_ENABLE;
-                        Z80_WRITE_HWORD                    <= MEM_WRITE_HWORD_ENABLE;
+                        Z80_DATA_OUT                           <= MEM_DATA_WRITE;
+                        Z80_WRITE_BYTE                         <= MEM_WRITE_BYTE_ENABLE;
+                        Z80_WRITE_HWORD                        <= MEM_WRITE_HWORD_ENABLE;
                     end if;
 
                     -- Preset signals.
                     --
-                    Z80_BUS_HOST_ACCESS                    <= '0';
-                    Z80_START_XACT                         <= '1';
-                    Z80_BUS_XACT_FULLSPEED                 <= '0';
+                    Z80_BUS_HOST_ACCESS                        <= '0';
+                    Z80_START_XACT                             <= '1';
+                    Z80_BUS_XACT_FULLSPEED                     <= '0';
 
                     -- Depending on the accessed address will determine the type of transaction. In order to provide byte level access on a 32bit read CPU, a bank of addresses, word aligned per byte is assigned in addition to
                     -- an address to read 32bit word aligned value.
@@ -847,45 +832,45 @@ begin
                     -- Y+000000:Y+07FFFF - Direct addressable 512K RAM on tranZPUter board.
                     if MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-1) = "010" then
                         if MEM_WRITE_ENABLE = '1' then
-                            Z80_BUS_XACT                   <= State_MEM_WRITE;
+                            Z80_BUS_XACT                       <= State_MEM_WRITE;
                         else
-                            Z80_BUS_XACT                   <= State_MEM_READ;
+                            Z80_BUS_XACT                       <= State_MEM_READ;
                         end if;
-                        Z80_BUS_XACT_FULLSPEED             <= '1';
+                        Z80_BUS_XACT_FULLSPEED                 <= '1';
 
                     -- Y+080000:Y+0BFFFF - Access to host mainboard 64K address space. Due to 32bit mapping, address is shifted right by 2, so each byte on the mainboard is accessed as a 32bit word in the ZPU.
                     elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-2) = "0110" then
                         if MEM_WRITE_ENABLE = '1' then
-                            Z80_BUS_XACT                   <= State_MEM_WRITE;
+                            Z80_BUS_XACT                       <= State_MEM_WRITE;
                         else
-                            Z80_BUS_XACT                   <= State_MEM_BYTE_READ;
+                            Z80_BUS_XACT                       <= State_MEM_BYTE_READ;
                         end if;
-                        Z80_ADDR                           <= "00000" & MEM_ADDR(20 downto 2);
-                        Z80_BUS_HOST_ACCESS                <= '1';
+                        Z80_ADDR                               <= "00000" & MEM_ADDR(20 downto 2);
+                        Z80_BUS_HOST_ACCESS                    <= '1';
 
                     -- Y+0C0000:Y+0FFFFF - Access to 64K I/O space, the upper 8 bits representing the accumulator on a typical Z80 transaction. As above, each byte is accessed as a 32bit word in the ZPU thus 256K ZPU address space is occupied for 64K Z80 I/O space.
                     elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-2) = "0111" then
                         if MEM_WRITE_ENABLE = '1' then
-                            Z80_BUS_XACT                   <= State_IO_WRITE;
+                            Z80_BUS_XACT                       <= State_IO_WRITE;
                         else
-                            Z80_ADDR                       <= "00000" & MEM_ADDR(20 downto 2);
-                            Z80_BUS_XACT                   <= State_IO_BYTE_READ;
+                            Z80_ADDR                           <= "00000" & MEM_ADDR(20 downto 2);
+                            Z80_BUS_XACT                       <= State_IO_BYTE_READ;
                         end if;
-                        Z80_BUS_HOST_ACCESS                <= '1';
+                        Z80_BUS_HOST_ACCESS                    <= '1';
 
                     -- Y+100000:Y+10FFFF - Access to 64K on mainboard, accessed 32bit at a time (via 4x Z80 transactions as needed).
                     elsif MEM_ADDR(maxZ80BusBit+1 downto maxZ80BusBit-4) = "100000" then
                         if MEM_WRITE_ENABLE = '1' then
-                            Z80_BUS_XACT                   <= State_MEM_WRITE;
+                            Z80_BUS_XACT                       <= State_MEM_WRITE;
                         else
-                            Z80_BUS_XACT                   <= State_MEM_READ;
+                            Z80_BUS_XACT                       <= State_MEM_READ;
                         end if;
-                        Z80_BUS_HOST_ACCESS                <= '1';
+                        Z80_BUS_HOST_ACCESS                    <= '1';
 
                     else
-                        Z80_BUS_XACT                       <= State_IDLE;
-                        Z80_START_XACT                     <= '0';
-                        IO_WAIT_Z80BUS                     <= '0';
+                        Z80_BUS_XACT                           <= State_IDLE;
+                        Z80_START_XACT                         <= '0';
+                        IO_WAIT_Z80BUS                         <= '0';
                     end if;
 
                 -- Z80 bus domain. Run according to transaction target, either full speed or at the frequency of the hard/soft Z80 to correctly emulate a Z80 bus transaction.
@@ -1007,7 +992,6 @@ begin
                             -- Single byte appears in bits 7:0
                             Z80_DATA_IN                        <= X"000000" & ZPU80_DATA_IN;
                             Z80BusFSMState                     <= State_IDLE;
-                     --       Z80_XACT_RUN                       <= '0';
 
                         -- Write activates MREQ and prepares data on the bus. 
                         -- Mechanism setup to write MSB Big Endian.
@@ -1057,7 +1041,6 @@ begin
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                        --        Z80_XACT_RUN                   <= '0';
                             end if;
 
                         -- IO Read sets signals on 1st transaction clock edge as address already setup.
@@ -1117,7 +1100,6 @@ begin
                             -- Single byte appears in bits 7:0
                             Z80_DATA_IN                        <= X"000000" & ZPU80_DATA_IN;
                             Z80BusFSMState                     <= State_IDLE;
-                    --        Z80_XACT_RUN                       <= '0';
 
                         -- Write prepares data on the bus. 
                         when State_IO_WRITE =>
@@ -1170,7 +1152,6 @@ begin
                                 Z80BusFSMState                 <= Z80_BUS_XACT;
                             else
                                 Z80BusFSMState                 <= State_IDLE;
-                          --      Z80_XACT_RUN                   <= '0';
                             end if;
 
                         when others =>
@@ -1337,23 +1318,23 @@ begin
             end if; -- rising-edge(ZPU_CLK)
         end process;
     
-        INT_TRIGGERS                 <= ( 0      => '0',
-                                          1      => MICROSEC_DOWN_INTR,
-                                          2      => MILLISEC_DOWN_INTR,
-                                          3      => SECOND_DOWN_INTR,
-                                          4      => TIMER1_TICK,
-                                          5      => '0',                         -- PS2_INT
-                                          6      => '0',                         -- IOCTL_RDINT
-                                          7      => '0',                         -- IOCTL_WRINT
-                                          8      => '0',
-                                          9      => '0',
-                                         10      => '0',
-                                         11      => '0',
-                                         others  => '0');
-        INT_TRIGGER                  <= INT_REQ;    
+        INT_TRIGGERS                                                <= ( 0      => '0',
+                                                                         1      => MICROSEC_DOWN_INTR,
+                                                                         2      => MILLISEC_DOWN_INTR,
+                                                                         3      => SECOND_DOWN_INTR,
+                                                                         4      => TIMER1_TICK,
+                                                                         5      => '0',                         -- PS2_INT
+                                                                         6      => '0',                         -- IOCTL_RDINT
+                                                                         7      => '0',                         -- IOCTL_WRINT
+                                                                         8      => '0',
+                                                                         9      => '0',
+                                                                        10      => '0',
+                                                                        11      => '0',
+                                                                        others  => '0');
+        INT_TRIGGER                                                 <= INT_REQ;    
 
-        INTR0_CS                     <= '1' when IO_SELECT = '1'   and MEM_ADDR(11 downto 4) = "10110000"  -- Interrupt Range 0xFFFFFBxx, 0xB00-B0F
-                                        else '0';
+        INTR0_CS                                                    <= '1' when IO_SELECT = '1'   and MEM_ADDR(11 downto 4) = "10110000"  -- Interrupt Range 0xFFFFFBxx, 0xB00-B0F
+                                                                       else '0';
 
     else generate
         IO_DATA_READ_INTRCTL                                        <= (others => 'X');
@@ -1454,16 +1435,16 @@ begin
                         end if;
 
                     when "001011" => -- SDRAM Address
-                        IO_DATA_READ_SOCCFG                     <= (others => 'X');
+                        IO_DATA_READ_SOCCFG                         <= (others => 'X');
 
                     when "001100" => -- SDRAM Size
-                        IO_DATA_READ_SOCCFG                     <= (others => 'X');
+                        IO_DATA_READ_SOCCFG                         <= (others => 'X');
 
                     when "001101" => -- WB SDRAM Address
-                        IO_DATA_READ_SOCCFG                     <= (others => 'X');
+                        IO_DATA_READ_SOCCFG                         <= (others => 'X');
 
                     when "001110" => -- WB SDRAM Size
-                        IO_DATA_READ_SOCCFG                     <= (others => 'X');
+                        IO_DATA_READ_SOCCFG                         <= (others => 'X');
 
                     when "001111" => -- CPU Reset Address
                         IO_DATA_READ_SOCCFG                         <= std_logic_vector(to_unsigned(SOC_RESET_ADDR_CPU, wordSize));

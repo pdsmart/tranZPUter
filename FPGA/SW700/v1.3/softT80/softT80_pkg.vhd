@@ -7,7 +7,7 @@
 --                  processor such as the T80, AZ80 or NextZ80.
 --                                                     
 -- Credits:         
--- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+-- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 --
 -- History:         June 2020 - Initial creation.
 --                  Oct 2020  - Split off from the Sharp MZ80A Video Module, the Video Module for the 
