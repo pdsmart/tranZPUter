@@ -2286,9 +2286,9 @@ LOCALTEST:  LD      A,0
             OUT     (C),A
             RET
 
-            ; Quick load prgram names.
-CPMFILENAME:DB      0 ; "CPM223", 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H, 000H
-BASICFILENM:DB      0 ; "BASIC SA-5510", 000H
+            ; Quick load program names.
+CPMFILENAME:DB      "CPM223 MZ-700-80", 000H
+BASICFILENM:DB      "S-BASIC", 000H
 DEFAULTFN:  DB      "DEFAULT"
 DEFAULTFNE: EQU     $
 
