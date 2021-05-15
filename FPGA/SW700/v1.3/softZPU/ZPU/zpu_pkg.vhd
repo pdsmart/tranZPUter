@@ -139,10 +139,10 @@ package zpu_pkg is
             RESET_ADDR_CPU            : integer := 0;           -- Initial start address of the CPU.
             START_ADDR_MEM            : integer := 0;           -- Start address of program memory.
             STACK_ADDR                : integer := 0;           -- Initial stack address on CPU start.            
- --           EXT_MEM_START             : integer := 16#100000#;  -- Start of off chip memory needing different timing to onchip resources.
- --           EXT_MEM_SIZE              : integer := 16#080000#;  -- Size of off chip memory.
- --           EXT_IO_START              : integer := 16#D00000#;  -- Start of off chip I/O region needing different timing to onchip resources.
- --           EXT_IO_SIZE               : integer := 16#200000#;  -- Size of off chip I/O region.
+            EXT_MEM_START             : integer := 16#100000#;  -- Start of off chip memory needing different timing to onchip resources.
+            EXT_MEM_SIZE              : integer := 16#080000#;  -- Size of off chip memory.
+            EXT_IO_START              : integer := 16#D00000#;  -- Start of off chip I/O region needing different timing to onchip resources.
+            EXT_IO_SIZE               : integer := 16#200000#;  -- Size of off chip I/O region.
             CLK_FREQ                  : integer := 100000000    -- Frequency of the input clock.
         );
         port (

@@ -84,7 +84,7 @@ SETVMODE:   IN      A,(CPLDINFO)                                         ; Get c
             AND     0C7H                                                 ; Clear video mode setting.
             OR      L                                                    ; Add in new setting.
             SET     2,A                                                  ; Set flag to indicate video mode override - ie, dont use base machine mode.
-            SET     1, A                                                 ; Ensure flag set so on restart the FPGA video mode is selected.
+SETVMODECLR:SET     1, A                                                 ; Ensure flag set so on restart the FPGA video mode is selected.
             LD      (SCRNMODE),A
             LD      A, 016H                                              ; Clear the screen so we start from a known position.
             CALL    PRNT
@@ -132,9 +132,7 @@ SETVGAMODE1:IN      A,(CPLDCFG)
             LD      A,(SCRNMODE)                                         ; Repeat for the screen mode variable, used when resetting or changing display settings.
             AND     03FH                                                 ; Clear VGA setting.
             OR      L                                                    ; Add in new setting.
-            SET     1, A                                                 ; Ensure flag set so on restart the FPGA video mode is selected.
-            LD      (SCRNMODE),A
-            RET
+            JP      SETVMODECLR
 
             ; Method to set the VGA border colour on the external display.
 SETVBORDER: IN      A,(CPLDINFO)                                         ; Get configuration of hardware.
